@@ -22,11 +22,18 @@ export const config = {
     },
   },
   tryOn: {
-    /** "gemini" | "fal". Ko'rsatilmasa: GEMINI_API_KEY bo'lsa Gemini, aks holda fal */
-    get provider(): "gemini" | "fal" {
+    /**
+     * "local" (o'z kompyuterdagi CatVTON serveri) | "gemini" | "fal".
+     * Ko'rsatilmasa: GEMINI_API_KEY bo'lsa Gemini, aks holda fal
+     */
+    get provider(): "local" | "gemini" | "fal" {
       const v = (process.env.TRYON_PROVIDER || "").trim().toLowerCase();
-      if (v === "gemini" || v === "fal") return v;
+      if (v === "local" || v === "gemini" || v === "fal") return v;
       return process.env.GEMINI_API_KEY ? "gemini" : "fal";
+    },
+    /** Lokal server manzili (tryon-local/server.py) */
+    get localUrl() {
+      return (process.env.TRYON_LOCAL_URL || "http://127.0.0.1:8001").replace(/\/$/, "");
     },
     get geminiKey() {
       return (process.env.GEMINI_API_KEY || "").trim();
@@ -34,12 +41,17 @@ export const config = {
     get geminiModel() {
       return process.env.TRYON_GEMINI_MODEL || "gemini-3.1-flash-image";
     },
-    /** Tanlangan provayder kaliti */
+    /** Tanlangan provayder kaliti (lokal server kalit talab qilmaydi) */
     get activeKey() {
+      if (this.provider === "local") return "local";
       return this.provider === "gemini" ? this.geminiKey : this.apiKey;
     },
     get providerLabel() {
-      return this.provider === "gemini" ? "Google Gemini" : "fal.ai";
+      return { local: "lokal SI (CatVTON)", gemini: "Google Gemini", fal: "fal.ai" }[this.provider];
+    },
+    /** Pullik provayderlardagina kunlik limit qo'llanadi */
+    get isPaid() {
+      return this.provider !== "local";
     },
     get endpoint() {
       return process.env.TRYON_ENDPOINT || "fal-ai/kling/v1-5/kolors-virtual-try-on";
@@ -47,10 +59,11 @@ export const config = {
     get apiKey() {
       return (process.env.FAL_KEY || "").trim();
     },
-    /** Shundan uzoq kutilsa demo rejimga o'tiladi (ms) */
+    /** Shundan uzoq kutilsa demo rejimga o'tiladi (ms). Lokal GPU sekinroq: standart 120 s */
     get timeoutMs() {
       const v = Number(process.env.TRYON_TIMEOUT_MS);
-      return Number.isFinite(v) && v >= 5000 ? v : 45_000;
+      if (Number.isFinite(v) && v >= 5000) return v;
+      return this.provider === "local" ? 120_000 : 45_000;
     },
     /** Bir kunda API orqali kiyintirishlar chegarasi (har biri pullik), keyin demo rejim */
     get dailyLimit() {

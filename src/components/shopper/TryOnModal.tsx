@@ -60,6 +60,10 @@ async function demoComposite(photo: string, garmentUrl: string, category: string
 }
 
 const PROVIDER = {
+  local: {
+    label: "do'kondagi lokal SI modeli",
+    retention: "Surat internetga chiqmaydi va qayta ishlangandan keyin o'chiriladi.",
+  },
   gemini: { label: "Google Gemini", retention: "Xizmat uni Google shartlari asosida qayta ishlaydi." },
   fal: { label: "fal.ai", retention: "Xizmatda vaqtinchalik (1 soat) turadi." },
 } as const;

@@ -63,6 +63,11 @@ GitHub faqat kodni saqlaydi, ilovani ishga tushirmaydi. Doimiy havola uchun bepu
 | `npm run db:seed` | Demo omborni qaytadan yuklash (so'rovlar logi ham tozalanadi) |
 | `npm run images:placeholders` | Seed tovarlari uchun vaqtinchalik SVG rasmlarni qayta yaratish |
 
+## Virtual kiyintirish
+
+Provayderlar (`.env` dagi `TRYON_PROVIDER`): `local` (o'z GPU'ngizda bepul, [tryon-local/README.md](tryon-local/README.md)),
+`gemini` yoki `fal` (pullik API). Hech biri ishlamasa, ilova aniq belgilangan "Demo rejim" ni ko'rsatadi.
+
 ## Tovar rasmlari
 
 `public/products/*.svg` hozircha vaqtinchalik chizilgan siluetlar. Haqiqiy suratlarni (oq fonda, JPG/PNG)

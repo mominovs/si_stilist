@@ -6,6 +6,7 @@ import { config } from "@/lib/config";
 import { garmentPng } from "./garment";
 import { runFalTryOn, type TryOnCategory } from "./fal";
 import { GeminiBlockedError, runGeminiTryOn } from "./gemini";
+import { LocalTryOnError, runLocalTryOn } from "./local";
 
 export type TryOnResult =
   | { mode: "api"; image: string }
@@ -49,6 +50,10 @@ async function preparedImage(sku: string | null): Promise<string | null> {
 
 function describeError(e: unknown): string {
   if (e instanceof Error && e.name === "AbortError") return "xizmat juda sekin javob berdi";
+  if (e instanceof LocalTryOnError) {
+    if (e.status === 503) return "lokal model hali yuklanmoqda, bir daqiqadan keyin urinib ko'ring";
+    return e.message;
+  }
   if (e instanceof GeminiBlockedError) return "xizmat bu suratni qayta ishlashni rad etdi, boshqa surat bilan urinib ko'ring";
   if (e instanceof GeminiApiError) {
     if (e.status === 400 && /api key/i.test(e.message)) return "kalit noto'g'ri";
@@ -80,6 +85,9 @@ export async function runProviderTryOn(input: {
   signal: AbortSignal;
 }): Promise<string> {
   const { photo, photoType, garment, category, signal } = input;
+  if (config.tryOn.provider === "local") {
+    return runLocalTryOn({ human: photo, garment, category, signal });
+  }
   if (config.tryOn.provider === "gemini") {
     return runGeminiTryOn({ human: photo, humanType: photoType, garment, category, signal });
   }
@@ -101,7 +109,7 @@ async function demo(product: TryOnProduct, reason: string): Promise<TryOnResult>
  */
 export async function tryOn(product: TryOnProduct, photo: Buffer, photoType: string): Promise<TryOnResult> {
   if (!config.tryOn.activeKey) return demo(product, "virtual kiyintirish kaliti sozlanmagan");
-  if (!takeQuota()) return demo(product, "kunlik kiyintirish limiti tugadi");
+  if (config.tryOn.isPaid && !takeQuota()) return demo(product, "kunlik kiyintirish limiti tugadi");
 
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), config.tryOn.timeoutMs);

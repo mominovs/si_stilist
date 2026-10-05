@@ -143,5 +143,8 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
 - `npm run check:tryon [surat.jpg]` kalitni tekshiradi; `npm run tryon:prepare -- model.jpg [SKU,...]` demo
   natijalarini yaratadi. Bu muhitdan fal.ai bloklangan: haqiqiy API faqat foydalanuvchi kompyuterida sinaladi
 - UI: `src/components/shopper/TryOnModal.tsx` (rozilik -> kamera/yuklash -> ko'rib chiqish -> natija)
+- Lokal provayder (`TRYON_PROVIDER=local`): `tryon-local/server.py` (FastAPI + CatVTON-MaskFree, detectron2'siz,
+  Windows'da pip bilan o'rnatiladi; `setup.bat`, `start.bat`). Standart 768x576 bf16 (6 GB GPU), timeout 120 s,
+  kunlik limit qo'llanmaydi. `--mock` rejimi GPU'siz sinov uchun. Adapter: `src/lib/tryon/local.ts`
 
 @AGENTS.md

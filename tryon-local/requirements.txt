@@ -1,0 +1,12 @@
+# PyTorch (CUDA) setup.bat orqali alohida o'rnatiladi: torch==2.4.0 torchvision==0.19.0 (cu121)
+diffusers==0.31.0
+transformers==4.46.3
+accelerate==0.31.0
+huggingface_hub>=0.25,<1.0
+safetensors
+numpy==1.26.4
+pillow
+tqdm
+packaging
+fastapi
+uvicorn

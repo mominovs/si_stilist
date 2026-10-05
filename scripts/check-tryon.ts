@@ -16,12 +16,27 @@ async function main() {
   const provider = config.tryOn.provider;
   console.log("1) Sozlamalar");
   console.log(`  provayder: ${config.tryOn.providerLabel}`);
-  if (!key) {
-    console.log(`  .env faylida ${provider === "gemini" ? "GEMINI_API_KEY" : "FAL_KEY"} topilmadi.`);
-    process.exit(1);
+  if (provider === "local") {
+    console.log(`  server: ${config.tryOn.localUrl}`);
+    try {
+      const health = await (await fetch(`${config.tryOn.localUrl}/health`)).json();
+      console.log(`  holat: ${JSON.stringify(health)}`);
+      if (health.status !== "ready") {
+        console.log("  -> Model hali tayyor emas (yuklanmoqda yoki xato). Server oynasidagi yozuvlarga qarang.");
+        process.exit(1);
+      }
+    } catch {
+      console.log("  -> Lokal server ishlamayapti. tryon-local\\start.bat ni ishga tushiring.");
+      process.exit(1);
+    }
+  } else {
+    if (!key) {
+      console.log(`  .env faylida ${provider === "gemini" ? "GEMINI_API_KEY" : "FAL_KEY"} topilmadi.`);
+      process.exit(1);
+    }
+    console.log(`  kalit: ${key.slice(0, 8)}...${key.slice(-4)}`);
+    console.log(`  model: ${provider === "gemini" ? config.tryOn.geminiModel : config.tryOn.endpoint}`);
   }
-  console.log(`  kalit: ${key.slice(0, 8)}...${key.slice(-4)}`);
-  console.log(`  model: ${provider === "gemini" ? config.tryOn.geminiModel : config.tryOn.endpoint}`);
 
   const photoPath = process.argv[2];
   const garment = await garmentPng("/products/ky-01.svg");

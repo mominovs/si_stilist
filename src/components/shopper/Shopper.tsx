@@ -31,7 +31,7 @@ export function Shopper({
 }: {
   categories: string[];
   colors: string[];
-  tryOnProvider: "gemini" | "fal";
+  tryOnProvider: "local" | "gemini" | "fal";
 }) {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
