@@ -93,3 +93,15 @@ Kirish: o'zbekcha (lotin yoki kirill) yoki ruscha erkin matn. Chiqish: faqat JSO
 Har bosqich oxirida loyiha ishlaydigan holatda bo'lsin.
 Birinchi qadam: 1-bosqich rejasini va papka tuzilmasini taklif qil.
 Men tasdiqlaganimdan keyin kod yozishni boshla.
+
+## Texnik eslatmalar (1-bosqichdan keyin)
+- Next.js 16: `middleware` o'rniga `src/proxy.ts`; `params`/`searchParams` Promise. Kod yozishdan oldin
+  `node_modules/next/dist/docs/` ni tekshir (batafsil: AGENTS.md)
+- Prisma 7: klient `src/generated/prisma` ga generatsiya qilinadi (`@/generated/prisma/client`),
+  `@prisma/adapter-pg` orqali ulanadi, sozlama `prisma.config.ts` da. `migrate dev` klientni avtomatik
+  generatsiya qilmaydi: `npx prisma generate`
+- Katalog lug'ati (kategoriya, rang, uslub, mavsum): `src/lib/catalog.ts`
+- Tashqi xizmat sozlamalari (model, endpoint): `src/lib/config.ts`
+- Seed: `prisma/seed-data/products.ts` (48 tovar, deterministik qoldiq; krossovka/palto/sumka ataylab yo'q)
+
+@AGENTS.md

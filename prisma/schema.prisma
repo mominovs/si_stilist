@@ -1,0 +1,86 @@
+// SI Stilist ma'lumotlar modeli.
+// Kategoriya va rang ataylab enum emas, oddiy matn (kichik harflarda):
+// xaridor bazada yo'q kategoriyani so'rasa ham, u so'rov sifatida saqlanadi.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Gender {
+  erkak
+  ayol
+  unisex
+}
+
+enum RequestStatus {
+  qoniqtirildi
+  qisman
+  qoniqtirilmadi
+}
+
+model Product {
+  id          Int              @id @default(autoincrement())
+  sku         String?          @unique
+  name        String
+  category    String
+  gender      Gender
+  color       String
+  styleTags   String[]
+  // "yoz" | "qish" | "bahor-kuz" | "hamma"
+  season      String           @default("hamma")
+  // Narx so'mda, butun son
+  price       Int
+  imageUrl    String
+  description String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  variants    ProductVariant[]
+  results     RequestResult[]
+
+  @@index([category])
+  @@index([gender])
+}
+
+model ProductVariant {
+  id        Int     @id @default(autoincrement())
+  productId Int
+  size      String
+  stock     Int     @default(0)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, size])
+}
+
+model Request {
+  id          Int             @id @default(autoincrement())
+  createdAt   DateTime        @default(now())
+  rawText     String
+  // LLM parse natijasi (yoki filtr tugmalaridan yig'ilgan so'rov)
+  parsed      Json?
+  // "llm" | "filtr"
+  mode        String          @default("llm")
+  resultCount Int             @default(0)
+  status      RequestStatus
+  results     RequestResult[]
+
+  @@index([createdAt])
+  @@index([status])
+}
+
+model RequestResult {
+  id        Int     @id @default(autoincrement())
+  requestId Int
+  productId Int
+  rank      Int
+  // false bo'lsa: "Shu rangda yo'q, o'xshashi bor"
+  isExact   Boolean @default(true)
+  request   Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([requestId])
+}
