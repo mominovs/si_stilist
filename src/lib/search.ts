@@ -43,8 +43,11 @@ export type SearchResponse = {
   results: ResultCard[];
 };
 
-function replyMessage(status: MatchStatus, parsed: ParsedQuery | null, count: number): string {
-  if (!parsed) return "Kechirasiz, so'rovni tushunmadim. Pastdagi filtrlar orqali tanlab ko'ring.";
+function replyMessage(status: MatchStatus, parsed: ParsedQuery | null, count: number, mode: ParseMode): string {
+  if (mode === "rad") {
+    return "Men faqat kiyim tanlashda yordam bera olaman. Masalan: \"bayramga ko'k ko'ylak\" deb yozing.";
+  }
+  if (!parsed) return "Qanday kiyim kerakligini aniqroq yozing (turi, rangi yoki qayerga kiyishingiz) yoki filtrdan tanlang.";
   if (status === "qoniqtirildi") return `Sizga mos ${count} ta variant topdim.`;
   if (status === "qisman") return "Aynan shunday tovar hozir yo'q, lekin o'xshashlari bor.";
   const what = parsed.kategoriya ? `"${parsed.kategoriya}"` : "bunday tovar";
@@ -86,7 +89,7 @@ export async function runSearch(
     mode,
     parsed,
     status,
-    message: replyMessage(status, parsed, results.length),
+    message: replyMessage(status, parsed, results.length, mode),
     llmError,
     results: results.map(({ product: p, isExact, reason, tier }) => ({
       id: p.id,

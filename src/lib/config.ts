@@ -15,6 +15,11 @@ export const config = {
       const v = Number(process.env.LLM_TIMEOUT_MS);
       return Number.isFinite(v) && v >= 2000 ? v : 12_000;
     },
+    /** Bir kunda SI'ga yuboriladigan so'rovlar chegarasi (byudjet himoyasi), keyin oddiy tahlil */
+    get dailyLimit() {
+      const v = Number(process.env.LLM_DAILY_LIMIT);
+      return Number.isFinite(v) && v > 0 ? v : 500;
+    },
   },
   tryOn: {
     get endpoint() {

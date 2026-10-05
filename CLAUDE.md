@@ -113,5 +113,9 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
 - Request.mode: `llm` | `kalit` | `filtr` | `tushunilmadi`
 - Xaridor sahifasi ochilganda `after()` orqali LLM "isitiladi" (10 daqiqada 1 marta), SI holati sarlavhada ko'rinadi
 - Testlar: `npm test` (node:test + tsx), seed ombori ustida moslashtirish testlari bor
+- Himoya: LLM javobida `mavzu` ("kiyim" | "boshqa"); "boshqa" -> mode `rad`, tovar qidirilmaydi. Mezonsiz
+  so'rov -> `tushunilmadi`. Xaridor matni `<xaridor_sorovi>` ichida ma'lumot sifatida beriladi; LLM maydonlari
+  `normalize.ts` da tozalanadi (belgilar, uzunlik). `/api/search`: 20 so'rov/daqiqa/IP, SI kunlik limiti
+  `LLM_DAILY_LIMIT` (standart 500)
 
 @AGENTS.md

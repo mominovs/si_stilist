@@ -16,7 +16,15 @@ export const parsedQuerySchema = z.object({
 
 export type ParsedQuery = z.infer<typeof parsedQuerySchema>;
 
-export type ParseMode = "llm" | "kalit" | "filtr" | "tushunilmadi";
+// LLM javobi: so'rov maydonlari + mavzu belgisi. "boshqa" bo'lsa tovar qidirilmaydi.
+export const llmOutputSchema = parsedQuerySchema.extend({
+  mavzu: z.enum(["kiyim", "boshqa"]),
+});
+
+export type LlmOutput = z.infer<typeof llmOutputSchema>;
+
+// rad: so'rov kiyimga oid emas (masalan, "Ronaldo necha yoshda")
+export type ParseMode = "llm" | "kalit" | "filtr" | "tushunilmadi" | "rad";
 
 export const EMPTY_QUERY: ParsedQuery = {
   kategoriya: null,

@@ -53,6 +53,11 @@ export function Shopper({ categories, colors }: { categories: string[]; colors: 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
+      if (res.status === 429) {
+        const { error } = await res.json().catch(() => ({ error: "Juda ko'p so'rov. Birozdan keyin urinib ko'ring." }));
+        setTurns((ts) => ts.map((t) => (t.id === id ? { ...t, error } : t)));
+        return;
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data: SearchResponse = await res.json();
       setTurns((ts) => ts.map((t) => (t.id === id ? { ...t, response: data } : t)));

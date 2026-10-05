@@ -7,6 +7,7 @@ const MODE: Record<ParseMode, { label: string; cls: string }> = {
   kalit: { label: "Oddiy tahlil", cls: "bg-neutral-200 text-neutral-700" },
   filtr: { label: "Filtr", cls: "bg-sky-100 text-sky-800" },
   tushunilmadi: { label: "Tushunilmadi", cls: "bg-red-100 text-red-700" },
+  rad: { label: "Mavzudan tashqari", cls: "bg-neutral-200 text-neutral-700" },
 };
 
 export function queryChips(q: ParsedQuery): string[] {
