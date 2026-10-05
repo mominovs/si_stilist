@@ -5,6 +5,8 @@ import type { SearchResponse } from "@/lib/search";
 import { FilterPanel, type Filters } from "./FilterPanel";
 import { QueryChips } from "./QueryChips";
 import { ResultCard } from "./ResultCard";
+import { TryOnModal } from "./TryOnModal";
+import type { ResultCard as Card } from "@/lib/search";
 
 type Turn = {
   id: number;
@@ -29,6 +31,7 @@ export function Shopper({ categories, colors }: { categories: string[]; colors: 
   const [loading, setLoading] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [tryOnCard, setTryOnCard] = useState<Card | null>(null);
   const chatEnd = useRef<HTMLDivElement>(null);
 
   // Blok tanasi ataylab: yangi brauzerlarda scrollIntoView Promise qaytaradi, useEffect esa uni qabul qilmaydi
@@ -184,7 +187,7 @@ export function Shopper({ categories, colors }: { categories: string[]; colors: 
                     key={card.id}
                     card={card}
                     requestedSize={selected.response?.parsed?.olcham ?? null}
-                    onTryOn={() => setToast("Virtual kiyintirish keyingi bosqichda qo'shiladi")}
+                    onTryOn={() => setTryOnCard(card)}
                   />
                 ))}
               </div>
@@ -196,6 +199,8 @@ export function Shopper({ categories, colors }: { categories: string[]; colors: 
           </>
         )}
       </section>
+
+      {tryOnCard && <TryOnModal card={tryOnCard} onClose={() => setTryOnCard(null)} />}
 
       {toast && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 rounded-xl bg-neutral-900 px-5 py-3 text-sm text-white shadow-lg">

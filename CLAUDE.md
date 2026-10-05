@@ -130,4 +130,15 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
 - `src/lib/db.ts`: Prisma klienti jarayon bo'yicha yagona; `prisma dev` (port 5121x) bilan havza = 1 ulanish,
   aks holda parallel so'rovlarda "Connection terminated unexpectedly". `DATABASE_POOL_MAX` bilan o'zgartiriladi
 
+## Texnik eslatmalar (4-bosqichdan keyin)
+- Virtual kiyintirish: `src/lib/tryon/` (`garment.ts` SVG/rasm -> 768x1024 PNG, sharp; `fal.ts` adapterlar:
+  Kolors standart, FASHN; `index.ts` zaxira mantiqi), API `POST /api/tryon` `{productId, photo: dataURL}`
+- Xaridor surati faqat xotirada: bazaga/diskka yozilmaydi; fal CDN'ga `expiresIn: "1h"` bilan yuklanadi,
+  natija `sync_mode` bilan javobda qaytadi
+- Demo rejim: kalit yo'q, kunlik limit (`TRYON_DAILY_LIMIT`, 40), xato yoki `TRYON_TIMEOUT_MS` (45 s) ->
+  `public/tryon-demo/<sku>.jpg` (bo'lsa) yoki brauzerda taxminiy ustma-ust ko'rinish, "DEMO REJIM" yozuvi bilan
+- `npm run check:tryon [surat.jpg]` kalitni tekshiradi; `npm run tryon:prepare -- model.jpg [SKU,...]` demo
+  natijalarini yaratadi. Bu muhitdan fal.ai bloklangan: haqiqiy API faqat foydalanuvchi kompyuterida sinaladi
+- UI: `src/components/shopper/TryOnModal.tsx` (rozilik -> kamera/yuklash -> ko'rib chiqish -> natija)
+
 @AGENTS.md

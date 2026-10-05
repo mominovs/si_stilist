@@ -12,6 +12,7 @@
     "postinstall": "prisma generate",
     "setup": "node scripts/setup.mjs",
     "check:ai": "tsx scripts/check-ai.ts",
+    "check:tryon": "tsx scripts/check-tryon.ts",
     "db:start": "prisma dev --name si_stilist --db-port 51214 --detach",
     "db:stop": "prisma dev stop si_stilist",
     "db:migrate": "prisma migrate dev",
@@ -19,10 +20,12 @@
     "db:seed": "prisma db seed",
     "db:setup": "prisma migrate deploy && prisma db seed",
     "vercel-build": "prisma generate && prisma migrate deploy && next build",
-    "images:placeholders": "tsx scripts/generate-placeholders.ts"
+    "images:placeholders": "tsx scripts/generate-placeholders.ts",
+    "tryon:prepare": "tsx scripts/prepare-tryon-demo.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",
+    "@fal-ai/client": "^1.10.1",
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",
     "next": "16.3.8",
@@ -30,6 +33,7 @@
     "pg": "^8.23.1",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "sharp": "^0.35.5",
     "zod": "^4.6.5"
   },
   "devDependencies": {

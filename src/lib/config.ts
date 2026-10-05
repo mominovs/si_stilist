@@ -26,7 +26,17 @@ export const config = {
       return process.env.TRYON_ENDPOINT || "fal-ai/kling/v1-5/kolors-virtual-try-on";
     },
     get apiKey() {
-      return process.env.FAL_KEY || "";
+      return (process.env.FAL_KEY || "").trim();
+    },
+    /** Shundan uzoq kutilsa demo rejimga o'tiladi (ms) */
+    get timeoutMs() {
+      const v = Number(process.env.TRYON_TIMEOUT_MS);
+      return Number.isFinite(v) && v >= 5000 ? v : 45_000;
+    },
+    /** Bir kunda API orqali kiyintirishlar chegarasi (har biri pullik), keyin demo rejim */
+    get dailyLimit() {
+      const v = Number(process.env.TRYON_DAILY_LIMIT);
+      return Number.isFinite(v) && v > 0 ? v : 40;
     },
   },
   realtime: {

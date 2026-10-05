@@ -42,8 +42,8 @@ export default async function ShopperPage() {
               Oddiy rejim (SI kaliti yo&apos;q)
             </span>
           )}
-          <Link href="/panel" className="text-sm text-neutral-400 hover:text-neutral-700">Do&apos;kon paneli</Link>
-          <Link href="/admin" className="text-sm text-neutral-400 hover:text-neutral-700">Admin</Link>
+          <Link href="/panel" prefetch={false} className="text-sm text-neutral-400 hover:text-neutral-700">Do&apos;kon paneli</Link>
+          <Link href="/admin" prefetch={false} className="text-sm text-neutral-400 hover:text-neutral-700">Admin</Link>
         </div>
       </header>
       <Shopper categories={cats.map((c) => c.category)} colors={sortedColors} />
