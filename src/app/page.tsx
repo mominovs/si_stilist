@@ -3,6 +3,7 @@ import { after, connection } from "next/server";
 import { prisma } from "@/lib/db";
 import { COLORS } from "@/lib/catalog";
 import { llmConfigured, warmUpLlm } from "@/lib/query/llm";
+import { config } from "@/lib/config";
 import { loadVocabulary } from "@/lib/search";
 import { Shopper } from "@/components/shopper/Shopper";
 
@@ -46,7 +47,11 @@ export default async function ShopperPage() {
           <Link href="/admin" prefetch={false} className="text-sm text-neutral-400 hover:text-neutral-700">Admin</Link>
         </div>
       </header>
-      <Shopper categories={cats.map((c) => c.category)} colors={sortedColors} />
+      <Shopper
+        categories={cats.map((c) => c.category)}
+        colors={sortedColors}
+        tryOnProvider={config.tryOn.provider}
+      />
     </div>
   );
 }

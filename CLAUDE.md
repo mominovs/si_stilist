@@ -131,8 +131,11 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
   aks holda parallel so'rovlarda "Connection terminated unexpectedly". `DATABASE_POOL_MAX` bilan o'zgartiriladi
 
 ## Texnik eslatmalar (4-bosqichdan keyin)
-- Virtual kiyintirish: `src/lib/tryon/` (`garment.ts` SVG/rasm -> 768x1024 PNG, sharp; `fal.ts` adapterlar:
-  Kolors standart, FASHN; `index.ts` zaxira mantiqi), API `POST /api/tryon` `{productId, photo: dataURL}`
+- Virtual kiyintirish: `src/lib/tryon/` (`garment.ts` SVG/rasm -> 768x1024 PNG, sharp; `gemini.ts` Google
+  Gemini rasm modeli `TRYON_GEMINI_MODEL` (standart `gemini-3.1-flash-image`); `fal.ts` adapterlar: Kolors, FASHN;
+  `index.ts` provayder tanlash + zaxira mantiqi), API `POST /api/tryon` `{productId, photo: dataURL}`
+- Provayder: `TRYON_PROVIDER` yoki avtomatik (`GEMINI_API_KEY` bo'lsa Gemini, aks holda fal). Gemini rasm
+  modellarida bepul limit 0: billing ulanmaguncha 429 -> demo rejim. `npm run tryon:model` sun'iy model surati yaratadi
 - Xaridor surati faqat xotirada: bazaga/diskka yozilmaydi; fal CDN'ga `expiresIn: "1h"` bilan yuklanadi,
   natija `sync_mode` bilan javobda qaytadi
 - Demo rejim: kalit yo'q, kunlik limit (`TRYON_DAILY_LIMIT`, 40), xato yoki `TRYON_TIMEOUT_MS` (45 s) ->

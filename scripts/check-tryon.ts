@@ -1,24 +1,27 @@
-// Virtual kiyintirish (fal.ai) kalitini tekshirish.
+// Virtual kiyintirish kalitini tekshirish (tanlangan provayder: Gemini yoki fal.ai).
 //   npm run check:tryon                 -> kalit va hisobni tekshiradi (surat sifatida kiyim rasmi ketadi)
 //   npm run check:tryon -- men.jpg      -> haqiqiy surat bilan to'liq sinov, natija tryon-test.jpg ga yoziladi
-// Diqqat: muvaffaqiyatli so'rov pullik (~$0.07).
+// Diqqat: muvaffaqiyatli so'rov pullik bo'lishi mumkin (Gemini ~$0.04-0.07, fal ~$0.07).
 
 import "dotenv/config";
 import { readFile, writeFile } from "node:fs/promises";
 import { config } from "../src/lib/config";
 import { garmentPng } from "../src/lib/tryon/garment";
-import { runFalTryOn } from "../src/lib/tryon/fal";
+import { runProviderTryOn } from "../src/lib/tryon";
 import { ApiError } from "@fal-ai/client";
+import { ApiError as GeminiApiError } from "@google/genai";
 
 async function main() {
-  const key = config.tryOn.apiKey;
+  const key = config.tryOn.activeKey;
+  const provider = config.tryOn.provider;
   console.log("1) Sozlamalar");
+  console.log(`  provayder: ${config.tryOn.providerLabel}`);
   if (!key) {
-    console.log("  .env faylida FAL_KEY topilmadi.");
+    console.log(`  .env faylida ${provider === "gemini" ? "GEMINI_API_KEY" : "FAL_KEY"} topilmadi.`);
     process.exit(1);
   }
   console.log(`  kalit: ${key.slice(0, 8)}...${key.slice(-4)}`);
-  console.log(`  endpoint: ${config.tryOn.endpoint}`);
+  console.log(`  model: ${provider === "gemini" ? config.tryOn.geminiModel : config.tryOn.endpoint}`);
 
   const photoPath = process.argv[2];
   const garment = await garmentPng("/products/ky-01.svg");
@@ -28,9 +31,10 @@ async function main() {
   console.log(`\n2) So'rov (${photoPath ? `surat: ${photoPath}` : "suratsiz, faqat kalit tekshiruvi"})`);
   const t0 = Date.now();
   try {
-    const url = await runFalTryOn({
-      human: new Blob([new Uint8Array(human)], { type }),
-      garment: new Blob([new Uint8Array(garment)], { type: "image/png" }),
+    const url = await runProviderTryOn({
+      photo: human,
+      photoType: type,
+      garment,
       category: "tops",
       signal: AbortSignal.timeout(90_000),
     });
@@ -40,7 +44,10 @@ async function main() {
     console.log("  natija saqlandi: tryon-test.jpg");
   } catch (e) {
     console.log(`  XATO: ${Date.now() - t0} ms`);
-    if (e instanceof ApiError) {
+    if (e instanceof GeminiApiError) {
+      console.log(`  status ${e.status}: ${e.message.slice(0, 300)}`);
+      if (e.status === 429) console.log("  -> Limit tugadi yoki bu modelda bepul limit yo'q (aistudio.google.com da billing).");
+    } else if (e instanceof ApiError) {
       console.log(`  status ${e.status}: ${String(JSON.stringify(e.body ?? e.message)).slice(0, 300)}`);
       if (e.status === 401 || e.status === 403) console.log("  -> Kalit noto'g'ri, hisobda mablag' yo'q (fal.ai/dashboard/billing) yoki tarmoq fal.ai'ni bloklagan.");
       if (e.status === 402) console.log("  -> Hisobda mablag' yetarli emas. fal.ai/dashboard/billing da to'ldiring.");

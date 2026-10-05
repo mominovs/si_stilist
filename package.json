@@ -21,11 +21,13 @@
     "db:setup": "prisma migrate deploy && prisma db seed",
     "vercel-build": "prisma generate && prisma migrate deploy && next build",
     "images:placeholders": "tsx scripts/generate-placeholders.ts",
-    "tryon:prepare": "tsx scripts/prepare-tryon-demo.ts"
+    "tryon:prepare": "tsx scripts/prepare-tryon-demo.ts",
+    "tryon:model": "tsx scripts/make-demo-model.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",
     "@fal-ai/client": "^1.10.1",
+    "@google/genai": "^2.27.0",
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",
     "next": "16.3.8",

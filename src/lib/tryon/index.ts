@@ -1,9 +1,11 @@
 import { access } from "node:fs/promises";
 import path from "node:path";
 import { ApiError } from "@fal-ai/client";
+import { ApiError as GeminiApiError } from "@google/genai";
 import { config } from "@/lib/config";
 import { garmentPng } from "./garment";
 import { runFalTryOn, type TryOnCategory } from "./fal";
+import { GeminiBlockedError, runGeminiTryOn } from "./gemini";
 
 export type TryOnResult =
   | { mode: "api"; image: string }
@@ -47,6 +49,18 @@ async function preparedImage(sku: string | null): Promise<string | null> {
 
 function describeError(e: unknown): string {
   if (e instanceof Error && e.name === "AbortError") return "xizmat juda sekin javob berdi";
+  if (e instanceof GeminiBlockedError) return "xizmat bu suratni qayta ishlashni rad etdi, boshqa surat bilan urinib ko'ring";
+  if (e instanceof GeminiApiError) {
+    if (e.status === 400 && /api key/i.test(e.message)) return "kalit noto'g'ri";
+    if (e.status === 401 || e.status === 403) return "kalit noto'g'ri yoki ruxsat yo'q";
+    if (e.status === 429) {
+      return /limit: 0\b/.test(e.message)
+        ? "bu kalitda rasm modeli uchun bepul limit yo'q, Google AI Studio'da billing ulash kerak"
+        : "so'rovlar limiti tugadi, birozdan keyin urinib ko'ring";
+    }
+    if (e.status >= 500) return "xizmat band, birozdan keyin urinib ko'ring";
+    return `xizmat xatosi (${e.status})`;
+  }
   if (e instanceof ApiError) {
     if (e.status === 401 || e.status === 403) return "kalit noto'g'ri yoki ruxsat yo'q";
     if (e.status === 402) return "hisobda mablag' yetarli emas";
@@ -55,6 +69,26 @@ function describeError(e: unknown): string {
     return `xizmat xatosi (${e.status})`;
   }
   return "xizmat bilan aloqa yo'q";
+}
+
+/** Tanlangan provayder (Gemini yoki fal) orqali bitta kiyintirish. Natija: rasm URL yoki data URI */
+export async function runProviderTryOn(input: {
+  photo: Buffer;
+  photoType: string;
+  garment: Buffer;
+  category: TryOnCategory;
+  signal: AbortSignal;
+}): Promise<string> {
+  const { photo, photoType, garment, category, signal } = input;
+  if (config.tryOn.provider === "gemini") {
+    return runGeminiTryOn({ human: photo, humanType: photoType, garment, category, signal });
+  }
+  return runFalTryOn({
+    human: new Blob([new Uint8Array(photo)], { type: photoType }),
+    garment: new Blob([new Uint8Array(garment)], { type: "image/png" }),
+    category,
+    signal,
+  });
 }
 
 async function demo(product: TryOnProduct, reason: string): Promise<TryOnResult> {
@@ -66,21 +100,21 @@ async function demo(product: TryOnProduct, reason: string): Promise<TryOnResult>
  * bazaga ham, diskka ham yozilmaydi. Har qanday muammoda "demo rejim" natijasi qaytariladi.
  */
 export async function tryOn(product: TryOnProduct, photo: Buffer, photoType: string): Promise<TryOnResult> {
-  if (!config.tryOn.apiKey) return demo(product, "virtual kiyintirish kaliti sozlanmagan");
+  if (!config.tryOn.activeKey) return demo(product, "virtual kiyintirish kaliti sozlanmagan");
   if (!takeQuota()) return demo(product, "kunlik kiyintirish limiti tugadi");
 
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), config.tryOn.timeoutMs);
   const t0 = Date.now();
   try {
-    const garment = await garmentPng(product.imageUrl);
-    const image = await runFalTryOn({
-      human: new Blob([new Uint8Array(photo)], { type: photoType }),
-      garment: new Blob([new Uint8Array(garment)], { type: "image/png" }),
+    const image = await runProviderTryOn({
+      photo,
+      photoType,
+      garment: await garmentPng(product.imageUrl),
       category: tryOnCategory(product.category),
       signal: ctrl.signal,
     });
-    console.log(`[tryon] tayyor (${Date.now() - t0} ms)`);
+    console.log(`[tryon] ${config.tryOn.provider} tayyor (${Date.now() - t0} ms)`);
     return { mode: "api", image };
   } catch (e) {
     const reason = ctrl.signal.aborted ? "xizmat juda sekin javob berdi" : describeError(e);

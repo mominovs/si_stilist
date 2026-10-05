@@ -22,6 +22,25 @@ export const config = {
     },
   },
   tryOn: {
+    /** "gemini" | "fal". Ko'rsatilmasa: GEMINI_API_KEY bo'lsa Gemini, aks holda fal */
+    get provider(): "gemini" | "fal" {
+      const v = (process.env.TRYON_PROVIDER || "").trim().toLowerCase();
+      if (v === "gemini" || v === "fal") return v;
+      return process.env.GEMINI_API_KEY ? "gemini" : "fal";
+    },
+    get geminiKey() {
+      return (process.env.GEMINI_API_KEY || "").trim();
+    },
+    get geminiModel() {
+      return process.env.TRYON_GEMINI_MODEL || "gemini-3.1-flash-image";
+    },
+    /** Tanlangan provayder kaliti */
+    get activeKey() {
+      return this.provider === "gemini" ? this.geminiKey : this.apiKey;
+    },
+    get providerLabel() {
+      return this.provider === "gemini" ? "Google Gemini" : "fal.ai";
+    },
     get endpoint() {
       return process.env.TRYON_ENDPOINT || "fal-ai/kling/v1-5/kolors-virtual-try-on";
     },

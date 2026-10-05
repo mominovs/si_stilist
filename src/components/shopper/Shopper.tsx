@@ -24,7 +24,15 @@ const EXAMPLES = [
 
 let nextId = 1;
 
-export function Shopper({ categories, colors }: { categories: string[]; colors: string[] }) {
+export function Shopper({
+  categories,
+  colors,
+  tryOnProvider,
+}: {
+  categories: string[];
+  colors: string[];
+  tryOnProvider: "gemini" | "fal";
+}) {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [input, setInput] = useState("");
@@ -200,7 +208,7 @@ export function Shopper({ categories, colors }: { categories: string[]; colors: 
         )}
       </section>
 
-      {tryOnCard && <TryOnModal card={tryOnCard} onClose={() => setTryOnCard(null)} />}
+      {tryOnCard && <TryOnModal card={tryOnCard} provider={tryOnProvider} onClose={() => setTryOnCard(null)} />}
 
       {toast && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 rounded-xl bg-neutral-900 px-5 py-3 text-sm text-white shadow-lg">

@@ -59,7 +59,20 @@ async function demoComposite(photo: string, garmentUrl: string, category: string
   return canvas.toDataURL("image/jpeg", 0.9);
 }
 
-export function TryOnModal({ card, onClose }: { card: ResultCard; onClose: () => void }) {
+const PROVIDER = {
+  gemini: { label: "Google Gemini", retention: "Xizmat uni Google shartlari asosida qayta ishlaydi." },
+  fal: { label: "fal.ai", retention: "Xizmatda vaqtinchalik (1 soat) turadi." },
+} as const;
+
+export function TryOnModal({
+  card,
+  provider,
+  onClose,
+}: {
+  card: ResultCard;
+  provider: keyof typeof PROVIDER;
+  onClose: () => void;
+}) {
   const [step, setStep] = useState<Step>("consent");
   const [photo, setPhoto] = useState<string | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -179,8 +192,8 @@ export function TryOnModal({ card, onClose }: { card: ResultCard; onClose: () =>
             <div className="mx-auto max-w-lg space-y-4">
               <h2 className="text-xl font-semibold">Suratga tushishdan oldin</h2>
               <ul className="space-y-2 text-sm text-neutral-700">
-                <li>• Suratingiz faqat virtual kiyintirish xizmatiga (fal.ai) yuboriladi.</li>
-                <li>• Bizning serverda va bazada suratingiz <b>saqlanmaydi</b>. Xizmatda vaqtinchalik (1 soat) turadi.</li>
+                <li>• Suratingiz faqat virtual kiyintirish xizmatiga ({PROVIDER[provider].label}) yuboriladi.</li>
+                <li>• Bizning serverda va bazada suratingiz <b>saqlanmaydi</b>. {PROVIDER[provider].retention}</li>
                 <li>• Natija taxminiy: o&apos;lcham va bichimni aniq ko&apos;rsatmaydi.</li>
                 <li>• Eng yaxshi natija uchun: yorug&apos; joyda, to&apos;g&apos;ri turib, belgacha yoki to&apos;liq ko&apos;rining.</li>
               </ul>
