@@ -105,12 +105,13 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
 - Seed: `prisma/seed-data/products.ts` (48 tovar, deterministik qoldiq; krossovka/palto/sumka ataylab yo'q)
 
 ## Texnik eslatmalar (2-bosqichdan keyin)
-- So'rovni tushunish zanjiri `src/lib/query/index.ts`: LLM (`llm.ts`, `messages.parse` + zod, 8 s timeout,
+- So'rovni tushunish zanjiri `src/lib/query/index.ts`: LLM (`llm.ts`, `messages.parse` + zod, 12 s + 8 s timeout,
   1 marta qayta urinish) -> kalit so'z tahlilchisi (`keywords.ts`, LLM/internet ishlamasa) -> `tushunilmadi`
   (interfeys filtr tugmalarini ochadi). Natija `normalize.ts` da bazadagi qiymatlarga moslanadi
 - Moslashtirish: `src/lib/matching.ts` (toza funksiya). Qidiruv + so'rovni logga yozish: `src/lib/search.ts`,
   API: `POST /api/search` (`{text}` yoki `{filters}`)
 - Request.mode: `llm` | `kalit` | `filtr` | `tushunilmadi`
+- Xaridor sahifasi ochilganda `after()` orqali LLM "isitiladi" (10 daqiqada 1 marta), SI holati sarlavhada ko'rinadi
 - Testlar: `npm test` (node:test + tsx), seed ombori ustida moslashtirish testlari bor
 
 @AGENTS.md

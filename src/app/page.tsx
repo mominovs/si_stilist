@@ -1,12 +1,15 @@
 import Link from "next/link";
-import { connection } from "next/server";
+import { after, connection } from "next/server";
 import { prisma } from "@/lib/db";
 import { COLORS } from "@/lib/catalog";
-import { llmConfigured } from "@/lib/query/llm";
+import { llmConfigured, warmUpLlm } from "@/lib/query/llm";
+import { loadVocabulary } from "@/lib/search";
 import { Shopper } from "@/components/shopper/Shopper";
 
 export default async function ShopperPage() {
   await connection();
+  // Javob yuborilgandan keyin fonda: xaridorning birinchi so'rovi tez qaytishi uchun
+  after(() => warmUpLlm(loadVocabulary));
   // Filtr tugmalari faqat omborda uchraydigan qiymatlardan tuziladi
   const [cats, colors] = await Promise.all([
     prisma.product.findMany({ distinct: ["category"], select: { category: true }, orderBy: { category: "asc" } }),

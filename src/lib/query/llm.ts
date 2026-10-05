@@ -46,13 +46,17 @@ Misollar:
 
 let client: { key: string; instance: Anthropic } | null = null;
 
+// Kutish vaqtlari: birinchi urinish uzunroq (yangi ulanish va sxema kompilyatsiyasi sekin bo'lishi mumkin,
+// ayniqsa uzoq tarmoqdan), qayta urinish qisqaroq. Eng yomon holatda ~20 s, keyin zaxira rejim.
+const FIRST_ATTEMPT_MS = 12_000;
+const RETRY_ATTEMPT_MS = 8_000;
+
 function getClient(): Anthropic {
-  // Har bir urinish uchun 8 soniya: demo paytida uzoq kutib qolmaslik uchun.
   // SDK o'zi qayta urinmaydi, qayta urinishni pastdagi kod boshqaradi.
   // Kalit almashsa (.env yangilansa) klient qayta yaratiladi.
   const key = config.llm.apiKey;
   if (client?.key !== key) {
-    client = { key, instance: new Anthropic({ apiKey: key, timeout: 8_000, maxRetries: 0 }) };
+    client = { key, instance: new Anthropic({ apiKey: key, timeout: FIRST_ATTEMPT_MS, maxRetries: 0 }) };
   }
   return client.instance;
 }
@@ -61,14 +65,17 @@ export function llmConfigured(): boolean {
   return config.llm.apiKey.length > 0;
 }
 
-async function parseOnce(text: string, vocab: Vocabulary): Promise<ParsedQuery> {
-  const response = await getClient().messages.parse({
-    model: config.llm.model,
-    max_tokens: 1024,
-    system: systemPrompt(vocab),
-    messages: [{ role: "user", content: text }],
-    output_config: { format: zodOutputFormat(parsedQuerySchema) },
-  });
+async function parseOnce(text: string, vocab: Vocabulary, timeout: number): Promise<ParsedQuery> {
+  const response = await getClient().messages.parse(
+    {
+      model: config.llm.model,
+      max_tokens: 1024,
+      system: systemPrompt(vocab),
+      messages: [{ role: "user", content: text }],
+      output_config: { format: zodOutputFormat(parsedQuerySchema) },
+    },
+    { timeout },
+  );
   if (response.stop_reason === "refusal" || !response.parsed_output) {
     throw new Error(`LLM javobi yaroqsiz (stop_reason: ${response.stop_reason})`);
   }
@@ -94,9 +101,29 @@ export function describeLlmError(e: unknown): string {
 /** Bir marta qayta urinadi. Ikkala urinish ham muvaffaqiyatsiz bo'lsa xato tashlaydi. */
 export async function parseWithLlm(text: string, vocab: Vocabulary): Promise<ParsedQuery> {
   try {
-    return await parseOnce(text, vocab);
+    return await parseOnce(text, vocab, FIRST_ATTEMPT_MS);
   } catch (first) {
     console.warn("[llm] 1-urinish muvaffaqiyatsiz:", first instanceof Error ? first.message : first);
-    return await parseOnce(text, vocab);
+    return await parseOnce(text, vocab, RETRY_ATTEMPT_MS);
+  }
+}
+
+let lastWarmUp = 0;
+const WARM_UP_EVERY_MS = 10 * 60_000;
+
+/**
+ * Xaridor sahifasi ochilganda fonda bitta kichik so'rov yuboradi: ulanish ochiladi va JSON sxema
+ * kompilyatsiya qilinadi, shunda xaridorning birinchi so'rovi tez qaytadi. 10 daqiqada ko'pi bilan bir marta.
+ */
+export async function warmUpLlm(vocab: () => Promise<Vocabulary>): Promise<void> {
+  if (!llmConfigured() || Date.now() - lastWarmUp < WARM_UP_EVERY_MS) return;
+  lastWarmUp = Date.now();
+  const t0 = Date.now();
+  try {
+    await parseOnce("salom", await vocab(), 20_000);
+    console.log(`[llm] isitish tayyor (${Date.now() - t0} ms)`);
+  } catch (e) {
+    lastWarmUp = 0; // keyingi sahifa ochilishida yana urinadi
+    console.warn("[llm] isitish muvaffaqiyatsiz:", describeLlmError(e));
   }
 }
