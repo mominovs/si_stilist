@@ -45,12 +45,23 @@ Oxirida `CUDA: True NVIDIA GeForce RTX ...` chiqishi kerak. `False` chiqsa, NVID
 
 | Parametr | Standart | Izoh |
 | --- | --- | --- |
-| `--height --width` | 768 576 | GPU xotirasi yetmasa: `start.bat --height 640 --width 480`. 8 GB+ bo'lsa: 1024 768 |
-| `--steps` | 30 | Kamroq: tezroq (20), ko'proq: sifatliroq (40-50) |
+| `--preset` | orta | `tez` (768x576, 20 qadam), `orta` (768x576, 30), `sifat` (1024x768, 40). Masalan: `start.bat --preset sifat` |
+| `--height --width` | presetdan | GPU xotirasi yetmasa: `start.bat --height 640 --width 480`. 8 GB+ bo'lsa: 1024 768 |
+| `--steps` | presetdan | Kamroq: tezroq (20), ko'proq: sifatliroq (40-50) |
 | `--safety` | o'chiq | NSFW filtri (+~1 GB GPU xotira) |
 | `--port` | 8001 | O'zgartirsangiz, `.env` da `TRYON_LOCAL_URL` ni ham yangilang |
 
 Kutish vaqti ilovada 120 s (`TRYON_TIMEOUT_MS`). Server ishlamasa yoki xato bersa, ilova "Demo rejim" ga o'tadi.
+
+RTX 3060 Laptop (6 GB) da `orta` rejimda bitta kiyintirish taxminan 20 s. `sifat` rejimi 2 barobardan ko'proq
+piksel ishlaydi, shuning uchun sekinroq va GPU xotirasi yetmasligi mumkin; yetmasa `orta` ga qayting.
+
+## Sifatni oshirish (ta'siri bo'yicha)
+
+1. **Haqiqiy kiyim suratlari.** SVG siluetlar bilan model rang va bichimni taxmin qiladi (masalan, polo o'rniga
+   yoqali ko'ylak, to'q ko'k o'rniga ko'k). Oq fondagi haqiqiy surat: `public/products/<sku>.jpg` + `npm run images:apply`.
+2. **`--preset sifat`** (1024x768): model shu o'lchamda o'qitilgan, tafsilotlar aniqroq.
+3. **Yaxshi surat:** old tomondan, yorug', oddiy fon, qo'llar yon tomonda, belgacha yoki to'liq gavda.
 
 ## Muammolar
 

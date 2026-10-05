@@ -81,20 +81,26 @@ export function TryOnModal({
   const [photo, setPhoto] = useState<string | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState<number | null>(null);
-  const [result, setResult] = useState<{ image: string; demo: boolean; reason?: string } | null>(null);
+  const [result, setResult] = useState<{ image: string; demo: boolean; reason?: string; seconds: number } | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  // Har bir kamera so'rovining tartib raqami: eski (bekor qilingan) so'rov kech javob bersa, oqimi darhol o'chiriladi
+  const cameraReq = useRef(0);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const stopCamera = useCallback(() => {
+    cameraReq.current++;
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
   }, []);
 
   // Oyna yopilganda kamera albatta o'chiriladi
   useEffect(() => stopCamera, [stopCamera]);
 
   async function startCamera() {
+    stopCamera(); // ikki marta bosilsa ham bitta oqim qoladi
+    const req = cameraReq.current;
     setStep("camera");
     setCameraError(null);
     try {
@@ -102,6 +108,10 @@ export function TryOnModal({
         video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 1280 } },
         audio: false,
       });
+      if (req !== cameraReq.current) {
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
       streamRef.current = stream;
       if (videoRef.current) videoRef.current.srcObject = stream;
     } catch {
@@ -143,6 +153,8 @@ export function TryOnModal({
   async function submit() {
     if (!photo) return;
     setStep("processing");
+    const t0 = performance.now();
+    const seconds = () => Math.round((performance.now() - t0) / 1000);
     try {
       const res = await fetch("/api/tryon", {
         method: "POST",
@@ -152,13 +164,16 @@ export function TryOnModal({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
       const r = data as TryOnResult;
-      if (r.mode === "api") setResult({ image: r.image, demo: false });
-      else setResult({ image: r.prepared ?? (await demoComposite(photo, card.imageUrl, card.category)), demo: true, reason: r.reason });
+      if (r.mode === "api") setResult({ image: r.image, demo: false, seconds: seconds() });
+      else {
+        const image = r.prepared ?? (await demoComposite(photo, card.imageUrl, card.category));
+        setResult({ image, demo: true, reason: r.reason, seconds: seconds() });
+      }
       setStep("result");
     } catch (e) {
       // Server bilan umuman aloqa bo'lmasa ham demo ko'rinish ko'rsatiladi
       const reason = e instanceof Error && !e.message.startsWith("HTTP") ? e.message : "server bilan aloqa yo'q";
-      setResult({ image: await demoComposite(photo, card.imageUrl, card.category), demo: true, reason });
+      setResult({ image: await demoComposite(photo, card.imageUrl, card.category), demo: true, reason, seconds: seconds() });
       setStep("result");
     }
   }
@@ -178,7 +193,7 @@ export function TryOnModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true">
-      <div className="flex max-h-[95dvh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+      <div className={`flex max-h-[95dvh] w-full flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ${step === "result" ? "max-w-5xl" : "max-w-3xl"}`}>
         <header className="flex items-center justify-between border-b border-neutral-100 px-5 py-3">
           <div className="flex items-center gap-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -265,12 +280,26 @@ export function TryOnModal({
                   ko&apos;rsatilmoqda.
                 </div>
               )}
-              <div className="grid items-start gap-4 sm:grid-cols-[1fr_180px]">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={result.image} alt="Kiyintirish natijasi" className="mx-auto max-h-[60dvh] rounded-xl" />
-                <div className="space-y-2 rounded-xl border border-neutral-200 p-3 text-sm">
+              {/* Oldin / keyin: asl surat va natija yonma-yon */}
+              <div className="grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_170px]">
+                {photo && (
+                  <figure className="space-y-1.5">
+                    {/* Model suratni markazdan 3:4 kesadi: solishtirish adolatli bo'lishi uchun bu yerda ham xuddi shunday */}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={photo} alt="Asl surat" className="mx-auto aspect-[3/4] max-h-[55dvh] w-full rounded-xl bg-neutral-100 object-cover" />
+                    <figcaption className="text-center text-xs text-neutral-500">Oldin</figcaption>
+                  </figure>
+                )}
+                <figure className="space-y-1.5">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={card.imageUrl} alt="" className="mx-auto h-32 object-contain" />
+                  <img src={result.image} alt="Kiyintirish natijasi" className="mx-auto aspect-[3/4] max-h-[55dvh] w-full rounded-xl bg-neutral-100 object-contain" />
+                  <figcaption className="text-center text-xs text-neutral-500">
+                    {result.demo ? "Keyin (demo)" : `Keyin · ${result.seconds} soniyada tayyor bo'ldi`}
+                  </figcaption>
+                </figure>
+                <div className="space-y-2 rounded-xl border border-neutral-200 p-3 text-sm sm:col-span-2 lg:col-span-1">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={card.imageUrl} alt="" className="mx-auto h-28 object-contain" />
                   <div className="font-medium">{card.name}</div>
                   <div>{card.priceLabel}</div>
                   <div className="text-xs text-neutral-500">

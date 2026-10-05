@@ -5,7 +5,9 @@ Xaridor surati faqat xotirada qayta ishlanadi: diskka yozilmaydi va internetga c
 Model og'irliklari birinchi ishga tushishda Hugging Face'dan yuklanadi (~4 GB), keyin keshdan olinadi.
 
 Ishga tushirish:
-    python server.py                      # standart: 768x576, bf16, port 8001
+    python server.py                      # standart: --preset orta (768x576, 30 qadam), bf16, port 8001
+    python server.py --preset sifat       # 1024x768, 40 qadam (sekinroq, ko'proq GPU xotira)
+    python server.py --preset tez         # 768x576, 20 qadam (tezroq)
     python server.py --height 640 --width 480   # GPU xotirasi yetmasa
     python server.py --mock               # modelsiz sinov rejimi (GPU kerak emas)
 
@@ -32,22 +34,35 @@ HERE = Path(__file__).resolve().parent
 CATVTON_DIR = HERE / "CatVTON"
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
 
+# tez: demo uchun eng tez; orta: 6 GB GPU uchun muvozanat; sifat: model o'qitilgan o'lcham (GPU xotirasi ko'proq kerak)
+PRESETS = {
+    "tez": {"height": 768, "width": 576, "steps": 20},
+    "orta": {"height": 768, "width": 576, "steps": 30},
+    "sifat": {"height": 1024, "width": 768, "steps": 40},
+}
+
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="SI Stilist lokal kiyintirish serveri")
     p.add_argument("--host", default="127.0.0.1")
     p.add_argument("--port", type=int, default=8001)
-    # 6 GB GPU uchun 768x576 xavfsiz tanlov; 8 GB+ bo'lsa 1024x768
-    p.add_argument("--height", type=int, default=768)
-    p.add_argument("--width", type=int, default=576)
-    p.add_argument("--steps", type=int, default=30, help="Ko'proq qadam: sifatliroq, lekin sekinroq (20-50)")
+    # Tayyor rejimlar (6 GB GPU uchun "orta" xavfsiz). --height/--width/--steps aniq berilsa, ular ustun
+    p.add_argument("--preset", choices=list(PRESETS), default="orta", help="tez | orta | sifat")
+    p.add_argument("--height", type=int, default=None)
+    p.add_argument("--width", type=int, default=None)
+    p.add_argument("--steps", type=int, default=None, help="Ko'proq qadam: sifatliroq, lekin sekinroq (20-50)")
     p.add_argument("--precision", choices=["bf16", "fp16", "fp32"], default="bf16")
     p.add_argument("--device", default="cuda")
     p.add_argument("--safety", action="store_true", help="NSFW filtrini yoqish (+~1 GB GPU xotira)")
     p.add_argument("--base-model", default="timbrooks/instruct-pix2pix")
     p.add_argument("--weights", default="zhengchong/CatVTON-MaskFree")
     p.add_argument("--mock", action="store_true", help="Modelsiz sinov rejimi: kiyimni surat ustiga qo'yadi")
-    return p.parse_args()
+    a = p.parse_args()
+    preset = PRESETS[a.preset]
+    a.height = a.height or preset["height"]
+    a.width = a.width or preset["width"]
+    a.steps = a.steps or preset["steps"]
+    return a
 
 
 class Engine:
@@ -187,6 +202,7 @@ def health():
         "device": engine.device,
         "resolution": f"{args.height}x{args.width}",
         "steps": args.steps,
+        "preset": args.preset,
     }
 
 
