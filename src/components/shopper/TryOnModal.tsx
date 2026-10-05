@@ -59,6 +59,41 @@ async function demoComposite(photo: string, garmentUrl: string, category: string
   return canvas.toDataURL("image/jpeg", 0.9);
 }
 
+/** 3:4 ramka: model natijasi shu nisbatda, asl surat ham xuddi shunday kesiladi (solishtirish adolatli bo'lsin) */
+function Figure({ caption, children }: { caption: string; children: React.ReactNode }) {
+  return (
+    <figure className="space-y-1.5">
+      <div className="relative mx-auto aspect-[3/4] w-full max-w-[calc(55dvh*0.75)] overflow-hidden rounded-xl bg-neutral-100">
+        {children}
+      </div>
+      <figcaption className="text-center text-xs text-neutral-500">{caption}</figcaption>
+    </figure>
+  );
+}
+
+function PhotoImg({ src }: { src: string }) {
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={src} alt="Asl surat" className="absolute inset-0 h-full w-full object-cover" />;
+}
+
+/** Oxirgi ikki kadr ustma-ust: yangisi eskisining ustida silliq paydo bo'ladi, almashish bilinmaydi */
+function Frames({ frames }: { frames: string[] }) {
+  const start = Math.max(0, frames.length - 2);
+  return (
+    <>
+      {frames.slice(start).map((src, i) => (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          key={start + i}
+          src={src}
+          alt="Kiyintirish natijasi"
+          className={`absolute inset-0 h-full w-full object-contain ${start + i === frames.length - 1 ? "animate-fade-in" : ""}`}
+        />
+      ))}
+    </>
+  );
+}
+
 const PROVIDER = {
   local: {
     label: "do'kondagi lokal SI modeli",
@@ -82,6 +117,9 @@ export function TryOnModal({
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [result, setResult] = useState<{ image: string; demo: boolean; reason?: string; seconds: number } | null>(null);
+  // Shakllanayotgan rasm kadrlari (oraliq ko'rinishlar, oxirida yakuniy natija) va jarayon holati
+  const [frames, setFrames] = useState<string[]>([]);
+  const [progress, setProgress] = useState<{ step: number; total: number } | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   // Har bir kamera so'rovining tartib raqami: eski (bekor qilingan) so'rov kech javob bersa, oqimi darhol o'chiriladi
@@ -153,34 +191,65 @@ export function TryOnModal({
   async function submit() {
     if (!photo) return;
     setStep("processing");
+    setFrames([]);
+    setProgress(null);
     const t0 = performance.now();
     const seconds = () => Math.round((performance.now() - t0) / 1000);
+
+    const finish = async (r: TryOnResult) => {
+      const image =
+        r.mode === "api" ? r.image : (r.prepared ?? (await demoComposite(photo, card.imageUrl, card.category)));
+      setFrames((f) => [...f, image]);
+      setResult({ image, demo: r.mode !== "api", reason: r.mode === "demo" ? r.reason : undefined, seconds: seconds() });
+      setStep("result");
+    };
+
     try {
       const res = await fetch("/api/tryon", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productId: card.id, photo }),
+        body: JSON.stringify({ productId: card.id, photo, stream: true }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
-      const r = data as TryOnResult;
-      if (r.mode === "api") setResult({ image: r.image, demo: false, seconds: seconds() });
-      else {
-        const image = r.prepared ?? (await demoComposite(photo, card.imageUrl, card.category));
-        setResult({ image, demo: true, reason: r.reason, seconds: seconds() });
+      if (!res.ok || !res.body) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? `HTTP ${res.status}`);
       }
-      setStep("result");
+      // NDJSON: oraliq ko'rinishlar kelgan sari ko'rsatiladi, oxirida natija
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let nl: number;
+        while ((nl = buffer.indexOf("\n")) >= 0) {
+          const line = buffer.slice(0, nl).trim();
+          buffer = buffer.slice(nl + 1);
+          if (!line) continue;
+          const ev = JSON.parse(line);
+          if (ev.type === "preview") {
+            setFrames((f) => [...f, ev.image]);
+            setProgress({ step: ev.step, total: ev.total });
+          } else if (ev.type === "result") {
+            await finish(ev.result as TryOnResult);
+            return;
+          }
+        }
+      }
+      throw new Error("server javobi to'liq kelmadi");
     } catch (e) {
       // Server bilan umuman aloqa bo'lmasa ham demo ko'rinish ko'rsatiladi
       const reason = e instanceof Error && !e.message.startsWith("HTTP") ? e.message : "server bilan aloqa yo'q";
-      setResult({ image: await demoComposite(photo, card.imageUrl, card.category), demo: true, reason, seconds: seconds() });
-      setStep("result");
+      await finish({ mode: "demo", reason, prepared: null });
     }
   }
 
   function retake() {
     setPhoto(null);
     setResult(null);
+    setFrames([]);
+    setProgress(null);
     void startCamera();
   }
 
@@ -265,10 +334,26 @@ export function TryOnModal({
           )}
 
           {step === "processing" && (
-            <div className="flex flex-col items-center gap-4 py-16 text-center">
-              <div className="h-12 w-12 animate-spin rounded-full border-4 border-neutral-200 border-t-neutral-900" />
-              <div className="font-medium">Kiyintiryapman...</div>
-              <div className="text-sm text-neutral-500">Odatda 10–30 soniya davom etadi</div>
+            <div className="space-y-4">
+              <div className="grid items-start gap-4 sm:grid-cols-2">
+                <Figure caption="Oldin">{photo && <PhotoImg src={photo} />}</Figure>
+                <Figure
+                  caption={progress ? `Shakllanmoqda... ${progress.step}/${progress.total} qadam` : "Kiyintiryapman... odatda 20-40 soniya"}
+                >
+                  <Frames frames={frames} />
+                  {frames.length === 0 && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="h-12 w-12 animate-spin rounded-full border-4 border-neutral-200 border-t-neutral-900" />
+                    </div>
+                  )}
+                </Figure>
+              </div>
+              <div className="mx-auto h-1.5 max-w-md overflow-hidden rounded-full bg-neutral-100">
+                <div
+                  className="h-full rounded-full bg-neutral-900 transition-all duration-700"
+                  style={{ width: `${progress ? Math.round((progress.step / progress.total) * 100) : 5}%` }}
+                />
+              </div>
             </div>
           )}
 
@@ -280,23 +365,12 @@ export function TryOnModal({
                   ko&apos;rsatilmoqda.
                 </div>
               )}
-              {/* Oldin / keyin: asl surat va natija yonma-yon */}
+              {/* Oldin / keyin: asl surat va natija yonma-yon (natija oxirgi oraliq kadr ustida silliq paydo bo'ladi) */}
               <div className="grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_170px]">
-                {photo && (
-                  <figure className="space-y-1.5">
-                    {/* Model suratni markazdan 3:4 kesadi: solishtirish adolatli bo'lishi uchun bu yerda ham xuddi shunday */}
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={photo} alt="Asl surat" className="mx-auto aspect-[3/4] max-h-[55dvh] w-full rounded-xl bg-neutral-100 object-cover" />
-                    <figcaption className="text-center text-xs text-neutral-500">Oldin</figcaption>
-                  </figure>
-                )}
-                <figure className="space-y-1.5">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={result.image} alt="Kiyintirish natijasi" className="mx-auto aspect-[3/4] max-h-[55dvh] w-full rounded-xl bg-neutral-100 object-contain" />
-                  <figcaption className="text-center text-xs text-neutral-500">
-                    {result.demo ? "Keyin (demo)" : `Keyin · ${result.seconds} soniyada tayyor bo'ldi`}
-                  </figcaption>
-                </figure>
+                <Figure caption="Oldin">{photo && <PhotoImg src={photo} />}</Figure>
+                <Figure caption={result.demo ? "Keyin (demo)" : `Keyin · ${result.seconds} soniyada tayyor bo'ldi`}>
+                  <Frames frames={frames.length ? frames : [result.image]} />
+                </Figure>
                 <div className="space-y-2 rounded-xl border border-neutral-200 p-3 text-sm sm:col-span-2 lg:col-span-1">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={card.imageUrl} alt="" className="mx-auto h-28 object-contain" />

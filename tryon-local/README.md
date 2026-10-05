@@ -45,7 +45,7 @@ Oxirida `CUDA: True NVIDIA GeForce RTX ...` chiqishi kerak. `False` chiqsa, NVID
 
 | Parametr | Standart | Izoh |
 | --- | --- | --- |
-| `--preset` | orta | `tez` (768x576, 20 qadam), `orta` (768x576, 30), `sifat` (1024x768, 40). Masalan: `start.bat --preset sifat` |
+| `--preset` | orta | `tez` (768x576, 20 qadam), `orta` (768x576, 40), `sifat` (1024x768, 50). Masalan: `start.bat --preset sifat` |
 | `--height --width` | presetdan | GPU xotirasi yetmasa: `start.bat --height 640 --width 480`. 8 GB+ bo'lsa: 1024 768 |
 | `--steps` | presetdan | Kamroq: tezroq (20), ko'proq: sifatliroq (40-50) |
 | `--safety` | o'chiq | NSFW filtri (+~1 GB GPU xotira) |
@@ -53,7 +53,9 @@ Oxirida `CUDA: True NVIDIA GeForce RTX ...` chiqishi kerak. `False` chiqsa, NVID
 
 Kutish vaqti ilovada 120 s (`TRYON_TIMEOUT_MS`). Server ishlamasa yoki xato bersa, ilova "Demo rejim" ga o'tadi.
 
-RTX 3060 Laptop (6 GB) da `orta` rejimda bitta kiyintirish taxminan 20 s. `sifat` rejimi 2 barobardan ko'proq
+Natija bitta generatsiyada shakllanib boradi: 25%, 50%, 75% qadamlarda oraliq ko'rinish (`/tryon/stream`)
+yuboriladi va saytda xiradan aniqqa silliq almashadi. RTX 3060 Laptop (6 GB) da 30 qadam ~20 s edi, `orta` (40 qadam)
+taxminan 27 s bo'lishi kutiladi. `sifat` rejimi 2 barobardan ko'proq
 piksel ishlaydi, shuning uchun sekinroq va GPU xotirasi yetmasligi mumkin; yetmasa `orta` ga qayting.
 
 ## Sifatni oshirish (ta'siri bo'yicha)

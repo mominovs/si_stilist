@@ -6,7 +6,9 @@ import { config } from "@/lib/config";
 import { garmentPng } from "./garment";
 import { runFalTryOn, type TryOnCategory } from "./fal";
 import { GeminiBlockedError, runGeminiTryOn } from "./gemini";
-import { LocalTryOnError, runLocalTryOn } from "./local";
+import { LocalTryOnError, runLocalTryOn, runLocalTryOnStream, type TryOnPreview } from "./local";
+
+export type { TryOnPreview } from "./local";
 
 export type TryOnResult =
   | { mode: "api"; image: string }
@@ -83,10 +85,14 @@ export async function runProviderTryOn(input: {
   garment: Buffer;
   category: TryOnCategory;
   signal: AbortSignal;
+  /** Faqat lokal provayder oraliq ko'rinishlarni bera oladi */
+  onPreview?: (p: TryOnPreview) => void;
 }): Promise<string> {
-  const { photo, photoType, garment, category, signal } = input;
+  const { photo, photoType, garment, category, signal, onPreview } = input;
   if (config.tryOn.provider === "local") {
-    return runLocalTryOn({ human: photo, garment, category, signal });
+    return onPreview
+      ? runLocalTryOnStream({ human: photo, garment, category, signal }, onPreview)
+      : runLocalTryOn({ human: photo, garment, category, signal });
   }
   if (config.tryOn.provider === "gemini") {
     return runGeminiTryOn({ human: photo, humanType: photoType, garment, category, signal });
@@ -107,7 +113,12 @@ async function demo(product: TryOnProduct, reason: string): Promise<TryOnResult>
  * Virtual kiyintirish. Xaridor surati faqat xotirada turadi va try-on xizmatiga yuboriladi:
  * bazaga ham, diskka ham yozilmaydi. Har qanday muammoda "demo rejim" natijasi qaytariladi.
  */
-export async function tryOn(product: TryOnProduct, photo: Buffer, photoType: string): Promise<TryOnResult> {
+export async function tryOn(
+  product: TryOnProduct,
+  photo: Buffer,
+  photoType: string,
+  onPreview?: (p: TryOnPreview) => void,
+): Promise<TryOnResult> {
   if (!config.tryOn.activeKey) return demo(product, "virtual kiyintirish kaliti sozlanmagan");
   if (config.tryOn.isPaid && !takeQuota()) return demo(product, "kunlik kiyintirish limiti tugadi");
 
@@ -121,6 +132,7 @@ export async function tryOn(product: TryOnProduct, photo: Buffer, photoType: str
       garment: await garmentPng(product.imageUrl),
       category: tryOnCategory(product.category),
       signal: ctrl.signal,
+      onPreview,
     });
     console.log(`[tryon] ${config.tryOn.provider} tayyor (${Date.now() - t0} ms)`);
     return { mode: "api", image };

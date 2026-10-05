@@ -9,6 +9,8 @@ const bodySchema = z.object({
   productId: z.number().int().positive(),
   // Brauzer suratni kichraytirib, data URL ko'rinishida yuboradi
   photo: z.string().regex(/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/, "Surat formati noto'g'ri"),
+  // true: NDJSON oqimi (oraliq ko'rinishlar + natija), false: bitta JSON javob
+  stream: z.boolean().optional(),
 });
 
 export async function POST(request: Request) {
@@ -34,5 +36,16 @@ export async function POST(request: Request) {
   if (!product) return Response.json({ error: "Tovar topilmadi" }, { status: 404 });
 
   // Surat faqat shu so'rov davomida xotirada: hech qayerga yozilmaydi
-  return Response.json(await tryOn(product, photo, type));
+  if (!body.data.stream) return Response.json(await tryOn(product, photo, type));
+
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const send = (event: object) => controller.enqueue(encoder.encode(JSON.stringify(event) + "\n"));
+      const result = await tryOn(product, photo, type, (p) => send({ type: "preview", ...p }));
+      send({ type: "result", result });
+      controller.close();
+    },
+  });
+  return new Response(stream, { headers: { "Content-Type": "application/x-ndjson", "Cache-Control": "no-store" } });
 }

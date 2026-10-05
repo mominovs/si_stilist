@@ -5,8 +5,8 @@ Xaridor surati faqat xotirada qayta ishlanadi: diskka yozilmaydi va internetga c
 Model og'irliklari birinchi ishga tushishda Hugging Face'dan yuklanadi (~4 GB), keyin keshdan olinadi.
 
 Ishga tushirish:
-    python server.py                      # standart: --preset orta (768x576, 30 qadam), bf16, port 8001
-    python server.py --preset sifat       # 1024x768, 40 qadam (sekinroq, ko'proq GPU xotira)
+    python server.py                      # standart: --preset orta (768x576, 40 qadam), bf16, port 8001
+    python server.py --preset sifat       # 1024x768, 50 qadam (sekinroq, ko'proq GPU xotira)
     python server.py --preset tez         # 768x576, 20 qadam (tezroq)
     python server.py --height 640 --width 480   # GPU xotirasi yetmasa
     python server.py --mock               # modelsiz sinov rejimi (GPU kerak emas)
@@ -19,15 +19,19 @@ from __future__ import annotations
 import argparse
 import base64
 import io
+import json
 import os
+import queue
 import sys
 import threading
 import time
 from pathlib import Path
+from typing import Callable
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
-from PIL import Image
+from fastapi.responses import StreamingResponse
+from PIL import Image, ImageFilter
 from pydantic import BaseModel
 
 HERE = Path(__file__).resolve().parent
@@ -37,9 +41,14 @@ MAX_IMAGE_BYTES = 8 * 1024 * 1024
 # tez: demo uchun eng tez; orta: 6 GB GPU uchun muvozanat; sifat: model o'qitilgan o'lcham (GPU xotirasi ko'proq kerak)
 PRESETS = {
     "tez": {"height": 768, "width": 576, "steps": 20},
-    "orta": {"height": 768, "width": 576, "steps": 30},
-    "sifat": {"height": 1024, "width": 768, "steps": 40},
+    "orta": {"height": 768, "width": 576, "steps": 40},
+    "sifat": {"height": 1024, "width": 768, "steps": 50},
 }
+
+# Oraliq ko'rinishlar shu ulushlarda yuboriladi (40 qadamda: 10, 20, 30), oxirida yakuniy natija
+PREVIEW_FRACTIONS = (0.25, 0.5, 0.75)
+
+PreviewFn = Callable[[int, Image.Image], None]
 
 
 def parse_args() -> argparse.Namespace:
@@ -78,6 +87,9 @@ class Engine:
         self._torch = None
         self._resize_and_crop = None
         self._resize_and_padding = None
+        self._prepare_image = None
+        self._compute_vae_encodings = None
+        self._randn_tensor = None
 
     def load(self) -> None:
         if self.args.mock:
@@ -89,8 +101,9 @@ class Engine:
             sys.path.insert(0, str(CATVTON_DIR))
             import torch
             from huggingface_hub import snapshot_download
+            from diffusers.utils.torch_utils import randn_tensor
             from model.pipeline import CatVTONPix2PixPipeline
-            from utils import resize_and_crop, resize_and_padding
+            from utils import compute_vae_encodings, prepare_image, resize_and_crop, resize_and_padding
 
             if self.device == "cuda" and not torch.cuda.is_available():
                 raise RuntimeError("CUDA topilmadi: NVIDIA drayveri va CUDA'li PyTorch o'rnatilganini tekshiring.")
@@ -112,40 +125,96 @@ class Engine:
             self._torch = torch
             self._resize_and_crop = resize_and_crop
             self._resize_and_padding = resize_and_padding
+            self._prepare_image = prepare_image
+            self._compute_vae_encodings = compute_vae_encodings
+            self._randn_tensor = randn_tensor
             self.status = "ready"
             print(f"[model] tayyor ({time.time() - t0:.0f} s), {self.args.height}x{self.args.width}", flush=True)
         except Exception as e:  # noqa: BLE001 - holat /health orqali ko'rsatiladi
             self.status, self.error = "error", str(e)
             print(f"[model] XATO: {e}", flush=True)
 
-    def run(self, person: Image.Image, garment: Image.Image, steps: int, seed: int) -> Image.Image:
+    def run(
+        self,
+        person: Image.Image,
+        garment: Image.Image,
+        steps: int,
+        seed: int,
+        on_preview: PreviewFn | None = None,
+    ) -> Image.Image:
         size = (self.args.width, self.args.height)
+        preview_at = {max(1, round(steps * f)) for f in PREVIEW_FRACTIONS} if on_preview else set()
+
         if self.args.mock:
-            time.sleep(1)
             out = person.convert("RGB").resize(size)
             g = garment.convert("RGB").resize((size[0] // 2, size[1] // 2))
             out.paste(g, (size[0] // 4, size[1] // 5))
+            for step in sorted(preview_at):
+                time.sleep(0.4)
+                on_preview(step, out.filter(ImageFilter.GaussianBlur(radius=12 * (1 - step / steps))))
+            time.sleep(0.4)
             return out
 
-        torch = self._torch
         with self.lock:
-            person = self._resize_and_crop(person, size)
-            garment = self._resize_and_padding(garment, size)
-            generator = torch.Generator(device=self.device).manual_seed(seed)
             try:
-                result = self.pipeline(
-                    image=person,
-                    condition_image=garment,
-                    num_inference_steps=steps,
-                    guidance_scale=2.5,
-                    height=self.args.height,
-                    width=self.args.width,
-                    generator=generator,
-                )[0]
+                person = self._resize_and_crop(person, size)
+                garment = self._resize_and_padding(garment, size)
+                # NSFW filtri faqat asl quvurda bor: yoqilgan bo'lsa oraliq ko'rinishlarsiz ishlaymiz
+                if self.args.safety or not on_preview:
+                    generator = self._torch.Generator(device=self.device).manual_seed(seed)
+                    return self.pipeline(
+                        image=person, condition_image=garment, num_inference_steps=steps,
+                        guidance_scale=2.5, height=self.args.height, width=self.args.width, generator=generator,
+                    )[0]
+                return self._run_progressive(person, garment, steps, seed, preview_at, on_preview)
             finally:
                 if self.device == "cuda":
-                    torch.cuda.empty_cache()
-        return result
+                    self._torch.cuda.empty_cache()
+
+    def _decode(self, latents) -> Image.Image:
+        """Birlashtirilgan latentdan (odam | kiyim) odam qismini rasmga aylantiradi."""
+        torch, p = self._torch, self.pipeline
+        latents = latents.split(latents.shape[-1] // 2, dim=-1)[0]
+        latents = latents / p.vae.config.scaling_factor
+        image = p.vae.decode(latents.to(self.device, dtype=p.weight_dtype)).sample
+        image = (image / 2 + 0.5).clamp(0, 1)[0].permute(1, 2, 0).float().cpu().numpy()
+        return Image.fromarray((image * 255).round().astype("uint8"))
+
+    def _run_progressive(self, person, garment, steps, seed, preview_at, on_preview) -> Image.Image:
+        """
+        CatVTONPix2PixPipeline.__call__ bilan bir xil tsikl (CatVTON 7818397), faqat ba'zi qadamlarda
+        DDIM'ning taxminiy yakuniy rasmi (pred_original_sample) dekodlanib, oraliq ko'rinish sifatida yuboriladi.
+        Natija oddiy chaqiruv bilan bir xil, qo'shimcha xarajat faqat bir necha VAE dekodlash.
+        """
+        torch, p = self._torch, self.pipeline
+        guidance_scale = 2.5
+        with torch.no_grad():
+            generator = torch.Generator(device=self.device).manual_seed(seed)
+            image = self._prepare_image(person).to(self.device, dtype=p.weight_dtype)
+            condition = self._prepare_image(garment).to(self.device, dtype=p.weight_dtype)
+            image_latent = self._compute_vae_encodings(image, p.vae)
+            condition_latent = self._compute_vae_encodings(condition, p.vae)
+            del image, condition
+            concat = torch.cat([image_latent, condition_latent], dim=-1)
+            latents = self._randn_tensor(concat.shape, generator=generator, device=concat.device, dtype=p.weight_dtype)
+            p.noise_scheduler.set_timesteps(steps, device=self.device)
+            latents = latents * p.noise_scheduler.init_noise_sigma
+            concat = torch.cat([torch.cat([image_latent, torch.zeros_like(condition_latent)], dim=-1), concat])
+            extra = p.prepare_extra_step_kwargs(generator, 1.0)
+
+            for i, t in enumerate(p.noise_scheduler.timesteps):
+                model_input = p.noise_scheduler.scale_model_input(torch.cat([latents] * 2), t)
+                noise_pred = p.unet(torch.cat([model_input, concat], dim=1), t.to(self.device),
+                                    encoder_hidden_states=None, return_dict=False)[0]
+                uncond, cond = noise_pred.chunk(2)
+                noise_pred = uncond + guidance_scale * (cond - uncond)
+                out = p.noise_scheduler.step(noise_pred, t, latents, **extra)
+                latents = out.prev_sample
+                step = i + 1
+                if step in preview_at and step < steps and getattr(out, "pred_original_sample", None) is not None:
+                    on_preview(step, self._decode(out.pred_original_sample))
+
+            return self._decode(latents)
 
 
 def find_attention_version(repo: Path) -> str:
@@ -206,29 +275,74 @@ def health():
     }
 
 
-@app.post("/tryon")
-def tryon(req: TryOnRequest):
+def ensure_ready() -> None:
     if engine.status == "loading":
         raise HTTPException(503, "Model hali yuklanmoqda")
     if engine.status == "error":
         raise HTTPException(500, f"Model yuklanmadi: {engine.error}")
 
+
+def to_b64(image: Image.Image, quality: int = 90) -> str:
+    buf = io.BytesIO()
+    image.save(buf, format="JPEG", quality=quality)
+    return base64.b64encode(buf.getvalue()).decode()
+
+
+def describe_failure(e: Exception) -> tuple[int, str]:
+    if "out of memory" in str(e).lower():
+        return 507, "GPU xotirasi yetmadi: serverni --preset tez yoki --height 640 --width 480 bilan ishga tushiring"
+    return 500, f"Kiyintirishda xato: {e}"
+
+
+@app.post("/tryon")
+def tryon(req: TryOnRequest):
+    ensure_ready()
     person, garment = decode_image(req.person), decode_image(req.garment)
     steps = max(10, min(50, req.steps or args.steps))
     t0 = time.time()
     try:
         result = engine.run(person, garment, steps, req.seed)
     except Exception as e:  # noqa: BLE001
-        if "out of memory" in str(e).lower():
-            raise HTTPException(
-                507, "GPU xotirasi yetmadi: serverni --height 640 --width 480 bilan qayta ishga tushiring"
-            ) from e
-        raise HTTPException(500, f"Kiyintirishda xato: {e}") from e
-
-    buf = io.BytesIO()
-    result.save(buf, format="JPEG", quality=90)
+        status, detail = describe_failure(e)
+        raise HTTPException(status, detail) from e
     print(f"[tryon] {req.category}, {steps} qadam, {time.time() - t0:.1f} s", flush=True)
-    return {"image": base64.b64encode(buf.getvalue()).decode(), "seconds": round(time.time() - t0, 1)}
+    return {"image": to_b64(result), "seconds": round(time.time() - t0, 1)}
+
+
+@app.post("/tryon/stream")
+def tryon_stream(req: TryOnRequest):
+    """
+    NDJSON oqimi: avval oraliq ko'rinishlar {"type":"preview","step","total","image"},
+    oxirida {"type":"result","image","seconds"} yoki {"type":"error","status","detail"}.
+    """
+    ensure_ready()
+    person, garment = decode_image(req.person), decode_image(req.garment)
+    steps = max(10, min(50, req.steps or args.steps))
+    events: queue.Queue = queue.Queue()
+
+    def work() -> None:
+        t0 = time.time()
+        try:
+            def on_preview(step: int, img: Image.Image) -> None:
+                events.put({"type": "preview", "step": step, "total": steps, "image": to_b64(img, quality=75)})
+
+            result = engine.run(person, garment, steps, req.seed, on_preview=on_preview)
+            seconds = round(time.time() - t0, 1)
+            print(f"[tryon] {req.category}, {steps} qadam (oqim), {seconds} s", flush=True)
+            events.put({"type": "result", "image": to_b64(result), "seconds": seconds})
+        except Exception as e:  # noqa: BLE001
+            status, detail = describe_failure(e)
+            events.put({"type": "error", "status": status, "detail": detail})
+        finally:
+            events.put(None)
+
+    threading.Thread(target=work, daemon=True).start()
+
+    def stream():
+        while (item := events.get()) is not None:
+            yield json.dumps(item) + "\n"
+
+    return StreamingResponse(stream(), media_type="application/x-ndjson")
 
 
 if __name__ == "__main__":

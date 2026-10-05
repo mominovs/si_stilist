@@ -146,5 +146,8 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
 - Lokal provayder (`TRYON_PROVIDER=local`): `tryon-local/server.py` (FastAPI + CatVTON-MaskFree, detectron2'siz,
   Windows'da pip bilan o'rnatiladi; `setup.bat`, `start.bat`). Standart 768x576 bf16 (6 GB GPU), timeout 120 s,
   kunlik limit qo'llanmaydi. `--mock` rejimi GPU'siz sinov uchun. Adapter: `src/lib/tryon/local.ts`
+- Progressiv natija: lokal server `POST /tryon/stream` (NDJSON) bitta generatsiyada 25/50/75% qadamlarda DDIM
+  `pred_original_sample` ni dekodlab yuboradi; `/api/tryon` `{stream: true}` bilan oqimni brauzerga uzatadi,
+  `TryOnModal` kadrlarni ustma-ust silliq almashtiradi. Presetlar: tez 768x576/20, orta 768x576/40, sifat 1024x768/50
 
 @AGENTS.md
