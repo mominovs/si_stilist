@@ -69,6 +69,11 @@ export async function runLocalTryOnStream(
     if (e instanceof Error && e.name === "AbortError") throw e;
     throw new LocalTryOnError("lokal SI server ishlamayapti, tryon-local\\start.bat ni ishga tushiring", null);
   }
+  if (res.status === 404) {
+    // Eski server (oqim endpointi yo'q): oddiy rejimda davom etamiz
+    console.warn("[tryon] lokal server eski versiya, progressiv ko'rinish yo'q. tryon-local\\start.bat ni qayta ishga tushiring");
+    return runLocalTryOn(input);
+  }
   if (!res.ok || !res.body) {
     const data = (await res.json().catch(() => ({}))) as { detail?: string };
     throw new LocalTryOnError(data.detail ?? `lokal server xatosi (${res.status})`, res.status);

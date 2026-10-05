@@ -21,6 +21,9 @@ async function main() {
     try {
       const health = await (await fetch(`${config.tryOn.localUrl}/health`)).json();
       console.log(`  holat: ${JSON.stringify(health)}`);
+      if (!health.stream) {
+        console.log("  -> Lokal server eski versiyada. Server oynasini yopib, tryon-local\\start.bat ni qayta ishga tushiring.");
+      }
       if (health.status !== "ready") {
         console.log("  -> Model hali tayyor emas (yuklanmoqda yoki xato). Server oynasidagi yozuvlarga qarang.");
         process.exit(1);

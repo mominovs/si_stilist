@@ -94,6 +94,7 @@ class Engine:
     def load(self) -> None:
         if self.args.mock:
             self.status, self.device = "ready", "mock"
+            print(f"[model] mock rejim: preset {self.args.preset}, {self.args.steps} qadam", flush=True)
             return
         try:
             if not CATVTON_DIR.exists():
@@ -129,7 +130,11 @@ class Engine:
             self._compute_vae_encodings = compute_vae_encodings
             self._randn_tensor = randn_tensor
             self.status = "ready"
-            print(f"[model] tayyor ({time.time() - t0:.0f} s), {self.args.height}x{self.args.width}", flush=True)
+            print(
+                f"[model] tayyor ({time.time() - t0:.0f} s): preset {self.args.preset}, "
+                f"{self.args.height}x{self.args.width}, {self.args.steps} qadam, progressiv oqim yoqilgan",
+                flush=True,
+            )
         except Exception as e:  # noqa: BLE001 - holat /health orqali ko'rsatiladi
             self.status, self.error = "error", str(e)
             print(f"[model] XATO: {e}", flush=True)
@@ -272,6 +277,9 @@ def health():
         "resolution": f"{args.height}x{args.width}",
         "steps": args.steps,
         "preset": args.preset,
+        # Server imkoniyatlari: ilova eski serverni aniqlashi uchun
+        "version": 2,
+        "stream": True,
     }
 
 
@@ -345,6 +353,25 @@ def tryon_stream(req: TryOnRequest):
     return StreamingResponse(stream(), media_type="application/x-ndjson")
 
 
+def port_is_free(host: str, port: int) -> bool:
+    import socket
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        try:
+            sock.bind((host, port))
+            return True
+        except OSError:
+            return False
+
+
 if __name__ == "__main__":
+    # Eski server oynasi ochiq qolgan bo'lsa, yangisi ishga tushmaydi va so'rovlarga eskisi javob beradi
+    if not port_is_free(args.host, args.port):
+        print(
+            f"XATO: {args.port}-port band. Ehtimol, eski server oynasi hali ochiq: uni yoping (Ctrl+C) "
+            f"va start.bat ni qayta ishga tushiring.",
+            flush=True,
+        )
+        sys.exit(1)
     threading.Thread(target=engine.load, daemon=True).start()
     uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
