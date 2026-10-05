@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-// /admin uchun oddiy Basic Auth. Login istalgan, parol: ADMIN_PASSWORD.
+// /admin va do'kon paneli uchun oddiy Basic Auth. Login istalgan, parol: ADMIN_PASSWORD.
 export function proxy(request: NextRequest) {
   const password = process.env.ADMIN_PASSWORD;
 
@@ -25,5 +25,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin", "/admin/:path*"],
+  matcher: ["/admin", "/admin/:path*", "/panel", "/panel/:path*", "/api/panel", "/api/panel/:path*"],
 };

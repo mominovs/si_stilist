@@ -118,4 +118,16 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
   `normalize.ts` da tozalanadi (belgilar, uzunlik). `/api/search`: 20 so'rov/daqiqa/IP, SI kunlik limiti
   `LLM_DAILY_LIMIT` (standart 500)
 
+## Texnik eslatmalar (3-bosqichdan keyin)
+- Do'kon paneli: `/panel` (Basic Auth, admin paroli). Statistika `src/lib/analytics.ts` dagi toza
+  `computeStats` funksiyasida (testlar bor), yuklash `src/lib/panel.ts`, API `GET /api/panel?period=`
+- Jonli yangilanish: har 2 s polling (serverless'da ham ishlaydi). Yangi so'rovlar va o'sgan talab qatorlari
+  4 s ajratib ko'rsatiladi. `POST /api/panel/reset` logni tozalaydi
+- Qoniqtirilmagan talab kaliti: kategoriya + ranglar. Turi: `katalogda-yoq` | `tugagan` | `oxshashi-bor`.
+  Mavzudan tashqari (`rad`) so'rovlar holat statistikasiga kirmaydi
+- Seed 56 ta namunaviy so'rov yaratadi (`mode: "namuna"`, `prisma/seed-data/requests.ts`), holati haqiqiy
+  moslashtirish bilan hisoblanadi
+- `src/lib/db.ts`: Prisma klienti jarayon bo'yicha yagona; `prisma dev` (port 5121x) bilan havza = 1 ulanish,
+  aks holda parallel so'rovlarda "Connection terminated unexpectedly". `DATABASE_POOL_MAX` bilan o'zgartiriladi
+
 @AGENTS.md

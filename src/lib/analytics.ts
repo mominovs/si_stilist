@@ -169,7 +169,7 @@ export function computeStats(
     styles: topCounts(styles, limit),
     colors: topCounts(colors, limit),
     unmet: unmetList,
-    recent: sorted.slice(0, opts.recent ?? 12).map((r) => ({
+    recent: sorted.slice(0, opts.recent ?? 8).map((r) => ({
       id: r.id,
       createdAt: r.createdAt.toISOString(),
       rawText: r.rawText,

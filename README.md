@@ -17,7 +17,13 @@ npm run setup     # .env yaratadi, lokal bazani ishga tushiradi, 48 ta demo tova
 npm run dev       # http://localhost:3000
 ```
 
-Admin: http://localhost:3000/admin (login istalgan, parol `.env` dagi `ADMIN_PASSWORD`, standart `demo123`).
+- Xaridor ekrani: http://localhost:3000
+- Do'kon paneli (jonli statistika va qoniqtirilmagan talab): http://localhost:3000/panel
+- Admin: http://localhost:3000/admin
+
+Panel va admin uchun login istalgan, parol `.env` dagi `ADMIN_PASSWORD` (standart `demo123`).
+Demo oldidan panel pastidagi "Logni tozalash" tugmasi bilan namunaviy tarixni o'chirish mumkin
+(qaytarish: `npm run db:seed`).
 
 SI tahlil uchun `.env` ga `ANTHROPIC_API_KEY` qo'shing va serverni qayta ishga tushiring. Kalit bo'lmasa
 yoki internet ishlamasa, xaridor ekrani kalit so'zlar bo'yicha oddiy tahlil va filtr tugmalari bilan ishlayveradi.
