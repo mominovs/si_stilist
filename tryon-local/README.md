@@ -67,6 +67,7 @@ piksel ishlaydi, shuning uchun sekinroq va GPU xotirasi yetmasligi mumkin; yetma
 
 ## Muammolar
 
+- **`8001-port band`**: eski server fonda ishlab qolgan. `stop.bat`, keyin `start.bat`.
 - **`No matching distribution found for torch==2.4.0`**: Python versiyasi mos emas (3.13+). Python 3.11 ni
   o'rnatib, `setup.bat` ni qayta ishga tushiring.
 - **`GPU xotirasi yetmadi`**: kichikroq o'lcham bilan ishga tushiring (`--height 640 --width 480`), boshqa

@@ -368,8 +368,8 @@ if __name__ == "__main__":
     # Eski server oynasi ochiq qolgan bo'lsa, yangisi ishga tushmaydi va so'rovlarga eskisi javob beradi
     if not port_is_free(args.host, args.port):
         print(
-            f"XATO: {args.port}-port band. Ehtimol, eski server oynasi hali ochiq: uni yoping (Ctrl+C) "
-            f"va start.bat ni qayta ishga tushiring.",
+            f"XATO: {args.port}-port band: eski server hali ishlayapti (oynasi yopilgan bo'lsa ham fonda qolishi mumkin). "
+            f"stop.bat ni ishga tushiring, keyin start.bat ni qayta ishga tushiring.",
             flush=True,
         )
         sys.exit(1)
