@@ -47,16 +47,17 @@ Misollar:
 let client: { key: string; instance: Anthropic } | null = null;
 
 // Kutish vaqtlari: birinchi urinish uzunroq (yangi ulanish va sxema kompilyatsiyasi sekin bo'lishi mumkin,
-// ayniqsa uzoq tarmoqdan), qayta urinish qisqaroq. Eng yomon holatda ~20 s, keyin zaxira rejim.
-const FIRST_ATTEMPT_MS = 12_000;
-const RETRY_ATTEMPT_MS = 8_000;
+// ayniqsa uzoq tarmoqdan), qayta urinish uning 2/3 qismi. Standart: 12 s + 8 s, keyin zaxira rejim.
+// LLM_TIMEOUT_MS (.env) orqali o'zgartiriladi.
+const firstAttemptMs = () => config.llm.timeoutMs;
+const retryAttemptMs = () => Math.round((config.llm.timeoutMs * 2) / 3);
 
 function getClient(): Anthropic {
   // SDK o'zi qayta urinmaydi, qayta urinishni pastdagi kod boshqaradi.
   // Kalit almashsa (.env yangilansa) klient qayta yaratiladi.
   const key = config.llm.apiKey;
   if (client?.key !== key) {
-    client = { key, instance: new Anthropic({ apiKey: key, timeout: FIRST_ATTEMPT_MS, maxRetries: 0 }) };
+    client = { key, instance: new Anthropic({ apiKey: key, maxRetries: 0 }) };
   }
   return client.instance;
 }
@@ -65,7 +66,7 @@ export function llmConfigured(): boolean {
   return config.llm.apiKey.length > 0;
 }
 
-async function parseOnce(text: string, vocab: Vocabulary, timeout: number): Promise<ParsedQuery> {
+export async function parseOnce(text: string, vocab: Vocabulary, timeout: number): Promise<ParsedQuery> {
   const response = await getClient().messages.parse(
     {
       model: config.llm.model,
@@ -101,10 +102,10 @@ export function describeLlmError(e: unknown): string {
 /** Bir marta qayta urinadi. Ikkala urinish ham muvaffaqiyatsiz bo'lsa xato tashlaydi. */
 export async function parseWithLlm(text: string, vocab: Vocabulary): Promise<ParsedQuery> {
   try {
-    return await parseOnce(text, vocab, FIRST_ATTEMPT_MS);
+    return await parseOnce(text, vocab, firstAttemptMs());
   } catch (first) {
     console.warn("[llm] 1-urinish muvaffaqiyatsiz:", first instanceof Error ? first.message : first);
-    return await parseOnce(text, vocab, RETRY_ATTEMPT_MS);
+    return await parseOnce(text, vocab, retryAttemptMs());
   }
 }
 

@@ -11,6 +11,7 @@
     "test": "node --import tsx --test \"src/**/*.test.ts\"",
     "postinstall": "prisma generate",
     "setup": "node scripts/setup.mjs",
+    "check:ai": "tsx scripts/check-ai.ts",
     "db:start": "prisma dev --name si_stilist --db-port 51214 --detach",
     "db:stop": "prisma dev stop si_stilist",
     "db:migrate": "prisma migrate dev",

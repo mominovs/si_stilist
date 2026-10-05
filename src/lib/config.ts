@@ -10,6 +10,11 @@ export const config = {
     get apiKey() {
       return (process.env.ANTHROPIC_API_KEY || "").trim();
     },
+    /** Birinchi urinish uchun kutish vaqti (ms). Sekin tarmoqda .env orqali oshirish mumkin */
+    get timeoutMs() {
+      const v = Number(process.env.LLM_TIMEOUT_MS);
+      return Number.isFinite(v) && v >= 2000 ? v : 12_000;
+    },
   },
   tryOn: {
     get endpoint() {

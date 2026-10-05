@@ -44,6 +44,7 @@ GitHub faqat kodni saqlaydi, ilovani ishga tushirmaydi. Doimiy havola uchun bepu
 | --- | --- |
 | `npm run setup` | Birinchi marta: .env, lokal baza, migratsiya, demo tovarlar |
 | `npm run db:start` / `npm run db:stop` | Lokal bazani yoqish / o'chirish |
+| `npm run check:ai` | SI (Claude API) ulanishi va tezligini tekshirish |
 | `npm run dev` | Dev server |
 | `npm run build` / `npm start` | Production build va ishga tushirish |
 | `npm run typecheck` | TypeScript tekshiruvi |
