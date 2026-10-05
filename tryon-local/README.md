@@ -11,7 +11,9 @@ Litsenziya: CC BY-NC-SA 4.0, faqat notijorat foydalanish (BMI, tanlov, demo uchu
 
 - NVIDIA GPU, kamida 6 GB (RTX 3060 Laptop 6 GB uchun standart sozlamalar tanlangan)
 - NVIDIA drayveri (yangi versiya), Windows 10/11
-- Python 3.10 yoki 3.11 ([python.org](https://www.python.org/downloads/), o'rnatishda "Add to PATH" belgilansin)
+- Python **3.10, 3.11 yoki 3.12** (3.13 va undan yangisi ishlamaydi: PyTorch 2.4 ular uchun chiqmagan).
+  Tavsiya: [Python 3.11.9](https://www.python.org/downloads/release/python-3119/) "Windows installer (64-bit)",
+  o'rnatishda "py launcher" belgilansin. Kompyuterdagi yangi Python'ga tegmaydi, `setup.bat` 3.11 ni o'zi topadi
 - Git
 - ~10 GB bo'sh joy (PyTorch ~2.5 GB, model ~4 GB)
 
@@ -23,6 +25,7 @@ setup.bat
 ```
 
 Oxirida `CUDA: True NVIDIA GeForce RTX ...` chiqishi kerak. `False` chiqsa, NVIDIA drayverini yangilang.
+`setup.bat` mos Python'ni o'zi tanlaydi va noto'g'ri versiya bilan yaratilgan eski `.venv` ni qayta yaratadi.
 
 ## Ishga tushirish
 
@@ -51,6 +54,8 @@ Kutish vaqti ilovada 120 s (`TRYON_TIMEOUT_MS`). Server ishlamasa yoki xato bers
 
 ## Muammolar
 
+- **`No matching distribution found for torch==2.4.0`**: Python versiyasi mos emas (3.13+). Python 3.11 ni
+  o'rnatib, `setup.bat` ni qayta ishga tushiring.
 - **`GPU xotirasi yetmadi`**: kichikroq o'lcham bilan ishga tushiring (`--height 640 --width 480`), boshqa
   GPU ishlatayotgan dasturlarni (o'yinlar, brauzerdagi og'ir sahifalar) yoping.
 - **`CUDA topilmadi`**: NVIDIA drayverini yangilang, `setup.bat` ni qayta ishga tushiring.
