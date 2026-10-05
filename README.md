@@ -2,24 +2,45 @@
 
 Kiyim do'konlari uchun SI stilist va talab analitikasi. Loyiha tavsifi va bosqichlar: [CLAUDE.md](CLAUDE.md).
 
-## Ishga tushirish
+## Ishga tushirish (lokal)
 
-Talablar: Node.js 20+, Docker (yoki lokal PostgreSQL 16).
+Talablar: [Node.js 20+](https://nodejs.org) va [Git](https://git-scm.com). Docker shart emas.
+
+Windows'da **Command Prompt** (cmd) oching. Buyruqlar System32 ichida emas, loyiha papkasida bajarilishi kerak:
 
 ```bash
-npm install                 # prisma client ham avtomatik generatsiya qilinadi
-cp .env.example .env        # kerak bo'lsa parol va kalitlarni o'zgartiring
-docker compose up -d        # PostgreSQL
-npm run db:setup            # migratsiyalar + 48 ta demo tovar
-npm run dev                 # http://localhost:3000
+cd %USERPROFILE%\Documents
+git clone -b claude/blissful-ramanujan-y9ta93 https://github.com/mominovs/si_stilist.git
+cd si_stilist
+npm install
+npm run setup     # .env yaratadi, lokal bazani ishga tushiradi, 48 ta demo tovarni yuklaydi
+npm run dev       # http://localhost:3000
 ```
 
 Admin: http://localhost:3000/admin (login istalgan, parol `.env` dagi `ADMIN_PASSWORD`, standart `demo123`).
+
+Kompyuter qayta yoqilgandan keyin baza o'chgan bo'ladi: `npm run db:start`, keyin `npm run dev`.
+
+Docker bilan ishlamoqchi bo'lsangiz: `docker compose up -d`, `.env` dagi `DATABASE_URL` ni Docker qatoriga
+almashtiring va `npm run db:setup`.
+
+## Onlayn joylash (doimiy ishlab turadigan havola)
+
+GitHub faqat kodni saqlaydi, ilovani ishga tushirmaydi. Doimiy havola uchun bepul variant: **Vercel + Neon**.
+
+1. [neon.tech](https://neon.tech) da ro'yxatdan o'tib, PostgreSQL loyiha yarating va connection string'ni nusxalang.
+2. [vercel.com](https://vercel.com) ga GitHub orqali kiring, **Add New → Project** da `si_stilist` repo'sini tanlang.
+3. **Environment Variables** ga qo'shing: `DATABASE_URL` (Neon manzili) va `ADMIN_PASSWORD`.
+4. **Deploy**. Build vaqtida migratsiyalar avtomatik qo'llanadi (`vercel-build` skripti).
+5. Demo tovarlarni bir marta yuklang (o'z kompyuteringizda, `.env` dagi `DATABASE_URL` ni Neon manziliga
+   almashtirib): `npm run db:seed`.
 
 ## Skriptlar
 
 | Buyruq | Vazifasi |
 | --- | --- |
+| `npm run setup` | Birinchi marta: .env, lokal baza, migratsiya, demo tovarlar |
+| `npm run db:start` / `npm run db:stop` | Lokal bazani yoqish / o'chirish |
 | `npm run dev` | Dev server |
 | `npm run build` / `npm start` | Production build va ishga tushirish |
 | `npm run typecheck` | TypeScript tekshiruvi |
