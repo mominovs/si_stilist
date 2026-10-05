@@ -45,6 +45,7 @@ echo [4/4] Qolgan kutubxonalar...
 "%VPY%" -m pip install -r requirements.txt || goto :error
 
 "%VPY%" -c "import torch; print('CUDA:', torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else '')"
+"%VPY%" -c "import mediapipe; print('MediaPipe (kiyim niqobi):', mediapipe.__version__)" || goto :error
 echo.
 echo Tayyor. Serverni ishga tushirish: start.bat
 exit /b 0

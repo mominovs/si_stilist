@@ -149,5 +149,12 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
 - Progressiv natija: lokal server `POST /tryon/stream` (NDJSON) bitta generatsiyada 25/50/75% qadamlarda DDIM
   `pred_original_sample` ni dekodlab yuboradi; `/api/tryon` `{stream: true}` bilan oqimni brauzerga uzatadi,
   `TryOnModal` kadrlarni ustma-ust silliq almashtiradi. Presetlar: tez 768x576/20, orta 768x576/40, sifat 1024x768/50
+- Niqobli rejim (standart, `--mode mask`): `tryon-local/masker.py` (MediaPipe selfie_multiclass + pose_landmarker_full,
+  modellar `tryon-local/models/` ga avtomatik yuklanadi) kiyim niqobini yasaydi, yuz/soch/kaftlar himoyalanadi.
+  `CatVTONPipeline` (base `booksforcharlie/stable-diffusion-inpainting`, `zhengchong/CatVTON` mix) faqat niqob ichini
+  chizadi, natija va oraliq kadrlar asl suratga yumshoq niqob bilan qayta yopishtiriladi. Yaroqsiz surat (odam yo'q,
+  yelka ko'rinmaydi, juda yaqin) -> 422 -> `TryOnResult` `{mode: "photo", message}` -> modal "Qayta suratga tushish".
+  `/health` version 3 + `mode`. `--mode maskfree` eski niqobsiz model. `--mock` da ham niqob va tekshiruv ishlaydi.
+  numpy 1.26 (torch 2.4) uchun `opencv-contrib-python==4.10.0.84` qotirilgan
 
 @AGENTS.md

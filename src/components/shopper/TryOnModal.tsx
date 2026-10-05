@@ -120,6 +120,8 @@ export function TryOnModal({
   // Shakllanayotgan rasm kadrlari (oraliq ko'rinishlar, oxirida yakuniy natija) va jarayon holati
   const [frames, setFrames] = useState<string[]>([]);
   const [progress, setProgress] = useState<{ step: number; total: number } | null>(null);
+  // Server suratni rad etgan sabab (masalan, "juda yaqin turibsiz")
+  const [photoIssue, setPhotoIssue] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   // Har bir kamera so'rovining tartib raqami: eski (bekor qilingan) so'rov kech javob bersa, oqimi darhol o'chiriladi
@@ -193,10 +195,16 @@ export function TryOnModal({
     setStep("processing");
     setFrames([]);
     setProgress(null);
+    setPhotoIssue(null);
     const t0 = performance.now();
     const seconds = () => Math.round((performance.now() - t0) / 1000);
 
     const finish = async (r: TryOnResult) => {
+      if (r.mode === "photo") {
+        setPhotoIssue(r.message);
+        setStep("preview");
+        return;
+      }
       const image =
         r.mode === "api" ? r.image : (r.prepared ?? (await demoComposite(photo, card.imageUrl, card.category)));
       setFrames((f) => [...f, image]);
@@ -247,6 +255,7 @@ export function TryOnModal({
 
   function retake() {
     setPhoto(null);
+    setPhotoIssue(null);
     setResult(null);
     setFrames([]);
     setProgress(null);
@@ -324,11 +333,22 @@ export function TryOnModal({
 
           {step === "preview" && photo && (
             <div className="space-y-4">
+              {photoIssue && (
+                <div className="mx-auto max-w-lg rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                  <b>Bu surat kiyintirishga mos kelmadi.</b> {photoIssue}
+                </div>
+              )}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={photo} alt="Sizning suratingiz" className="mx-auto max-h-[60dvh] rounded-xl" />
               <div className="flex flex-wrap justify-center gap-3">
-                <button onClick={submit} className="rounded-xl bg-neutral-900 px-6 py-3 text-sm font-medium text-white hover:bg-neutral-700">Kiyintirish</button>
-                <button onClick={retake} className="rounded-xl border border-neutral-300 px-5 py-3 text-sm hover:bg-neutral-50">Qayta olish</button>
+                {photoIssue ? (
+                  <button onClick={retake} className="rounded-xl bg-neutral-900 px-6 py-3 text-sm font-medium text-white hover:bg-neutral-700">Qayta suratga tushish</button>
+                ) : (
+                  <>
+                    <button onClick={submit} className="rounded-xl bg-neutral-900 px-6 py-3 text-sm font-medium text-white hover:bg-neutral-700">Kiyintirish</button>
+                    <button onClick={retake} className="rounded-xl border border-neutral-300 px-5 py-3 text-sm hover:bg-neutral-50">Qayta olish</button>
+                  </>
+                )}
               </div>
             </div>
           )}

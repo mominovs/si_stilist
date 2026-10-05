@@ -23,6 +23,10 @@ async function main() {
       console.log(`  holat: ${JSON.stringify(health)}`);
       if (!health.stream) {
         console.log("  -> Lokal server eski versiyada. Server oynasini yopib, tryon-local\\start.bat ni qayta ishga tushiring.");
+      } else if ((health.version ?? 0) < 3) {
+        console.log("  -> Niqobli rejim yo'q (eski server). git pull, setup.bat, stop.bat, keyin start.bat.");
+      } else if (health.mode === "maskfree") {
+        console.log("  -> Niqobsiz rejim: yaqin portret va murakkab pozalarda yuz/qo'llar buzilishi mumkin.");
       }
       if (health.status !== "ready") {
         console.log("  -> Model hali tayyor emas (yuklanmoqda yoki xato). Server oynasidagi yozuvlarga qarang.");

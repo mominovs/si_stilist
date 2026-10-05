@@ -3,9 +3,9 @@
 Internet va pullik API'siz, o'z kompyuteringizdagi NVIDIA GPU'da ishlaydigan kiyintirish serveri.
 Xaridor surati kompyuterdan tashqariga chiqmaydi va diskka yozilmaydi.
 
-Model: [CatVTON](https://github.com/Zheng-Chong/CatVTON) niqobsiz versiyasi
-([zhengchong/CatVTON-MaskFree](https://huggingface.co/zhengchong/CatVTON-MaskFree)).
-Litsenziya: CC BY-NC-SA 4.0, faqat notijorat foydalanish (BMI, tanlov, demo uchun mos).
+Model: [CatVTON](https://github.com/Zheng-Chong/CatVTON) niqobli versiyasi
+([zhengchong/CatVTON](https://huggingface.co/zhengchong/CatVTON)) + [MediaPipe](https://ai.google.dev/edge/mediapipe)
+kiyim niqobi. Litsenziya: CC BY-NC-SA 4.0, faqat notijorat foydalanish (BMI, tanlov, demo uchun mos).
 
 ## Talablar
 
@@ -15,7 +15,7 @@ Litsenziya: CC BY-NC-SA 4.0, faqat notijorat foydalanish (BMI, tanlov, demo uchu
   Tavsiya: [Python 3.11.9](https://www.python.org/downloads/release/python-3119/) "Windows installer (64-bit)",
   o'rnatishda "py launcher" belgilansin. Kompyuterdagi yangi Python'ga tegmaydi, `setup.bat` 3.11 ni o'zi topadi
 - Git
-- ~10 GB bo'sh joy (PyTorch ~2.5 GB, model ~4 GB)
+- ~12 GB bo'sh joy (PyTorch ~2.5 GB, model ~4-5 GB)
 
 ## O'rnatish (bir marta)
 
@@ -24,7 +24,7 @@ cd tryon-local
 setup.bat
 ```
 
-Oxirida `CUDA: True NVIDIA GeForce RTX ...` chiqishi kerak. `False` chiqsa, NVIDIA drayverini yangilang.
+Oxirida `CUDA: True NVIDIA GeForce RTX ...` va `MediaPipe (kiyim niqobi): 1.0.1` chiqishi kerak. `False` chiqsa, NVIDIA drayverini yangilang.
 `setup.bat` mos Python'ni o'zi tanlaydi va noto'g'ri versiya bilan yaratilgan eski `.venv` ni qayta yaratadi.
 
 ## Ishga tushirish
@@ -41,10 +41,26 @@ Oxirida `CUDA: True NVIDIA GeForce RTX ...` chiqishi kerak. `False` chiqsa, NVID
    ```
 3. Tekshirish: `npm run check:tryon -- men.jpg` (natija `tryon-test.jpg` ga yoziladi), keyin `npm run dev`.
 
+## Qanday ishlaydi: niqobli rejim
+
+1. **Surat tekshiruvi** (MediaPipe, CPU'da ~0.1 s): odam topilmasa, yelkalar ko'rinmasa yoki yuz kadrning katta
+   qismini egallasa (juda yaqin), surat GPU'ga yuborilmay rad etiladi. Saytda sabab va "Qayta suratga tushish"
+   tugmasi chiqadi (demo rejim emas).
+2. **Kiyim niqobi**: segmentatsiya (kiyim, teri, yuz, soch) + poza (yelka, bilak, son) bo'yicha faqat almashtiriladigan
+   kiyim qismi belgilanadi. Yuz, soch va kaftlar himoyalanadi. Shim/yubka uchun beldan pasti, libos uchun butun gavda.
+3. **CatVTON faqat niqob ichini chizadi**, keyin natija asl suratga yumshoq chegara bilan qayta yopishtiriladi:
+   yuz, qo'llar, fon pikselma-piksel o'zgarmaydi.
+
+Avvalgi niqobsiz rejim butun suratni qayta chizardi: yaqin portretda yuzni "kesib" tashlar, galstuk va qo'llar
+ustida artefakt qoldirardi. Kerak bo'lsa: `start.bat --mode maskfree`.
+
+MediaPipe modellari (~15 MB) birinchi ishga tushishda `tryon-local/models/` ga yuklanadi.
+
 ## Sozlamalar
 
 | Parametr | Standart | Izoh |
 | --- | --- | --- |
+| `--mode` | mask | `mask`: faqat kiyim qismi o'zgaradi (tavsiya). `maskfree`: eski niqobsiz model |
 | `--preset` | orta | `tez` (768x576, 20 qadam), `orta` (768x576, 40), `sifat` (1024x768, 50). Masalan: `start.bat --preset sifat` |
 | `--height --width` | presetdan | GPU xotirasi yetmasa: `start.bat --height 640 --width 480`. 8 GB+ bo'lsa: 1024 768 |
 | `--steps` | presetdan | Kamroq: tezroq (20), ko'proq: sifatliroq (40-50) |
@@ -66,6 +82,10 @@ piksel ishlaydi, shuning uchun sekinroq va GPU xotirasi yetmasligi mumkin; yetma
 3. **Yaxshi surat:** old tomondan, yorug', oddiy fon, qo'llar yon tomonda, belgacha yoki to'liq gavda.
 
 ## Muammolar
+
+- **"Kameraga juda yaqin turibsiz" / "Yelkalaringiz ko'rinmayapti"**: surat tekshiruvi. 1-1.5 metr uzoqlashing,
+  belgacha ko'rining. Shim va yubka uchun tizzagacha ko'rinish kerak.
+- **`mediapipe o'rnatilmagan`**: `git pull` dan keyin `setup.bat` ni qayta ishga tushiring.
 
 - **`8001-port band`**: eski server fonda ishlab qolgan. `stop.bat`, keyin `start.bat`.
 - **`No matching distribution found for torch==2.4.0`**: Python versiyasi mos emas (3.13+). Python 3.11 ni

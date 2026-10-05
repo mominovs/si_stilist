@@ -12,6 +12,8 @@ export type { TryOnPreview } from "./local";
 
 export type TryOnResult =
   | { mode: "api"; image: string }
+  /** Surat yaroqsiz (odam topilmadi, juda yaqin...): xaridor qayta suratga tushadi, demo ko'rsatilmaydi */
+  | { mode: "photo"; message: string }
   | {
       mode: "demo";
       reason: string;
@@ -137,6 +139,7 @@ export async function tryOn(
     console.log(`[tryon] ${config.tryOn.provider} tayyor (${Date.now() - t0} ms)`);
     return { mode: "api", image };
   } catch (e) {
+    if (e instanceof LocalTryOnError && e.status === 422) return { mode: "photo", message: e.message };
     const reason = ctrl.signal.aborted ? "xizmat juda sekin javob berdi" : describeError(e);
     console.warn(`[tryon] demo rejimga o'tildi (${reason}):`, e instanceof Error ? e.message : e);
     return demo(product, reason);
