@@ -1,25 +1,31 @@
 import Link from "next/link";
+import { connection } from "next/server";
+import { prisma } from "@/lib/db";
+import { COLORS } from "@/lib/catalog";
+import { Shopper } from "@/components/shopper/Shopper";
 
-export default function Home() {
+export default async function ShopperPage() {
+  await connection();
+  // Filtr tugmalari faqat omborda uchraydigan qiymatlardan tuziladi
+  const [cats, colors] = await Promise.all([
+    prisma.product.findMany({ distinct: ["category"], select: { category: true }, orderBy: { category: "asc" } }),
+    prisma.product.findMany({ distinct: ["color"], select: { color: true } }),
+  ]);
+  const colorOrder = Object.keys(COLORS);
+  const sortedColors = colors
+    .map((c) => c.color)
+    .sort((a, b) => (colorOrder.indexOf(a) + 1 || 99) - (colorOrder.indexOf(b) + 1 || 99));
+
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center gap-8 px-6 py-16">
-      <div>
-        <h1 className="text-4xl font-semibold tracking-tight">SI Stilist</h1>
-        <p className="mt-3 text-lg text-neutral-600">
-          Xaridor o&apos;zbek tilida so&apos;raydi, tizim ombordagi tovarlardan mosini topadi. Do&apos;kon esa
-          qaysi tovarlar so&apos;ralib, omborda yo&apos;qligini ko&apos;radi.
-        </p>
-      </div>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="rounded-xl border border-dashed border-neutral-300 p-6 text-neutral-500">
-          <div className="font-medium text-neutral-700">Xaridor ekrani</div>
-          <p className="mt-1 text-sm">2-bosqichda qo&apos;shiladi</p>
+    <div className="mx-auto flex min-h-full w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-6 sm:px-6">
+      <header className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">SI Stilist</h1>
+          <p className="text-sm text-neutral-500">Omborda bor tovarlardan sizga mosini topamiz</p>
         </div>
-        <Link href="/admin" className="rounded-xl border border-neutral-200 bg-white p-6 shadow-sm transition hover:shadow-md">
-          <div className="font-medium">Admin</div>
-          <p className="mt-1 text-sm text-neutral-500">Tovarlar, o&apos;lchamlar, CSV import</p>
-        </Link>
-      </div>
-    </main>
+        <Link href="/admin" className="text-sm text-neutral-400 hover:text-neutral-700">Admin</Link>
+      </header>
+      <Shopper categories={cats.map((c) => c.category)} colors={sortedColors} />
+    </div>
   );
 }

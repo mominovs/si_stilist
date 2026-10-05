@@ -19,6 +19,9 @@ npm run dev       # http://localhost:3000
 
 Admin: http://localhost:3000/admin (login istalgan, parol `.env` dagi `ADMIN_PASSWORD`, standart `demo123`).
 
+SI tahlil uchun `.env` ga `ANTHROPIC_API_KEY` qo'shing va serverni qayta ishga tushiring. Kalit bo'lmasa
+yoki internet ishlamasa, xaridor ekrani kalit so'zlar bo'yicha oddiy tahlil va filtr tugmalari bilan ishlayveradi.
+
 Kompyuter qayta yoqilgandan keyin baza o'chgan bo'ladi: `npm run db:start`, keyin `npm run dev`.
 
 Docker bilan ishlamoqchi bo'lsangiz: `docker compose up -d`, `.env` dagi `DATABASE_URL` ni Docker qatoriga
@@ -44,6 +47,7 @@ GitHub faqat kodni saqlaydi, ilovani ishga tushirmaydi. Doimiy havola uchun bepu
 | `npm run dev` | Dev server |
 | `npm run build` / `npm start` | Production build va ishga tushirish |
 | `npm run typecheck` | TypeScript tekshiruvi |
+| `npm test` | Moslashtirish va tahlilchi testlari |
 | `npm run lint` | ESLint |
 | `npm run db:migrate` | Sxema o'zgarganda yangi migratsiya (dev) |
 | `npm run db:seed` | Demo omborni qaytadan yuklash (so'rovlar logi ham tozalanadi) |

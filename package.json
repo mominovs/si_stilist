@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
+    "test": "node --import tsx --test \"src/**/*.test.ts\"",
     "postinstall": "prisma generate",
     "setup": "node scripts/setup.mjs",
     "db:start": "prisma dev --name si_stilist --db-port 51214 --detach",
@@ -20,6 +21,7 @@
     "images:placeholders": "tsx scripts/generate-placeholders.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.131.0",
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",
     "next": "16.3.8",
