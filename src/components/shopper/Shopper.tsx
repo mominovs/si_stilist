@@ -117,6 +117,9 @@ export function Shopper({ categories, colors }: { categories: string[]; colors: 
                 >
                   <div>{t.response.message}</div>
                   <QueryChips parsed={t.response.parsed} mode={t.response.mode} />
+                  {t.response.llmError && (
+                    <div className="text-xs text-amber-700">SI ishlamadi: {t.response.llmError}. Oddiy tahlil ishlatildi.</div>
+                  )}
                 </button>
               )}
               {t.error && <div className="mr-8 rounded-2xl bg-red-50 px-4 py-2.5 text-sm text-red-700">{t.error}</div>}

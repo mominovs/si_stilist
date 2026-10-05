@@ -44,13 +44,17 @@ Misollar:
 {"kategoriya":"krossovka","jins":null,"ranglar":["oq"],"rang_istisno":[],"uslub":[],"maqsad":null,"narx_darajasi":null,"olcham":"42","mavsum":null,"izoh":"42 o'lchamli oq krossovka"}`;
 }
 
-let client: Anthropic | null = null;
+let client: { key: string; instance: Anthropic } | null = null;
 
 function getClient(): Anthropic {
   // Har bir urinish uchun 8 soniya: demo paytida uzoq kutib qolmaslik uchun.
   // SDK o'zi qayta urinmaydi, qayta urinishni pastdagi kod boshqaradi.
-  client ??= new Anthropic({ apiKey: config.llm.apiKey, timeout: 8_000, maxRetries: 0 });
-  return client;
+  // Kalit almashsa (.env yangilansa) klient qayta yaratiladi.
+  const key = config.llm.apiKey;
+  if (client?.key !== key) {
+    client = { key, instance: new Anthropic({ apiKey: key, timeout: 8_000, maxRetries: 0 }) };
+  }
+  return client.instance;
 }
 
 export function llmConfigured(): boolean {
@@ -70,6 +74,21 @@ async function parseOnce(text: string, vocab: Vocabulary): Promise<ParsedQuery> 
   }
   // Qo'shimcha himoya: sxema bo'yicha yana bir bor tekshiriladi
   return parsedQuerySchema.parse(response.parsed_output);
+}
+
+/** Xatoni xaridor ekranida ko'rsatiladigan qisqa o'zbekcha sababga aylantiradi */
+export function describeLlmError(e: unknown): string {
+  if (e instanceof Anthropic.AuthenticationError) return "API kalit noto'g'ri";
+  if (e instanceof Anthropic.PermissionDeniedError) return "API kalitga ruxsat yo'q";
+  if (e instanceof Anthropic.RateLimitError) return "so'rovlar limiti tugadi";
+  if (e instanceof Anthropic.NotFoundError) return "model topilmadi";
+  if (e instanceof Anthropic.BadRequestError) {
+    return /credit balance/i.test(e.message) ? "hisobda mablag' yetarli emas" : "so'rov rad etildi";
+  }
+  if (e instanceof Anthropic.APIConnectionTimeoutError) return "SI javob berish vaqti tugadi";
+  if (e instanceof Anthropic.APIConnectionError) return "internet yoki ulanish yo'q";
+  if (e instanceof Anthropic.APIError) return `SI xizmati xatosi (${e.status ?? "?"})`;
+  return "SI javobi yaroqsiz";
 }
 
 /** Bir marta qayta urinadi. Ikkala urinish ham muvaffaqiyatsiz bo'lsa xato tashlaydi. */

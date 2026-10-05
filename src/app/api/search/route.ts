@@ -23,8 +23,8 @@ export async function POST(request: Request) {
 
   if ("text" in body.data) {
     const text = body.data.text;
-    const { parsed, mode } = await understandQuery(text, await loadVocabulary());
-    return Response.json(await runSearch(text, parsed, mode));
+    const { parsed, mode, llmError } = await understandQuery(text, await loadVocabulary());
+    return Response.json(await runSearch(text, parsed, mode, llmError));
   }
 
   // Filtr tugmalari: LLM'siz, to'g'ridan-to'g'ri tartibli so'rov

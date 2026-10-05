@@ -38,6 +38,8 @@ export type SearchResponse = {
   parsed: ParsedQuery | null;
   status: MatchStatus;
   message: string;
+  /** SI ishlamagan bo'lsa sababi (masalan, "API kalit noto'g'ri") */
+  llmError?: string;
   results: ResultCard[];
 };
 
@@ -50,7 +52,12 @@ function replyMessage(status: MatchStatus, parsed: ParsedQuery | null, count: nu
 }
 
 /** Moslashtiradi, so'rovni logga yozadi va xaridor ekrani uchun javob tayyorlaydi */
-export async function runSearch(rawText: string, parsed: ParsedQuery | null, mode: ParseMode): Promise<SearchResponse> {
+export async function runSearch(
+  rawText: string,
+  parsed: ParsedQuery | null,
+  mode: ParseMode,
+  llmError?: string,
+): Promise<SearchResponse> {
   const products = await prisma.product.findMany({
     include: { variants: { orderBy: { id: "asc" } } },
   });
@@ -80,6 +87,7 @@ export async function runSearch(rawText: string, parsed: ParsedQuery | null, mod
     parsed,
     status,
     message: replyMessage(status, parsed, results.length),
+    llmError,
     results: results.map(({ product: p, isExact, reason, tier }) => ({
       id: p.id,
       name: p.name,
