@@ -28,7 +28,7 @@ Demo oldidan panel pastidagi "Logni tozalash" tugmasi bilan namunaviy tarixni o'
 SI tahlil uchun `.env` ga `ANTHROPIC_API_KEY` qo'shing va serverni qayta ishga tushiring. Kalit bo'lmasa
 yoki internet ishlamasa, xaridor ekrani kalit so'zlar bo'yicha oddiy tahlil va filtr tugmalari bilan ishlayveradi.
 
-Kompyuter qayta yoqilgandan keyin baza o'chgan bo'ladi: `npm run db:start`, keyin `npm run dev`.
+`npm run dev` lokal baza o'chiq bo'lsa uni o'zi yoqadi (kompyuter qayta yoqilgandan keyin ham).
 
 Yangilash: `git pull`, keyin `npm ci`. Agar `git pull` "Your local changes ... package-lock.json" desa:
 `git checkout -- package-lock.json` va qaytadan `git pull`.
