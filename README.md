@@ -12,7 +12,7 @@ Windows'da **Command Prompt** (cmd) oching. Buyruqlar System32 ichida emas, loyi
 cd %USERPROFILE%\Documents
 git clone -b claude/blissful-ramanujan-y9ta93 https://github.com/mominovs/si_stilist.git
 cd si_stilist
-npm install
+npm ci           # package-lock.json ni o'zgartirmaydi (npm install o'rniga)
 npm run setup     # .env yaratadi, lokal bazani ishga tushiradi, 48 ta demo tovarni yuklaydi
 npm run dev       # http://localhost:3000
 ```
@@ -29,6 +29,9 @@ SI tahlil uchun `.env` ga `ANTHROPIC_API_KEY` qo'shing va serverni qayta ishga t
 yoki internet ishlamasa, xaridor ekrani kalit so'zlar bo'yicha oddiy tahlil va filtr tugmalari bilan ishlayveradi.
 
 Kompyuter qayta yoqilgandan keyin baza o'chgan bo'ladi: `npm run db:start`, keyin `npm run dev`.
+
+Yangilash: `git pull`, keyin `npm ci`. Agar `git pull` "Your local changes ... package-lock.json" desa:
+`git checkout -- package-lock.json` va qaytadan `git pull`.
 
 Docker bilan ishlamoqchi bo'lsangiz: `docker compose up -d`, `.env` dagi `DATABASE_URL` ni Docker qatoriga
 almashtiring va `npm run db:setup`.
@@ -61,6 +64,8 @@ GitHub faqat kodni saqlaydi, ilovani ishga tushirmaydi. Doimiy havola uchun bepu
 | `npm run lint` | ESLint |
 | `npm run db:migrate` | Sxema o'zgarganda yangi migratsiya (dev) |
 | `npm run db:seed` | Demo omborni qaytadan yuklash (so'rovlar logi ham tozalanadi) |
+| `npm run images:prompts` | Tovar rasmlari uchun prompt'lar ro'yxati (`docs/product-photo-prompts.md`) |
+| `npm run images:apply` | `public/products/<sku>.jpg` dagi haqiqiy suratlarni bazaga ulash |
 | `npm run images:placeholders` | Seed tovarlari uchun vaqtinchalik SVG rasmlarni qayta yaratish |
 
 ## Virtual kiyintirish
@@ -70,6 +75,7 @@ Provayderlar (`.env` dagi `TRYON_PROVIDER`): `local` (o'z GPU'ngizda bepul, [try
 
 ## Tovar rasmlari
 
-`public/products/*.svg` hozircha vaqtinchalik chizilgan siluetlar. Haqiqiy suratlarni (oq fonda, JPG/PNG)
-shu papkaga qo'yib, admin orqali yoki CSV importda `image_url` ni yangilang. Virtual kiyintirish
+`public/products/*.svg` hozircha vaqtinchalik chizilgan siluetlar. Haqiqiy suratlarni (oq fonda) SKU nomi bilan
+qo'ying, masalan `public/products/ks-06.jpg`, keyin `npm run images:apply`. Seed ham suratni avtomatik tanlaydi.
+Rasm yaratish uchun tayyor prompt'lar: [docs/product-photo-prompts.md](docs/product-photo-prompts.md). Virtual kiyintirish
 (4-bosqich) uchun haqiqiy rasmlar va ochiq URL kerak bo'ladi.

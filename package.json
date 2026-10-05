@@ -21,6 +21,8 @@
     "db:setup": "prisma migrate deploy && prisma db seed",
     "vercel-build": "prisma generate && prisma migrate deploy && next build",
     "images:placeholders": "tsx scripts/generate-placeholders.ts",
+    "images:prompts": "tsx scripts/generate-photo-prompts.ts",
+    "images:apply": "tsx scripts/apply-product-photos.ts",
     "tryon:prepare": "tsx scripts/prepare-tryon-demo.ts",
     "tryon:model": "tsx scripts/make-demo-model.ts"
   },

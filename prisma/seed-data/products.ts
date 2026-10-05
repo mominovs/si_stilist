@@ -1,3 +1,6 @@
+import { existsSync } from "node:fs";
+import path from "node:path";
+
 // Demo ombori: 8 kategoriya x 6 tovar = 48 ta tovar.
 // Ataylab qoldirilgan bo'shliqlar (qoniqtirilmagan talabni ko'rsatish uchun):
 //   - krossovka, palto, sumka kategoriyalari umuman yo'q
@@ -105,6 +108,16 @@ export function stockFor(sku: string, size: string): number {
   return n < 2 ? 0 : n - 1; // ~20% o'lchamlar tugagan, qolganlari 1..8
 }
 
+const PHOTO_EXTENSIONS = ["jpg", "jpeg", "png", "webp"];
+
+/**
+ * Tovar rasmi: public/products/ da haqiqiy surat (<sku>.jpg/.png/.webp) bo'lsa o'sha, aks holda SVG silueti.
+ * Suratlarni qo'shgandan keyin bazani yangilash: npm run images:apply
+ */
 export function imagePathFor(sku: string): string {
-  return `/products/${sku.toLowerCase()}.svg`;
+  const base = sku.toLowerCase();
+  for (const ext of PHOTO_EXTENSIONS) {
+    if (existsSync(path.join(process.cwd(), "public", "products", `${base}.${ext}`))) return `/products/${base}.${ext}`;
+  }
+  return `/products/${base}.svg`;
 }
