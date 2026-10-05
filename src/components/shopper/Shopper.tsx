@@ -31,7 +31,10 @@ export function Shopper({ categories, colors }: { categories: string[]; colors: 
   const [toast, setToast] = useState<string | null>(null);
   const chatEnd = useRef<HTMLDivElement>(null);
 
-  useEffect(() => chatEnd.current?.scrollIntoView({ behavior: "smooth" }), [turns, loading]);
+  // Blok tanasi ataylab: yangi brauzerlarda scrollIntoView Promise qaytaradi, useEffect esa uni qabul qilmaydi
+  useEffect(() => {
+    chatEnd.current?.scrollIntoView({ behavior: "smooth" });
+  }, [turns, loading]);
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 3000);
