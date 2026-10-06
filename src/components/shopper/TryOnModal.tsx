@@ -136,6 +136,8 @@ export function TryOnModal({
   // Har bir kamera so'rovining tartib raqami: eski (bekor qilingan) so'rov kech javob bersa, oqimi darhol o'chiriladi
   const cameraReq = useRef(0);
   const fileRef = useRef<HTMLInputElement>(null);
+  // Telefonning o'z kamera ilovasi: HTTP manzilda ham ishlaydi (jonli kamera esa faqat HTTPS yoki localhost'da)
+  const captureRef = useRef<HTMLInputElement>(null);
 
   const stopCamera = useCallback(() => {
     cameraReq.current++;
@@ -152,6 +154,12 @@ export function TryOnModal({
     const req = cameraReq.current;
     setStep("camera");
     setCameraError(null);
+    // Brauzer jonli kamerani faqat xavfsiz manzilda beradi (https:// yoki localhost). Telefondan Wi-Fi IP orqali
+    // ochilganda shunday bo'ladi: telefon kamerasi ilovasi orqali suratga olish taklif qilinadi
+    if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+      setCameraError("Bu manzilda jonli kamera ochilmaydi. Telefon kamerasi bilan suratga oling yoki rasm yuklang.");
+      return;
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 1280 } },
@@ -332,10 +340,26 @@ export function TryOnModal({
                     Suratga olish
                   </button>
                 )}
+                {cameraError && (
+                  <button
+                    onClick={() => captureRef.current?.click()}
+                    className="rounded-xl bg-neutral-900 px-6 py-3 text-sm font-medium text-white hover:bg-neutral-700"
+                  >
+                    Kamera bilan suratga olish
+                  </button>
+                )}
                 <button onClick={() => fileRef.current?.click()} className="rounded-xl border border-neutral-300 px-5 py-3 text-sm hover:bg-neutral-50">
                   Rasm yuklash
                 </button>
                 <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => onFile(e.target.files?.[0])} />
+                <input
+                  ref={captureRef}
+                  type="file"
+                  accept="image/*"
+                  capture="user"
+                  className="hidden"
+                  onChange={(e) => onFile(e.target.files?.[0])}
+                />
               </div>
             </div>
           )}

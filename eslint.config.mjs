@@ -13,6 +13,8 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
     "src/generated/**",
+    // Python kiyintirish serveri: .venv va CatVTON ichidagi begona JS fayllar tekshirilmaydi
+    "tryon-local/**",
   ]),
 ]);
 

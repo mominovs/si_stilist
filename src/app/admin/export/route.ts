@@ -1,8 +1,11 @@
+import { adminGuard } from "@/lib/admin-auth";
 import { prisma } from "@/lib/db";
 import { productsToCsv } from "@/lib/csv";
 
 // Joriy omborni CSV sifatida yuklab olish (import uchun namuna sifatida ham ishlatiladi)
-export async function GET() {
+export async function GET(request: Request) {
+  const denied = adminGuard(request);
+  if (denied) return denied;
   const products = await prisma.product.findMany({
     orderBy: { id: "asc" },
     include: { variants: { orderBy: { id: "asc" } } },

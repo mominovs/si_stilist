@@ -4,10 +4,11 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PanelStats } from "@/lib/analytics";
 import { PERIODS, type Period } from "@/lib/panel-periods";
+import type { Reservation } from "@/lib/panel";
 import { queryChips } from "@/components/shopper/QueryChips";
 import { Badge, BarList, Card, CategoryBars, Empty, STATUS, StatTile, UNMET_TYPE, timeAgo } from "./parts";
 
-type Stats = PanelStats & { period: Period };
+type Stats = PanelStats & { period: Period; reservations: Reservation[] };
 
 const POLL_MS = 2000;
 
@@ -90,6 +91,7 @@ export function Dashboard({ initial, phone }: { initial: Stats; phone: PhoneLink
 
   const t = stats.totals;
   const unmetCount = t.qisman + t.qoniqtirilmadi;
+  const fb = stats.feedback;
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6 px-4 py-6 sm:px-6">
@@ -150,11 +152,29 @@ export function Dashboard({ initial, phone }: { initial: Stats; phone: PhoneLink
         </div>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatTile label="Jami so'rovlar" value={String(t.all)} sub={t.rad ? `+${t.rad} ta mavzudan tashqari` : undefined} flash={flashTiles} />
-        <StatTile label="Qoniqtirildi" value={pct(t.qoniqtirildi, t.all)} sub={`${t.qoniqtirildi} ta so'rov`} status="qoniqtirildi" flash={flashTiles} />
-        <StatTile label="Qisman" value={pct(t.qisman, t.all)} sub={`${t.qisman} ta: faqat o'xshashi bor edi`} status="qisman" flash={flashTiles} />
-        <StatTile label="Qoniqtirilmadi" value={pct(t.qoniqtirilmadi, t.all)} sub={`${t.qoniqtirilmadi} ta: mos tovar yo'q`} status="qoniqtirilmadi" flash={flashTiles} />
+      <div className="grid gap-4 sm:grid-cols-3 xl:grid-cols-6">
+        <StatTile
+          label="Jami so'rovlar"
+          value={String(t.all)}
+          sub={[t.tushunilmadi && `${t.tushunilmadi} ta tushunilmadi`, t.rad && `+${t.rad} mavzudan tashqari`].filter(Boolean).join(", ") || undefined}
+          flash={flashTiles}
+        />
+        {/* Foizlar faqat tushunilgan so'rovlardan: "???" kabi gap "mos tovar yo'q" deb hisoblanmaydi */}
+        <StatTile label="Qoniqtirildi" value={pct(t.qoniqtirildi, t.understood)} sub={`${t.qoniqtirildi} ta so'rov`} status="qoniqtirildi" flash={flashTiles} />
+        <StatTile label="Qisman" value={pct(t.qisman, t.understood)} sub={`${t.qisman} ta: faqat o'xshashi bor edi`} status="qisman" flash={flashTiles} />
+        <StatTile label="Qoniqtirilmadi" value={pct(t.qoniqtirilmadi, t.understood)} sub={`${t.qoniqtirilmadi} ta: mos tovar yo'q`} status="qoniqtirilmadi" flash={flashTiles} />
+        <StatTile
+          label="Xaridor bahosi"
+          value={fb.mos + fb.mosEmas === 0 ? "–" : pct(fb.mos, fb.mos + fb.mosEmas)}
+          sub={fb.mos + fb.mosEmas === 0 ? "hali baho yo'q" : `mos keldi: ${fb.mos} / ${fb.mos + fb.mosEmas} baho`}
+          flash={flashTiles}
+        />
+        <StatTile
+          label="Sotuvchiga ko'rsatildi"
+          value={String(fb.reserved)}
+          sub={`${pct(fb.reservedRequests, t.qoniqtirildi + t.qisman)} topilgan so'rovdan`}
+          flash={flashTiles}
+        />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -208,6 +228,27 @@ export function Dashboard({ initial, phone }: { initial: Stats; phone: PhoneLink
           )}
         </Card>
 
+        <div className="space-y-6">
+        {stats.reservations.length > 0 && (
+          <Card title="Sotuvchiga ko'rsatilgan" subtitle="Xaridor tanlagan tovar: kod bo'yicha toping va olib keling">
+            <ul className="space-y-2">
+              {stats.reservations.map((r) => (
+                <li key={r.id} className="flex items-center justify-between gap-3 rounded-xl border border-neutral-100 p-3 text-sm">
+                  <div>
+                    <div className="font-medium">{r.name}</div>
+                    <div className="text-xs text-neutral-500">
+                      {r.sku} · {timeAgo(r.at, now)}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-mono text-lg font-semibold">#{r.code}</div>
+                    <div className="text-xs text-neutral-600">o&apos;lcham {r.size}</div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        )}
         <Card title="So'nggi so'rovlar" subtitle="Yangi so'rov kelishi bilan shu yerda paydo bo'ladi">
           {stats.recent.length === 0 ? (
             <Empty />
@@ -236,6 +277,12 @@ export function Dashboard({ initial, phone }: { initial: Stats; phone: PhoneLink
                       {chips.map((c) => (
                         <span key={c} className="rounded bg-neutral-100 px-1.5 py-0.5 text-neutral-600">{c}</span>
                       ))}
+                      {r.feedback && (
+                        <span className={`rounded px-1.5 py-0.5 ${r.feedback === "mos" ? "bg-green-50 text-green-800" : "bg-violet-50 text-violet-800"}`}>
+                          {r.feedback === "mos" ? "mos keldi" : "mos kelmadi"}
+                        </span>
+                      )}
+                      {r.reserved > 0 && <span className="rounded bg-sky-50 px-1.5 py-0.5 text-sky-800">sotuvchiga ko&apos;rsatildi</span>}
                     </div>
                   </li>
                 );
@@ -243,6 +290,7 @@ export function Dashboard({ initial, phone }: { initial: Stats; phone: PhoneLink
             </ul>
           )}
         </Card>
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">

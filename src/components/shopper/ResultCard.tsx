@@ -1,8 +1,28 @@
+"use client";
+
+import { useState } from "react";
 import type { ResultCard as Card } from "@/lib/search";
 
 const TIER_LABEL = { arzon: "arzon", orta: "o'rta narx", qimmat: "premium" } as const;
 
-export function ResultCard({ card, requestedSize, onTryOn }: { card: Card; requestedSize: string | null; onTryOn: () => void }) {
+export function ResultCard({
+  card,
+  requestedSize,
+  onTryOn,
+  onReserve,
+}: {
+  card: Card;
+  requestedSize: string | null;
+  onTryOn: () => void;
+  /** "Sotuvchiga ko'rsatish": tanlangan o'lcham bilan */
+  onReserve: (size: string) => void;
+}) {
+  const inStock = card.sizes.filter((s) => s.inStock).map((s) => s.size);
+  // So'ralgan o'lcham bor bo'lsa, oldindan tanlanadi; bitta o'lcham qolgan bo'lsa ham
+  const [size, setSize] = useState<string | null>(
+    requestedSize && inStock.includes(requestedSize) ? requestedSize : inStock.length === 1 ? inStock[0] : null,
+  );
+
   return (
     <article className="flex flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
       <div className="relative aspect-[4/5] bg-white">
@@ -32,27 +52,45 @@ export function ResultCard({ card, requestedSize, onTryOn }: { card: Card; reque
         </div>
 
         <div>
-          <div className="mb-1.5 text-xs text-neutral-500">Mavjud o&apos;lchamlar</div>
+          <div className="mb-1.5 text-xs text-neutral-500">Mavjud o&apos;lchamlar (tanlang)</div>
           <div className="flex flex-wrap gap-1.5">
             {card.sizes.map((s) => (
-              <span
+              <button
                 key={s.size}
+                type="button"
+                disabled={!s.inStock}
+                onClick={() => setSize(s.size === size ? null : s.size)}
+                aria-pressed={size === s.size}
                 className={`min-w-9 rounded-md border px-2 py-1 text-center text-sm ${
-                  s.inStock ? "border-neutral-300 text-neutral-800" : "border-neutral-100 text-neutral-300 line-through"
-                } ${requestedSize === s.size && s.inStock ? "border-neutral-900 bg-neutral-900 text-white" : ""}`}
+                  !s.inStock
+                    ? "border-neutral-100 text-neutral-300 line-through"
+                    : size === s.size
+                      ? "border-neutral-900 bg-neutral-900 text-white"
+                      : "border-neutral-300 text-neutral-800 hover:border-neutral-500"
+                }`}
               >
                 {s.size}
-              </span>
+              </button>
             ))}
           </div>
         </div>
 
-        <button
-          onClick={onTryOn}
-          className="mt-auto rounded-xl bg-neutral-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-neutral-700"
-        >
-          O&apos;zimda ko&apos;rish
-        </button>
+        <div className="mt-auto space-y-2">
+          <button
+            onClick={onTryOn}
+            className="w-full rounded-xl bg-neutral-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-neutral-700"
+          >
+            O&apos;zimda ko&apos;rish
+          </button>
+          <button
+            onClick={() => size && onReserve(size)}
+            disabled={!size}
+            title={size ? undefined : "Avval o'lchamni tanlang"}
+            className="w-full rounded-xl border border-neutral-300 px-4 py-2.5 text-sm font-medium text-neutral-800 transition hover:bg-neutral-50 disabled:text-neutral-400"
+          >
+            {size ? `Sotuvchiga ko'rsatish · ${size}` : "Sotuvchiga ko'rsatish (o'lcham tanlang)"}
+          </button>
+        </div>
       </div>
     </article>
   );

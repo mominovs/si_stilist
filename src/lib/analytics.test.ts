@@ -30,8 +30,16 @@ const rows: RequestRow[] = [
 
 const stats = computeStats(rows, known);
 
-test("jami va holatlar", () => {
-  assert.deepEqual(stats.totals, { all: 8, qoniqtirildi: 1, qisman: 2, qoniqtirilmadi: 5, tushunilmadi: 1, rad: 1 });
+test("jami va holatlar: tushunilmagan gap 'mos tovar yo'q' hisobiga kirmaydi", () => {
+  assert.deepEqual(stats.totals, {
+    all: 8,
+    understood: 7,
+    qoniqtirildi: 1,
+    qisman: 2,
+    qoniqtirilmadi: 4,
+    tushunilmadi: 1,
+    rad: 1,
+  });
 });
 
 test("qoniqtirilmagan talab guruhlanadi va saralanadi", () => {
@@ -40,7 +48,7 @@ test("qoniqtirilmagan talab guruhlanadi va saralanadi", () => {
     [
       ["oq krossovka", "katalogda-yoq", 3],
       ["qizil libos", "oxshashi-bor", 2],
-      ["oq kurtka", "tugagan", 1],
+      ["ayollar uchun oq kurtka", "tugagan", 1],
     ],
   );
 });
@@ -74,4 +82,35 @@ test("kategoriyalar, uslublar (takrorsiz) va ranglar", () => {
 test("so'nggi so'rovlar vaqt bo'yicha, lastId eng kattasi", () => {
   assert.equal(stats.recent[0].rawText, "matn"); // 1 daqiqa oldin
   assert.equal(stats.lastId, Math.max(...rows.map((r) => r.id)));
+});
+
+test("talab jins bo'yicha ajratiladi", () => {
+  const r = computeStats(
+    [
+      row("qoniqtirilmadi", { kategoriya: "futbolka", ranglar: ["oq"], jins: "erkak", olcham: "XL" }),
+      row("qoniqtirilmadi", { kategoriya: "futbolka", ranglar: ["oq"], jins: "erkak", olcham: "XL" }),
+      row("qoniqtirilmadi", { kategoriya: "futbolka", ranglar: ["oq"], jins: "ayol", olcham: "S" }),
+    ],
+    ["futbolka"],
+  );
+  assert.deepEqual(
+    r.unmet.map((u) => [u.label, u.count, u.sizes]),
+    [
+      ["erkaklar uchun oq futbolka", 2, [{ size: "XL", count: 2 }]],
+      ["ayollar uchun oq futbolka", 1, [{ size: "S", count: 1 }]],
+    ],
+  );
+});
+
+test("xaridor bahosi va sotuvchiga ko'rsatish: 'mos kelmadi' talab ro'yxatiga 'yoqmadi' bo'lib tushadi", () => {
+  const r = computeStats(
+    [
+      { ...row("qoniqtirildi", { kategoriya: "kostyum" }), feedback: "mos", reserved: 1 },
+      { ...row("qoniqtirildi", { kategoriya: "libos", ranglar: ["qizil"] }), feedback: "mos-emas" },
+      row("qoniqtirildi", { kategoriya: "kurtka" }),
+    ],
+    known,
+  );
+  assert.deepEqual(r.feedback, { mos: 1, mosEmas: 1, reserved: 1, reservedRequests: 1 });
+  assert.deepEqual(r.unmet.map((u) => [u.label, u.type]), [["qizil libos", "yoqmadi"]]);
 });

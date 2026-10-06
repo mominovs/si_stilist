@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { Prisma } from "@/generated/prisma/client";
+import { requireAdmin } from "@/lib/admin-auth";
 import { prisma } from "@/lib/db";
 import { parseProductsCsv } from "@/lib/csv";
 import { productSchema, type ProductInput } from "@/lib/validation/product";
@@ -97,6 +98,7 @@ export async function saveProductAction(
   _prev: FormState,
   formData: FormData,
 ): Promise<FormState> {
+  await requireAdmin();
   const raw = readProductForm(formData);
   const parsed = productSchema.safeParse(raw);
   if (!parsed.success) return errorState(raw, "Formada xatolar bor", zodFieldErrors(parsed.error));
@@ -113,6 +115,8 @@ export async function saveProductAction(
 }
 
 export async function deleteProductAction(id: number) {
+  await requireAdmin();
+  if (!Number.isInteger(id) || id <= 0) throw new Error("Noto'g'ri tovar");
   await prisma.product.delete({ where: { id } });
   revalidatePath("/admin");
 }
@@ -128,6 +132,7 @@ export type ImportState = {
 const MAX_CSV_BYTES = 2 * 1024 * 1024;
 
 export async function importCsvAction(_prev: ImportState, formData: FormData): Promise<ImportState> {
+  await requireAdmin();
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) return { message: "CSV faylni tanlang" };
   if (file.size > MAX_CSV_BYTES) return { message: "Fayl 2 MB dan katta" };

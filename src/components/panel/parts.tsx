@@ -13,6 +13,7 @@ export const UNMET_TYPE: Record<UnmetType, { label: string; icon: string; badge:
   "katalogda-yoq": { label: "Do'konda bunday tur yo'q", icon: "✕", badge: "bg-red-50 text-red-800 ring-red-200" },
   tugagan: { label: "Omborda tugagan", icon: "!", badge: "bg-orange-50 text-orange-800 ring-orange-200" },
   "oxshashi-bor": { label: "O'xshashi taklif qilindi", icon: "≈", badge: "bg-amber-50 text-amber-900 ring-amber-200" },
+  yoqmadi: { label: "Topildi, lekin yoqmadi", icon: "−", badge: "bg-violet-50 text-violet-800 ring-violet-200" },
 };
 
 const SERIES_BLUE = "#2a78d6";

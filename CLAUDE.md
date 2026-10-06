@@ -191,4 +191,29 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
   "Yangi suhbat" tugmasi. `demo.bat`: kiyintirish serveri + `npm run dev` + brauzerda holat/panel/xaridor ekrani
 - Rate limit kaliti: Next `x-forwarded-for` ni socket manzilidan to'ldiradi, ya'ni har telefon alohida hisoblanadi
 
+## Texnik eslatmalar (review'dan keyin)
+- Suhbat konteksti: xaridor ekrani ko'rib turilgan javobdagi `parsed` ni `POST /api/search {text, context}` bilan
+  yuboradi (server `parsedQuerySchema` + `normalizeQuery` bilan qayta tekshiradi). LLM uni `<oldingi_sorov>` ichida
+  oladi (qoidalar va misol promptda). `src/lib/query/context.ts` `mergeWithContext`: zaxira tahlilchida doim,
+  LLM'da xavfsizlik to'ri (kategoriya tushib qolsa yoki davom gapi "boshqa" deyilsa). Boshqa kategoriya = yangi
+  mavzu. "arzonrog'i"/"qimmatrog'i" narx darajasini bir pog'ona suradi (`detectFollowUp`)
+- Byudjet `narx_max` (so'm, ParsedQuery'da; eski yozuvlar uchun `withDefaults`): LLM sxemasi, `detectBudget`
+  ("300 ming so'mgacha", "1,5 mln", "до 300 тыс", "250 000 so'm"), normalize (<1000 bo'lsa x1000), moslashtirishda
+  yumshoq ("Byudjetdan qimmatroq", aniq mos emas). Filtr panelida byudjet va o'lcham tugmalari
+- Tahlilchi: byudjetdagi raqam o'lcham emas; `xl`/`xxl`/`xs`/`2xl` kichik harfda; bitta S/M/L faqat katta harfda
+  yoki "o'lcham"/"razmer" yonida. Moslashtirish: `maqsad` mos kelmasa aniq mos emas ("Bayram uchun emas")
+- Analitika: tushunilmagan so'rov (parsed null) holat statistikasiga kirmaydi (`totals.understood`, foizlar
+  shundan). Talab kaliti kategoriya + ranglar + jins ("erkaklar uchun oq futbolka"). Turi `yoqmadi`: topilgan, lekin
+  "mos kelmadi" baholangan
+- Baho va sotuvchiga ko'rsatish: `Request.feedback` ("mos" | "mos-emas"), `RequestResult.reservedAt/reservedSize`
+  (migratsiya `20261006120000_feedback_reservation`, qo'lda yozilgan: prisma dev shadow bazasi bilan `migrate dev`
+  "type Gender already exists" beradi; yangi migratsiyani qo'lda yozib `prisma migrate deploy`). API
+  `POST /api/feedback`, `POST /api/reserve` (faqat shu so'rovda ko'rsatilgan tovar va omborda bor o'lcham, 2 soat).
+  `SellerModal` katta kod (#requestId), panelda "Sotuvchiga ko'rsatilgan" ro'yxati va plitkalar
+- Admin himoyasi: `src/lib/admin-auth.ts` (`checkAdminAuth`, timing-safe). proxy, har bir server action
+  (`requireAdmin`) va admin route'lar (`adminGuard`: `/api/panel`, `/api/panel/reset`, `/admin/export`)
+- Telefon kamerasi: `isSecureContext` bo'lmasa (HTTP Wi-Fi manzil) jonli kamera o'rniga `<input capture="user">`
+  ("Kamera bilan suratga olish"). `allowedDevOrigins` ga kompyuterning hozirgi IPv4 manzillari ham qo'shiladi
+- `npm run lint` `tryon-local/**` ni tekshirmaydi (.venv va CatVTON ichidagi begona JS)
+
 @AGENTS.md

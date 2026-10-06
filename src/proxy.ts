@@ -1,27 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { adminGuard } from "@/lib/admin-auth";
 
-// /admin va do'kon paneli uchun oddiy Basic Auth. Login istalgan, parol: ADMIN_PASSWORD.
+// /admin va do'kon paneli uchun Basic Auth. Login istalgan, parol: ADMIN_PASSWORD.
+// Amallar (server action, API) o'z ichida ham qayta tekshiradi: src/lib/admin-auth.ts
 export function proxy(request: NextRequest) {
-  const password = process.env.ADMIN_PASSWORD;
-
-  if (!password) {
-    if (process.env.NODE_ENV === "production") {
-      return new NextResponse("ADMIN_PASSWORD sozlanmagan", { status: 503 });
-    }
-    return NextResponse.next(); // dev rejimida parolsiz ham ochiladi
-  }
-
-  const header = request.headers.get("authorization") ?? "";
-  if (header.startsWith("Basic ")) {
-    const decoded = atob(header.slice(6));
-    const given = decoded.slice(decoded.indexOf(":") + 1);
-    if (given === password) return NextResponse.next();
-  }
-
-  return new NextResponse("Parol kerak", {
-    status: 401,
-    headers: { "WWW-Authenticate": 'Basic realm="SI Stilist admin", charset="UTF-8"' },
-  });
+  return adminGuard(request) ?? NextResponse.next();
 }
 
 export const config = {

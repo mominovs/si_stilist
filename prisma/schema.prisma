@@ -62,10 +62,12 @@ model Request {
   rawText     String
   // LLM parse natijasi (yoki filtr tugmalaridan yig'ilgan so'rov)
   parsed      Json?
-  // "llm" | "filtr"
+  // "llm" | "kalit" | "filtr" | "tushunilmadi" | "rad" | "namuna"
   mode        String          @default("llm")
   resultCount Int             @default(0)
   status      RequestStatus
+  // Xaridor bahosi: "mos" (mos keldi) | "mos-emas" (topildi, lekin yoqmadi) | null (baholanmagan)
+  feedback    String?
   results     RequestResult[]
 
   @@index([createdAt])
@@ -73,14 +75,18 @@ model Request {
 }
 
 model RequestResult {
-  id        Int     @id @default(autoincrement())
-  requestId Int
-  productId Int
-  rank      Int
+  id           Int       @id @default(autoincrement())
+  requestId    Int
+  productId    Int
+  rank         Int
   // false bo'lsa: "Shu rangda yo'q, o'xshashi bor"
-  isExact   Boolean @default(true)
-  request   Request @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  isExact      Boolean   @default(true)
+  // "Sotuvchiga ko'rsatish": xaridor shu tovarni tanlab, sotuvchiga ko'rsatgan vaqt va o'lcham
+  reservedAt   DateTime?
+  reservedSize String?
+  request      Request   @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  product      Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([requestId])
+  @@index([reservedAt])
 }

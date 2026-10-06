@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { computeStats, type PanelStats, type RequestRow } from "@/lib/analytics";
-import type { ParsedQuery } from "@/lib/query/schema";
+import { withDefaults, type ParsedQuery } from "@/lib/query/schema";
 import type { Period } from "@/lib/panel-periods";
 
 export { parsePeriod, type Period } from "@/lib/panel-periods";
@@ -13,20 +13,52 @@ function since(period: Period): Date | undefined {
   return undefined;
 }
 
-export async function loadPanelStats(period: Period): Promise<PanelStats & { period: Period }> {
+/** Xaridor sotuvchiga ko'rsatgan tovar: sotuvchi panelda kod bo'yicha topadi */
+export type Reservation = { id: number; code: string; name: string; sku: string | null; size: string; at: string };
+
+export async function loadPanelStats(period: Period): Promise<PanelStats & { period: Period; reservations: Reservation[] }> {
   const from = since(period);
-  const [rows, cats] = await Promise.all([
+  const [rows, cats, reserved] = await Promise.all([
     prisma.request.findMany({
       where: from ? { createdAt: { gte: from } } : undefined,
-      select: { id: true, createdAt: true, rawText: true, parsed: true, mode: true, status: true, resultCount: true },
+      select: {
+        id: true,
+        createdAt: true,
+        rawText: true,
+        parsed: true,
+        mode: true,
+        status: true,
+        resultCount: true,
+        feedback: true,
+        _count: { select: { results: { where: { reservedAt: { not: null } } } } },
+      },
       orderBy: { createdAt: "desc" },
       take: 5000,
     }),
     prisma.product.findMany({ distinct: ["category"], select: { category: true } }),
+    prisma.requestResult.findMany({
+      where: { reservedAt: from ? { gte: from } : { not: null } },
+      include: { product: { select: { name: true, sku: true } } },
+      orderBy: { reservedAt: "desc" },
+      take: 8,
+    }),
   ]);
   const stats = computeStats(
-    rows.map((r): RequestRow => ({ ...r, parsed: (r.parsed as ParsedQuery | null) ?? null })),
+    rows.map(({ _count, parsed, ...r }): RequestRow => ({
+      ...r,
+      // Eski yozuvlarda keyin qo'shilgan maydonlar (narx_max) yo'q
+      parsed: parsed ? withDefaults(parsed as Partial<ParsedQuery>) : null,
+      reserved: _count.results,
+    })),
     cats.map((c) => c.category),
   );
-  return { ...stats, period };
+  const reservations = reserved.map((r) => ({
+    id: r.id,
+    code: String(r.requestId),
+    name: r.product.name,
+    sku: r.product.sku,
+    size: r.reservedSize ?? "",
+    at: (r.reservedAt ?? new Date()).toISOString(),
+  }));
+  return { ...stats, period, reservations };
 }

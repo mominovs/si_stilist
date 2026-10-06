@@ -5,7 +5,9 @@ import type { SearchResponse } from "@/lib/search";
 import { FilterPanel, type Filters } from "./FilterPanel";
 import { QueryChips } from "./QueryChips";
 import { ResultCard } from "./ResultCard";
+import { SellerModal } from "./SellerModal";
 import { TryOnModal } from "./TryOnModal";
+import type { ReserveResponse } from "@/app/api/reserve/route";
 import type { ResultCard as Card } from "@/lib/search";
 
 type Turn = {
@@ -13,6 +15,8 @@ type Turn = {
   text: string;
   response: SearchResponse | null;
   error: string | null;
+  /** Xaridor bahosi: topilganlar mos keldimi */
+  feedback?: "mos" | "mos-emas";
 };
 
 const EXAMPLES = [
@@ -46,6 +50,7 @@ export function Shopper({
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [tryOnCard, setTryOnCard] = useState<Card | null>(null);
+  const [seller, setSeller] = useState<ReserveResponse | null>(null);
   const chatEnd = useRef<HTMLDivElement>(null);
   const lastActivity = useRef(0);
 
@@ -63,7 +68,7 @@ export function Shopper({
     return () => events.forEach((e) => window.removeEventListener(e, touch));
   }, []);
   useEffect(() => {
-    if (turns.length === 0 && !tryOnCard) return;
+    if (turns.length === 0 && !tryOnCard && !seller) return;
     const timer = setInterval(() => {
       if (!loading && Date.now() - lastActivity.current > IDLE_RESET_MS) resetSession();
     }, 5000);
@@ -108,10 +113,37 @@ export function Shopper({
 
   function resetSession() {
     setTryOnCard(null);
+    setSeller(null);
     setTurns([]);
     setSelectedId(null);
     setInput("");
     setFiltersOpen(false);
+  }
+
+  async function sendFeedback(turn: Turn, value: "mos" | "mos-emas") {
+    if (!turn.response) return;
+    setTurns((ts) => ts.map((t) => (t.id === turn.id ? { ...t, feedback: value } : t)));
+    await fetch("/api/feedback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ requestId: turn.response.requestId, value }),
+    }).catch(() => {});
+  }
+
+  async function reserve(turn: Turn, card: Card, size: string) {
+    if (!turn.response) return;
+    try {
+      const res = await fetch("/api/reserve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ requestId: turn.response.requestId, productId: card.id, size }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+      setSeller(data as ReserveResponse);
+    } catch (e) {
+      setToast(e instanceof Error ? e.message : "Xatolik yuz berdi");
+    }
   }
 
   function submitText(text: string) {
@@ -246,12 +278,40 @@ export function Shopper({
               <div className="grid gap-4 sm:grid-cols-3">
                 {selected.response.results.map((card) => (
                   <ResultCard
-                    key={card.id}
+                    key={`${selected.id}-${card.id}`}
                     card={card}
                     requestedSize={selected.response?.parsed?.olcham ?? null}
                     onTryOn={() => setTryOnCard(card)}
+                    onReserve={(size) => void reserve(selected, card, size)}
                   />
                 ))}
+              </div>
+            ) : null}
+            {selected.response.results.length > 0 ? (
+              <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm">
+                {selected.feedback ? (
+                  <span className="text-neutral-600">
+                    {selected.feedback === "mos"
+                      ? "Rahmat! Yoqqanini sotuvchiga ko'rsatishingiz mumkin."
+                      : "Rahmat, do'konga yetkazdik. Nima yoqmaganini yozing, boshqasini topamiz."}
+                  </span>
+                ) : (
+                  <>
+                    <span className="text-neutral-700">Topilganlar sizga mos keldimi?</span>
+                    <button
+                      onClick={() => void sendFeedback(selected, "mos")}
+                      className="rounded-lg border border-green-200 bg-green-50 px-3 py-1.5 text-green-800 hover:bg-green-100"
+                    >
+                      Ha, mos keldi
+                    </button>
+                    <button
+                      onClick={() => void sendFeedback(selected, "mos-emas")}
+                      className="rounded-lg border border-neutral-300 px-3 py-1.5 text-neutral-700 hover:bg-neutral-50"
+                    >
+                      Yo&apos;q, mos kelmadi
+                    </button>
+                  </>
+                )}
               </div>
             ) : (
               <div className="rounded-2xl border border-neutral-200 bg-white p-8 text-center text-neutral-600">
@@ -263,6 +323,7 @@ export function Shopper({
       </section>
 
       {tryOnCard && <TryOnModal card={tryOnCard} provider={tryOnProvider} onClose={() => setTryOnCard(null)} />}
+      {seller && <SellerModal data={seller} onClose={() => setSeller(null)} />}
 
       {toast && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 rounded-xl bg-neutral-900 px-5 py-3 text-sm text-white shadow-lg">

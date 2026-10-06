@@ -47,9 +47,15 @@ almashtiring va `npm run db:setup`.
    ekranida aniq belgilanadi va server qayta ishga tushganda o'chadi.
 4. **Hakamlar telefondan**: panelda "Telefondan sinash" QR kodini ko'rsating. Telefon kompyuter bilan bir Wi-Fi'da
    bo'lsin. Windows birinchi marta "Node.js tarmoqqa ulanishiga ruxsat" so'rasa, **Allow** (xususiy tarmoq) bosing.
+   Telefon brauzeri jonli kamerani faqat HTTPS'da beradi, shuning uchun Wi-Fi (HTTP) manzilda "O'zimda ko'rish"
+   oynasida **"Kamera bilan suratga olish"** tugmasi chiqadi: u telefonning o'z kamera ilovasini ochadi.
 5. **Tayyor kiyintirish natijalari**: ko'rsatiladigan tovarlar uchun oldindan
    `npm run tryon:prepare -- model.jpg FT-06,KY-01` (lokal server ishlab turgan bo'lsin). Model ishlamay qolsa,
    ilova shularni "Demo rejim" belgisi bilan ko'rsatadi.
+
+Xaridor topilgan tovarni baholaydi ("Ha, mos keldi" / "Yo'q, mos kelmadi") va o'lchamni tanlab
+**"Sotuvchiga ko'rsatish"** ni bosadi: ekranda katta kod (#564) chiqadi, sotuvchi xuddi shu kodni panelning
+"Sotuvchiga ko'rsatilgan" bo'limida ko'radi. Panelda xaridor bahosi va sotuvchiga ko'rsatishlar foizi ham bor.
 
 Xaridor ekrani 2 daqiqa hech kim tegmasa boshlang'ich holatga qaytadi (keyingi odam oldingisining so'rovi va
 suratini ko'rmaydi). "Yangi suhbat" tugmasi ham shu ishni qiladi.
