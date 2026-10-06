@@ -114,7 +114,7 @@ class Job:
 def fit_box(box: tuple[int, int, int, int], image_size: tuple[int, int], margin: float, aspect: float) -> tuple[int, int, int, int]:
     """
     Odam chegarasini biroz kengaytiradi, eni/bo'yi nisbatini aspect (w/h) ga keltiradi va iloji boricha surat
-    ichiga suradi. Odam kadr chetiga tegib turgan tomonda zaxira qo'shilmaydi (gavda kadrdan tashqarida davom etadi).
+    ichiga suradi. Odam kadr chetiga tegib turgan tomonda kesim kadrdan biroz tashqariga chiqadi.
     """
     x0, y0, x1, y1 = box
     w, h = image_size
@@ -135,7 +135,27 @@ def fit_box(box: tuple[int, int, int, int], image_size: tuple[int, int], margin:
         return round(start)
 
     left, top = place(cx, bw, w), place(cy, bh, h)
-    return left, top, left + round(bw), top + round(bh)
+    right, bottom = left + round(bw), top + round(bh)
+
+    # Odam tegib turgan kadr cheti kesim chetiga to'g'ri kelmasin: model rasm chekkasida rangli chiziq chizadi.
+    # Kesim o'sha tomonda kadrdan biroz tashqariga chiqariladi (chekka piksellar bilan to'ldiriladi)
+    e = round(0.04 * max(bw, bh))
+    if box[0] <= 2:
+        left = min(left, -e)
+    if box[1] <= 2:
+        top = min(top, -e)
+    if box[2] >= w - 2:
+        right = max(right, w + e)
+    if box[3] >= h - 2:
+        bottom = max(bottom, h + e)
+    bw, bh = right - left, bottom - top
+    if bw / bh < aspect:
+        grow = round(bh * aspect) - bw
+        left, right = left - grow // 2, right + grow - grow // 2
+    else:
+        grow = round(bw / aspect) - bh
+        top, bottom = top - grow // 2, bottom + grow - grow // 2
+    return left, top, right, bottom
 
 
 def crop_padded(image: Image.Image, box: tuple[int, int, int, int], fill_edge: bool = True) -> Image.Image:
@@ -309,8 +329,8 @@ class Engine:
             bg = job.background & ~mask
             # Faqat asl fonga yaqin chekka: kiyim o'rtasidagi qorong'i joy fon deb adashilsa ham tegilmaydi
             dist = cv2.distanceTransform((~bg).astype(np.uint8), cv2.DIST_L2, 3)
-            band = mask & (seg == 0) & (dist < 0.06 * max(h, w))
-            if band.mean() < 0.001:
+            near = mask & (dist < 0.06 * max(h, w))
+            if not near.any() or not bg.any():
                 return img
             # Har bir piksel eng yaqin asl fon pikseli rangini oladi (uzoqdagi ranglar aralashmaydi), keyin silliqlanadi
             scale = min(1.0, 480 / max(h, w))
@@ -327,6 +347,24 @@ class Engine:
             filled = small[nearest[..., 0], nearest[..., 1]]
             filled = cv2.GaussianBlur(filled, (0, 0), 2.5)
             filled = cv2.resize(filled, (w, h), interpolation=cv2.INTER_LINEAR).astype(np.float32)
+
+            # Hoshiyani segmentator ko'pincha "kiyim" deb biladi, shuning uchun rang ham tekshiriladi: piksel yangi
+            # kiyim rangidan ko'ra atrofdagi fonga ancha yaqin bo'lsa, u ham hoshiya hisoblanadi
+            smooth = cv2.GaussianBlur(arr, (0, 0), max(1.0, max(h, w) / 300)).astype(np.float32)
+            core = mask & (seg == 4) & (dist > 0.1 * max(h, w))
+            bglike = np.zeros_like(mask)
+            if core.sum() > 100:
+                garment = np.median(smooth[core], axis=0)
+                d_bg = np.linalg.norm(smooth - filled, axis=-1)
+                d_garment = np.linalg.norm(smooth - garment, axis=-1)
+                # Teri, yuz va soch hech qachon fon bilan almashtirilmaydi (teri rangi ko'pincha fonga yaqin)
+                bglike = (d_bg < 0.6 * d_garment) & np.isin(seg, (4, 5))
+            band = near & ((seg == 0) | bglike)
+            kernel = np.ones((3, 3), np.uint8)
+            band = cv2.morphologyEx(band.astype(np.uint8), cv2.MORPH_OPEN, kernel)
+            band = cv2.morphologyEx(band, cv2.MORPH_CLOSE, kernel).astype(bool) & mask
+            if band.mean() < 0.001:
+                return img
             alpha = cv2.GaussianBlur(band.astype(np.float32), (0, 0), max(1.0, max(h, w) / 400))[..., None]
             out = arr.astype(np.float32) * (1 - alpha) + filled * alpha
             print(f"[tryon] chekka tozalandi: {band.mean() * 100:.1f}% piksel", flush=True)

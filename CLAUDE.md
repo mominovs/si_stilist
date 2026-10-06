@@ -167,6 +167,10 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
 - Qo'l chiziqlari 0.3*sw, ko'rinadigan qo'l o'qi (0.1*sw) sinfidan qat'i nazar niqobga kiradi (to'q yeng fon deb
   aniqlanib, eski kiyim bo'laklari qolardi). `Engine.refine`: yakuniy natija qayta segmentlanadi; niqob ichida fon
   deb aniqlangan, asl fonga yaqin (6%) chekka eng yaqin niqobdan tashqi asl fon rangi bilan to'ldiriladi
-  (`distanceTransformWithLabels`): yangi kiyim tor bo'lganda chiqadigan "hoshiya" yo'qoladi. Faqat yakuniy natijada
+  (`distanceTransformWithLabels`): yangi kiyim tor bo'lganda chiqadigan "hoshiya" yo'qoladi. Faqat yakuniy natijada.
+  Segmentator hoshiyani ko'pincha "kiyim" deydi, shuning uchun rang ham tekshiriladi: kiyim sinfidagi piksel yangi
+  kiyim medianasidan ko'ra yaqin fonga ancha yaqin bo'lsa (d_bg < 0.6*d_garment) u ham to'ldiriladi; teri/yuz/soch
+  hech qachon. `fit_box`: odam tegib turgan kadr chetida kesim kadrdan 4% tashqariga chiqadi (model rasm chekkasida
+  rangli chiziq chizardi)
 
 @AGENTS.md
