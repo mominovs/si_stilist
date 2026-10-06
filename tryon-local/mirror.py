@@ -14,7 +14,6 @@ from __future__ import annotations
 import importlib
 import sys
 import types
-import urllib.request
 from pathlib import Path
 
 import cv2
