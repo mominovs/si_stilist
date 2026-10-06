@@ -67,6 +67,7 @@ class ClothMasker:
                 output_confidence_masks=True,
             )
         )
+        self.last_landmarks: np.ndarray | None = None
         self.pose = vision.PoseLandmarker.create_from_options(
             vision.PoseLandmarkerOptions(
                 base_options=BaseOptions(model_asset_path=str(paths["pose_landmarker_full.task"])),
@@ -106,6 +107,8 @@ class ClothMasker:
         if not poses:
             raise PhotoError("Suratda odam topilmadi. Kameraga qarab, belgacha yoki to'liq ko'rining.")
         lm = poses[0]
+        # Oxirgi poza nuqtalari (piksel): jonli oyna yuqori gavda kesimini shundan oladi
+        self.last_landmarks = np.array([[p.x * w, p.y * h] for p in lm], dtype=np.float32)
 
         def visible(i: int, th: float = 0.5) -> bool:
             p = lm[i]

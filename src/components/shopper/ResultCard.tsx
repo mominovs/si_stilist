@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
+import { supportsMirror } from "@/lib/catalog";
 import type { ResultCard as Card } from "@/lib/search";
 
 const TIER_LABEL = { arzon: "arzon", orta: "o'rta narx", qimmat: "premium" } as const;
@@ -82,6 +84,15 @@ export function ResultCard({
           >
             O&apos;zimda ko&apos;rish
           </button>
+          {supportsMirror(card.category) && (
+            <Link
+              href={`/oyna?productId=${card.id}`}
+              prefetch={false}
+              className="block w-full rounded-xl border border-neutral-300 px-4 py-2.5 text-center text-sm font-medium text-neutral-800 transition hover:bg-neutral-50"
+            >
+              Jonli oyna
+            </Link>
+          )}
           <button
             onClick={() => size && onReserve(size)}
             disabled={!size}

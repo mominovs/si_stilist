@@ -168,6 +168,34 @@ async function checkTryOn(): Promise<Check> {
   }
 }
 
+/** Jonli oyna (DM-VTON) lokal serverda: provayderdan qat'i nazar har doim lokal */
+async function checkMirror(): Promise<Check> {
+  const base = { id: "mirror", title: "Jonli oyna (DM-VTON)" };
+  try {
+    const res = await withTimeout(fetch(`${config.tryOn.localUrl}/health`, { cache: "no-store" }), 3000);
+    const h = (await res.json()) as { mirror?: string; mirror_error?: string | null; version?: number; device?: string };
+    if (h.mirror === undefined) {
+      return { ...base, status: "warn", detail: "Lokal server eski versiyada", hint: "git pull, tryon-local\\setup.bat, keyin start.bat" };
+    }
+    if (h.mirror === "ready") {
+      return h.device === "mock"
+        ? { ...base, status: "warn", detail: "Sinov (mock) rejimi: model o'rniga kiyim rasmi qo'yiladi", hint: "start.bat ni --mock siz" }
+        : { ...base, status: "ok", detail: "Tayyor: /oyna sahifasi" };
+    }
+    if (h.mirror === "off") {
+      return { ...base, status: "warn", detail: "O'chirilgan (--no-mirror)", hint: "start.bat ni --no-mirror siz ishga tushiring" };
+    }
+    return {
+      ...base,
+      status: "fail",
+      detail: `Yuklanmadi: ${h.mirror_error ?? h.mirror}. Rasm orqali kiyintirish ishlayveradi`,
+      hint: "tryon-local\\setup.bat (DM-VTON kodi va og'irliklarini yuklaydi)",
+    };
+  } catch {
+    return { ...base, status: "fail", detail: "Lokal server javob bermayapti", hint: "tryon-local\\start.bat" };
+  }
+}
+
 async function checkDemoResults(): Promise<Check> {
   const base = { id: "demo", title: "Tayyor demo natijalari" };
   let files: string[] = [];
@@ -209,12 +237,13 @@ function checkAdminPassword(): Check {
 
 /** Demo oldidan tekshiruv: /admin/holat va npm run check:demo */
 export async function runChecks(): Promise<Check[]> {
-  const [db, photos, llm, tryon, demo] = await Promise.all([
+  const [db, photos, llm, tryon, mirror, demo] = await Promise.all([
     checkDatabase(),
     checkPhotos(),
     checkLlm(),
     checkTryOn(),
+    checkMirror(),
     checkDemoResults(),
   ]);
-  return [db, llm, tryon, demo, photos, checkAdminPassword()];
+  return [db, llm, tryon, mirror, demo, photos, checkAdminPassword()];
 }

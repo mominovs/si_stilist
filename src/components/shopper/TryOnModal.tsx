@@ -110,15 +110,18 @@ export function TryOnModal({
   card,
   provider,
   onClose,
+  initialPhoto,
 }: {
   card: ResultCard;
   provider: keyof typeof PROVIDER;
   onClose: () => void;
+  /** Jonli oynadan olingan kadr: rozilik allaqachon olingan, oyna to'g'ridan-to'g'ri "ko'rib chiqish" da ochiladi */
+  initialPhoto?: { src: string; aspect: number };
 }) {
-  const [step, setStep] = useState<Step>("consent");
-  const [photo, setPhoto] = useState<string | null>(null);
+  const [step, setStep] = useState<Step>(initialPhoto ? "preview" : "consent");
+  const [photo, setPhoto] = useState<string | null>(initialPhoto?.src ?? null);
   // Surat eni/bo'yi nisbati (natija ramkasi shunga moslanadi); juda cho'zinchoq suratlar chegaralanadi
-  const [aspect, setAspect] = useState(0.75);
+  const [aspect, setAspect] = useState(initialPhoto?.aspect ?? 0.75);
   const takePhoto = (source: CanvasImageSource, width: number, height: number) => {
     setPhoto(toJpeg(source, width, height));
     setAspect(Math.min(1.5, Math.max(0.5, width / height)));

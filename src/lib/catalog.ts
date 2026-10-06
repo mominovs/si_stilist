@@ -12,6 +12,11 @@ export const CATEGORIES = [
   "yubka",
 ] as const;
 
+// Jonli oyna (DM-VTON) faqat ustki kiyimda o'qitilgan: shu kategoriyalarda ko'rsatiladi
+export const MIRROR_CATEGORIES = ["futbolka", "ko'ylak", "sviter", "kurtka"] as const;
+
+export const supportsMirror = (category: string) => (MIRROR_CATEGORIES as readonly string[]).includes(category);
+
 // Rang nomi -> rasm va belgilar uchun HEX
 export const COLORS: Record<string, string> = {
   qora: "#1f1f1f",

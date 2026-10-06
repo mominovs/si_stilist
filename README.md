@@ -53,6 +53,10 @@ almashtiring va `npm run db:setup`.
    `npm run tryon:prepare -- model.jpg FT-06,KY-01` (lokal server ishlab turgan bo'lsin). Model ishlamay qolsa,
    ilova shularni "Demo rejim" belgisi bilan ko'rsatadi.
 
+**Jonli oyna** (`/oyna`, kartochkadagi "Jonli oyna" tugmasi): kamera oldida ustki kiyim real vaqtda ko'rinadi
+(lokal DM-VTON, bepul, internetsiz), seans 60 soniya. "Sifatli surat" joriy kadrni asosiy SI bilan qayta chizadi.
+Birinchi marta `tryon-local\setup.bat` ni qayta ishga tushiring (oyna modelini yuklaydi).
+
 Xaridor topilgan tovarni baholaydi ("Ha, mos keldi" / "Yo'q, mos kelmadi") va o'lchamni tanlab
 **"Sotuvchiga ko'rsatish"** ni bosadi: ekranda katta kod (#564) chiqadi, sotuvchi xuddi shu kodni panelning
 "Sotuvchiga ko'rsatilgan" bo'limida ko'radi. Panelda xaridor bahosi va sotuvchiga ko'rsatishlar foizi ham bor.

@@ -13,3 +13,5 @@ uvicorn
 # Kiyim niqobi (mask rejimi). opencv 4.10: numpy 1.x bilan mos keladigan oxirgi versiya
 mediapipe==1.0.1
 opencv-contrib-python==4.10.0.84
+# Jonli oyna (DM-VTON) og'irliklarini Google Drive'dan yuklash
+gdown>=5.1

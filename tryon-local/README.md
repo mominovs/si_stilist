@@ -59,6 +59,21 @@ ustida artefakt qoldirardi. Kerak bo'lsa: `start.bat --mode maskfree`.
 
 MediaPipe modellari (~15 MB) birinchi ishga tushishda `tryon-local/models/` ga yuklanadi.
 
+## Jonli oyna (DM-VTON)
+
+Saytdagi `/oyna` sahifasi: kamera ochiladi va tanlangan ustki kiyim (futbolka, ko'ylak, sviter, kurtka) real vaqtda
+ko'rinadi. Model: [DM-VTON](https://github.com/KiseKloset/DM-VTON) (37 MB, 192x256, Tesla T4'da 40 kadr/s).
+Kod mualliflar demosidan ([KiseKloset](https://github.com/KiseKloset/KiseKloset)) olinadi, og'irliklar
+(`mobile_warp.pt`, `mobile_gen.pt`) Google Drive'dan `models/dmvton/` ga yuklanadi: ikkalasini ham `setup.bat` qiladi.
+Asl kod `cupy` talab qiladi, bu yerda u oddiy PyTorch bilan almashtirilgan (`mirror.py`).
+
+- Kadr: fon oqqa almashtiriladi, ko'zdan songacha kesiladi, model ishlaydi, natija faqat kiyim niqobi ichida asl
+  kadrga qo'yiladi (yuz va fon o'zgarmaydi). Niqob (MediaPipe) fonda yangilanadi, kadr uni kutmaydi.
+- Seans 60 soniya, keyin kamera o'chadi. "Sifatli surat" tugmasi joriy kadrni CatVTON bilan (~35 s) qayta chizadi.
+- Jonli ko'rinish taxminiy: model old tomondan turgan odam va ustki kiyimda o'qitilgan. Belgacha, qo'llar yonda turing.
+- Oyna yuklanmasa (`/health` da `mirror: error`), rasm orqali kiyintirish ishlayveradi. O'chirish: `start.bat --no-mirror`.
+- Jonli kamera faqat shu kompyuterda (localhost) yoki HTTPS orqali ochiladi: telefondan Wi-Fi IP orqali ishlamaydi.
+
 ## Sozlamalar
 
 | Parametr | Standart | Izoh |
@@ -67,6 +82,7 @@ MediaPipe modellari (~15 MB) birinchi ishga tushishda `tryon-local/models/` ga y
 | `--preset` | orta | `tez` (768x576, 20 qadam), `orta` (768x576, 50), `sifat` (1024x768, 50). Masalan: `start.bat --preset sifat` |
 | `--height --width` | presetdan | GPU xotirasi yetmasa: `start.bat --height 640 --width 480`. 8 GB+ bo'lsa: 1024 768 |
 | `--steps` | presetdan | Kamroq: tezroq (20), ko'proq: sifatliroq (40-50) |
+| `--no-mirror` | o'chiq | Jonli oyna (DM-VTON) yuklanmasin |
 | `--safety` | o'chiq | NSFW filtri (+~1 GB GPU xotira) |
 | `--port` | 8001 | O'zgartirsangiz, `.env` da `TRYON_LOCAL_URL` ni ham yangilang |
 

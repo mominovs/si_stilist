@@ -36,13 +36,16 @@ from pathlib import Path
 from typing import Callable
 
 import uvicorn
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import Response, StreamingResponse
 from PIL import Image, ImageFilter
 from pydantic import BaseModel
 
 HERE = Path(__file__).resolve().parent
 CATVTON_DIR = HERE / "CatVTON"
+# Jonli oyna (DM-VTON) model kodi: mualliflar demosi (setup.bat klonlaydi)
+KISEKLOSET_DIR = HERE / "KiseKloset"
 MODELS_DIR = HERE / "models"
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
 # Natija asl surat o'lchamida qaytariladi (yuz va fon tiniq qoladi), lekin bundan katta bo'lmaydi
@@ -88,6 +91,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--base-model", default=None)
     p.add_argument("--weights", default=None)
     p.add_argument("--mock", action="store_true", help="Modelsiz sinov rejimi: kiyimni surat ustiga qo'yadi")
+    p.add_argument("--no-mirror", action="store_true", help="Jonli oyna (DM-VTON) yuklanmasin")
     a = p.parse_args()
     preset = PRESETS[a.preset]
     a.height = a.height or preset["height"]
@@ -185,6 +189,13 @@ class Engine:
         self.pipeline = None
         self.masker = None
         self.mask_lock = threading.Lock()
+        # Jonli oyna: off | ready | error (CatVTON'dan mustaqil, tez yuklanadi)
+        self.mirror = None
+        self.mirror_status = "off"
+        self.mirror_error: str | None = None
+        self.mirror_lock = threading.Lock()
+        self.mirror_cache: dict | None = None
+        self.mirror_busy = False
         self._torch = None
         self._prepare_image = None
         self._prepare_mask_image = None
@@ -199,11 +210,86 @@ class Engine:
         self.masker = ClothMasker(MODELS_DIR)
         print("[model] kiyim niqobi (MediaPipe) tayyor", flush=True)
 
+    def _load_mirror(self) -> None:
+        """Jonli oyna modeli. Xato bo'lsa faqat oyna o'chadi, rasm orqali kiyintirish ishlayveradi"""
+        if self.args.no_mirror:
+            return
+        try:
+            if self.masker is None:
+                self._load_masker()
+            if self.args.mock:
+                from mirror import MockMirror
+
+                self.mirror = MockMirror()
+            else:
+                from mirror import MirrorEngine
+
+                t0 = time.time()
+                self.mirror = MirrorEngine(KISEKLOSET_DIR, MODELS_DIR, self.device)
+                print(f"[oyna] jonli oyna (DM-VTON) tayyor ({time.time() - t0:.0f} s)", flush=True)
+            self.mirror_status = "ready"
+        except Exception as e:  # noqa: BLE001 - /health orqali ko'rsatiladi
+            self.mirror_status, self.mirror_error = "error", str(e)
+            print(f"[oyna] jonli oyna ishlamaydi: {e}", flush=True)
+
+    def _mirror_analyze(self, frame: Image.Image, background_job: bool = False) -> dict:
+        """Kiyim niqobi va poza (MediaPipe, CPU). Fonda ishlasa xatoni yutadi, keyingi kadr qayta urinadi"""
+        from masker import PhotoError as MaskerPhotoError
+
+        try:
+            with self.mask_lock:
+                mask, _, background, _ = self.masker.analyze(frame, "tops")
+                points = self.masker.last_landmarks.copy()
+            cache = {"t": time.time(), "size": frame.size, "mask": mask, "bg": background, "points": points}
+            self.mirror_cache = cache
+            return cache
+        except MaskerPhotoError as e:
+            self.mirror_cache = None
+            if background_job:
+                return {}
+            raise HTTPException(422, str(e)) from e
+        finally:
+            if background_job:
+                self.mirror_busy = False
+
+    def mirror_frame(self, data: bytes, garment_id: str) -> bytes:
+        """Bitta kamera kadri -> kiyintirilgan kadr (JPEG). Niqob fonda yangilanadi, kadr kutmaydi"""
+        from mirror import compose_frame
+
+        if self.mirror_status != "ready":
+            raise HTTPException(503, f"Jonli oyna ishlamayapti: {self.mirror_error or 'yuklanmagan'}")
+        if garment_id not in self.mirror.garments:
+            raise HTTPException(404, "garment")
+        try:
+            frame = Image.open(io.BytesIO(data)).convert("RGB")
+        except Exception as e:  # noqa: BLE001
+            raise HTTPException(400, "Kadrni ochib bo'lmadi") from e
+        if max(frame.size) > 720:
+            frame.thumbnail((720, 720))
+
+        cache = self.mirror_cache
+        now = time.time()
+        if not cache or cache["size"] != frame.size or now - cache["t"] > 1.0:
+            # Niqob yo'q yoki eskirgan: shu kadrning o'zi bilan kutib hisoblanadi
+            cache = self._mirror_analyze(frame)
+        elif now - cache["t"] > 0.12 and not self.mirror_busy:
+            # Niqob fonda yangilanadi, bu kadr esa oxirgi tayyor niqob bilan darhol chiqariladi
+            self.mirror_busy = True
+            threading.Thread(target=self._mirror_analyze, args=(frame.copy(), True), daemon=True).start()
+
+        with self.mirror_lock:
+            result = compose_frame(frame, cache["mask"], cache["bg"], cache["points"],
+                                   lambda person: self.mirror.run(person, garment_id))
+        buf = io.BytesIO()
+        result.save(buf, format="JPEG", quality=80)
+        return buf.getvalue()
+
     def load(self) -> None:
         if self.args.mock:
             try:
                 if self.args.mode == "mask":
                     self._load_masker()
+                self._load_mirror()
             except Exception as e:  # noqa: BLE001
                 self.status, self.error = "error", str(e)
                 print(f"[model] XATO: {e}", flush=True)
@@ -226,6 +312,8 @@ class Engine:
 
             if self.args.mode == "mask":
                 self._load_masker()
+            # Oyna kichik (~40 MB): CatVTON yuklanayotganda ham ishlay boshlaydi
+            self._load_mirror()
 
             print(f"[model] og'irliklar yuklanmoqda ({self.args.mode} rejim, birinchi marta ~4-5 GB)...", flush=True)
             dtype = {"bf16": torch.bfloat16, "fp16": torch.float16, "fp32": torch.float32}[self.args.precision]
@@ -560,7 +648,10 @@ def health():
         "preset": args.preset,
         "mode": args.mode,
         # Server imkoniyatlari: ilova eski serverni aniqlashi uchun
-        "version": 4,
+        "version": 5,
+        # Jonli oyna (DM-VTON): off | ready | error
+        "mirror": engine.mirror_status,
+        "mirror_error": engine.mirror_error,
         "stream": True,
     }
 
@@ -644,15 +735,44 @@ def tryon_stream(req: TryOnRequest):
     return StreamingResponse(stream(), media_type="application/x-ndjson")
 
 
+class GarmentRequest(BaseModel):
+    id: str
+    image: str
+
+
+@app.post("/mirror/garment")
+def mirror_garment(req: GarmentRequest):
+    """Jonli oyna uchun kiyim (bir marta, keyin id bo'yicha ishlatiladi)"""
+    if engine.mirror_status != "ready":
+        raise HTTPException(503, f"Jonli oyna ishlamayapti: {engine.mirror_error or 'yuklanmagan'}")
+    try:
+        engine.mirror.set_garment(req.id[:64], decode_image(req.image))
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
+    return {"ok": True}
+
+
+@app.post("/mirror")
+async def mirror(request: Request, id: str):
+    """
+    Jonli oyna kadri: so'rov tanasi JPEG, javob JPEG. Kadr diskka yozilmaydi.
+    422: kadrda odam yo'q / juda yaqin (sabab detail'da), 404: kiyim yuborilmagan (avval /mirror/garment).
+    """
+    data = await request.body()
+    if not data or len(data) > 2 * 1024 * 1024:
+        raise HTTPException(413, "Kadr 2 MB dan katta")
+    image = await run_in_threadpool(engine.mirror_frame, data, id[:64])
+    return Response(content=image, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
+
+
 def port_is_free(host: str, port: int) -> bool:
+    """Portda ishlab turgan server bormi (ulanish qabul qilinsa band). Yaqinda yopilgan ulanishlar (TIME_WAIT)
+    "band" deb hisoblanmaydi: bind orqali tekshirish ularni ham band deb ko'rsatardi"""
     import socket
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        try:
-            sock.bind((host, port))
-            return True
-        except OSError:
-            return False
+        sock.settimeout(0.5)
+        return sock.connect_ex((host, port)) != 0
 
 
 if __name__ == "__main__":

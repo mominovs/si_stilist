@@ -22,6 +22,11 @@ if not exist CatVTON (
   git clone https://github.com/Zheng-Chong/CatVTON.git || goto :error
   git -C CatVTON checkout 7818397f25613beedb3d861a34769f607cfcf3b1 || goto :error
 )
+if not exist KiseKloset (
+  echo Jonli oyna ^(DM-VTON^) kodi yuklab olinmoqda...
+  git clone https://github.com/KiseKloset/KiseKloset.git || goto :error
+  git -C KiseKloset checkout 118e0da5037550912cf33b1b7bdd46ecf36141e7 || goto :error
+)
 
 rem --- Eski .venv boshqa Python versiyasi bilan yaratilgan bo'lsa, qayta yaratiladi ---
 if exist .venv\Scripts\python.exe (
@@ -46,6 +51,8 @@ echo [4/4] Qolgan kutubxonalar...
 
 "%VPY%" -c "import torch; print('CUDA:', torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else '')"
 "%VPY%" -c "import mediapipe; print('MediaPipe (kiyim niqobi):', mediapipe.__version__)" || goto :error
+rem Jonli oyna og'irliklari (~40 MB, Google Drive). Xato bo'lsa ham o'rnatish davom etadi: faqat oyna ishlamaydi
+"%VPY%" -c "from pathlib import Path; import mirror; mirror.ensure_weights(Path('models')); print('Jonli oyna (DM-VTON): tayyor')" || echo DIQQAT: jonli oyna og'irliklari yuklanmadi. Internetni tekshirib, setup.bat ni qayta ishga tushiring.
 echo.
 echo Tayyor. Serverni ishga tushirish: start.bat
 exit /b 0

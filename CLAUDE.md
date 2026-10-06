@@ -216,4 +216,20 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
   ("Kamera bilan suratga olish"). `allowedDevOrigins` ga kompyuterning hozirgi IPv4 manzillari ham qo'shiladi
 - `npm run lint` `tryon-local/**` ni tekshirmaydi (.venv va CatVTON ichidagi begona JS)
 
+## Texnik eslatmalar (6-bosqichdan keyin)
+- Real vaqt oynasi Decart o'rniga lokal **DM-VTON** (foydalanuvchi tanlovi: bepul, 6 GB GPU). `tryon-local/mirror.py`:
+  model kodi `tryon-local/KiseKloset` (mualliflar demosi, commit 118e0da, setup.bat klonlaydi) dan cupy'siz yuklanadi:
+  `correlation()` FlowNet2 cupy yadrosini PyTorch'da aynan takrorlaydi (sinovda farq 2e-7). Og'irliklar
+  `models/dmvton/mobile_{warp,gen}.pt` (Google Drive, gdown; bu muhitdan Drive bloklangan, haqiqiy natija faqat
+  foydalanuvchi kompyuterida). Kirish: oq fon, ko'z-son kesimi (demodagidek padding), 192x256; natija faqat kiyim
+  niqobi ichida (fon chiqarib tashlanadi) asl kadrga
+- Server: `POST /mirror/garment {id, image}`, `POST /mirror?id=` (tana va javob JPEG), 422 kadrda odam yo'q, 404 kiyim
+  yuborilmagan, 503 oyna o'chiq. `/health` version 5 + `mirror` (off|ready|error). Oyna CatVTON'dan oldin yuklanadi.
+  Niqob fonda yangilanadi (`_mirror_analyze`, 0.12 s dan eski bo'lsa), 1 s dan eski bo'lsa kutib hisoblanadi.
+  `--mock` da `MockMirror`, `--no-mirror`. `port_is_free` endi connect bilan (bind TIME_WAIT'ni band derdi)
+- Sayt: `src/lib/tryon/mirror.ts` (kiyim bir marta yuboriladi, 404 da qayta), `POST /api/mirror?productId=`
+  (tovar 1 daqiqa keshda, 2400/daqiqa), `/oyna` sahifasi (`MirrorView`: kadr tsikli ketma-ket, 480 px JPEG, oyna
+  teskari, 60 s seans, kiyim almashtirish, "Sifatli surat" -> `TryOnModal initialPhoto`). Faqat
+  `MIRROR_CATEGORIES` (futbolka, ko'ylak, sviter, kurtka). Holat sahifasida "Jonli oyna" tekshiruvi
+
 @AGENTS.md
