@@ -9,6 +9,8 @@ export const parsedQuerySchema = z.object({
   uslub: z.array(z.string()),
   maqsad: z.string().nullable(),
   narx_darajasi: z.enum(["arzon", "orta", "qimmat"]).nullable(),
+  /** Byudjet: shu narxdan (so'm) qimmat bo'lmasin ("300 ming so'mgacha" -> 300000) */
+  narx_max: z.number().nullable(),
   olcham: z.string().nullable(),
   mavsum: z.string().nullable(),
   izoh: z.string(),
@@ -34,10 +36,18 @@ export const EMPTY_QUERY: ParsedQuery = {
   uslub: [],
   maqsad: null,
   narx_darajasi: null,
+  narx_max: null,
   olcham: null,
   mavsum: null,
   izoh: "",
 };
+
+/**
+ * Bazadagi eski so'rovlarda (narx_max qo'shilishidan oldin) yangi maydonlar yo'q: ular bo'sh qiymat bilan to'ldiriladi
+ */
+export function withDefaults(q: Partial<ParsedQuery>): ParsedQuery {
+  return { ...EMPTY_QUERY, ...q };
+}
 
 /** So'rovda moslashtirish uchun hech bo'lmasa bitta mezon bormi */
 export function hasCriteria(q: ParsedQuery): boolean {
@@ -49,6 +59,7 @@ export function hasCriteria(q: ParsedQuery): boolean {
       q.uslub.length ||
       q.maqsad ||
       q.narx_darajasi ||
+      q.narx_max ||
       q.olcham ||
       q.mavsum,
   );

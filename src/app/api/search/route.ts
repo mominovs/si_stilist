@@ -1,18 +1,25 @@
 import { z } from "zod";
 import { understandQuery } from "@/lib/query";
-import { EMPTY_QUERY, type ParsedQuery } from "@/lib/query/schema";
+import { normalizeQuery } from "@/lib/query/normalize";
+import { EMPTY_QUERY, parsedQuerySchema, withDefaults, type ParsedQuery } from "@/lib/query/schema";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
 import { loadVocabulary, runSearch } from "@/lib/search";
 
 const bodySchema = z.union([
   // Boshqaruv belgilari olib tashlanadi, uzunlik cheklanadi
-  z.object({ text: z.string().transform((t) => t.replace(/[\u0000-\u001f\u007f]/g, " ").trim()).pipe(z.string().min(1).max(500)) }),
+  z.object({
+    text: z.string().transform((t) => t.replace(/[\u0000-\u001f\u007f]/g, " ").trim()).pipe(z.string().min(1).max(500)),
+    // Suhbatdagi oldingi so'rov (brauzerdan keladi, shuning uchun qayta tekshiriladi va tozalanadi)
+    context: z.unknown().optional(),
+  }),
   z.object({
     filters: z.object({
       kategoriya: z.string().max(40).nullable().optional(),
       jins: z.enum(["erkak", "ayol"]).nullable().optional(),
       rang: z.string().max(20).nullable().optional(),
       narx_darajasi: z.enum(["arzon", "orta", "qimmat"]).nullable().optional(),
+      narx_max: z.number().int().positive().max(1_000_000_000).nullable().optional(),
+      olcham: z.string().regex(/^[A-Z0-9]{1,5}$/).nullable().optional(),
     }),
   }),
 ]);
@@ -36,7 +43,13 @@ export async function POST(request: Request) {
 
   if ("text" in body.data) {
     const text = body.data.text;
-    const { parsed, mode, llmError } = await understandQuery(text, await loadVocabulary());
+    const vocab = await loadVocabulary();
+    const ctx =
+      body.data.context && typeof body.data.context === "object"
+        ? parsedQuerySchema.safeParse(withDefaults(body.data.context as Partial<ParsedQuery>))
+        : null;
+    const context = ctx?.success ? normalizeQuery(ctx.data, vocab.categories) : null;
+    const { parsed, mode, llmError } = await understandQuery(text, vocab, context);
     return Response.json(await runSearch(text, parsed, mode, llmError));
   }
 
@@ -48,8 +61,19 @@ export async function POST(request: Request) {
     jins: f.jins ?? null,
     ranglar: f.rang ? [f.rang] : [],
     narx_darajasi: f.narx_darajasi ?? null,
+    narx_max: f.narx_max ?? null,
+    olcham: f.olcham ?? null,
   };
-  const label = [parsed.kategoriya, parsed.jins, f.rang, parsed.narx_darajasi].filter(Boolean).join(", ");
+  const label = [
+    parsed.kategoriya,
+    parsed.jins,
+    f.rang,
+    parsed.narx_darajasi,
+    parsed.narx_max ? `${parsed.narx_max.toLocaleString("ru-RU")} so'mgacha` : null,
+    parsed.olcham,
+  ]
+    .filter(Boolean)
+    .join(", ");
   parsed.izoh = `Filtr: ${label || "hammasi"}`;
   return Response.json(await runSearch(parsed.izoh, parsed, "filtr"));
 }

@@ -69,3 +69,25 @@ test("natija deterministik", () => {
   const query = q({ maqsad: "bayram" });
   assert.deepEqual(skus(matchProducts(products, query)), skus(matchProducts(products, query)));
 });
+
+test("review misoli: 'klassik, bayram uchun' da faqat klassik tovar aniq mos emas", () => {
+  const r = matchProducts(products, q({ kategoriya: "ko'ylak", uslub: ["klassik"], maqsad: "bayram" }));
+  for (const x of r.results) {
+    if (x.isExact) assert.ok(x.product.styleTags.includes("bayram"), `${x.product.sku} bayram uchun emas`);
+  }
+  const onlyClassic = r.results.find((x) => !x.product.styleTags.includes("bayram"));
+  if (onlyClassic) assert.match(onlyClassic.reason ?? "", /Bayram uchun emas/);
+});
+
+test("byudjet: qimmatlari aniq mos emas va oxiriga tushadi", () => {
+  const r = matchProducts(products, q({ kategoriya: "kostyum", narx_max: 1_400_000 }));
+  assert.ok(r.results.length > 0);
+  for (const x of r.results) {
+    if (x.product.price > 1_400_000) {
+      assert.equal(x.isExact, false);
+      assert.equal(x.reason, "Byudjetdan qimmatroq");
+    }
+  }
+  assert.ok(r.results[0].product.price <= 1_400_000);
+  assert.equal(r.status, "qoniqtirildi");
+});

@@ -13,10 +13,20 @@ export default async function ShopperPage() {
   // Javob yuborilgandan keyin fonda: xaridorning birinchi so'rovi tez qaytishi uchun
   after(() => warmUpLlm(loadVocabulary));
   // Filtr tugmalari faqat omborda uchraydigan qiymatlardan tuziladi
-  const [cats, colors] = await Promise.all([
+  const [cats, colors, sizes] = await Promise.all([
     prisma.product.findMany({ distinct: ["category"], select: { category: true }, orderBy: { category: "asc" } }),
     prisma.product.findMany({ distinct: ["color"], select: { color: true } }),
+    prisma.productVariant.findMany({ where: { stock: { gt: 0 } }, distinct: ["size"], select: { size: true } }),
   ]);
+  const letterOrder = ["XS", "S", "M", "L", "XL", "XXL", "XXXL"];
+  const sortedSizes = sizes
+    .map((s) => s.size)
+    .sort((a, b) => {
+      const la = letterOrder.indexOf(a);
+      const lb = letterOrder.indexOf(b);
+      if (la !== -1 || lb !== -1) return (la === -1 ? 99 : la) - (lb === -1 ? 99 : lb);
+      return Number(a) - Number(b) || a.localeCompare(b);
+    });
   const colorOrder = Object.keys(COLORS);
   const sortedColors = colors
     .map((c) => c.color)
@@ -59,6 +69,7 @@ export default async function ShopperPage() {
       <Shopper
         categories={cats.map((c) => c.category)}
         colors={sortedColors}
+        sizes={sortedSizes}
         tryOnProvider={config.tryOn.provider}
       />
     </div>

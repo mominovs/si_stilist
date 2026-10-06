@@ -31,10 +31,12 @@ const IDLE_RESET_MS = 120_000;
 export function Shopper({
   categories,
   colors,
+  sizes,
   tryOnProvider,
 }: {
   categories: string[];
   colors: string[];
+  sizes: string[];
   tryOnProvider: "local" | "gemini" | "fal";
 }) {
   const [turns, setTurns] = useState<Turn[]>([]);
@@ -116,11 +118,23 @@ export function Shopper({
     const trimmed = text.trim();
     if (!trimmed) return;
     setInput("");
-    void search(trimmed, { text: trimmed });
+    // Davom gaplari ("shuning arzonrog'i") uchun ko'rib turilgan javobdagi so'rov shartlari yuboriladi
+    const shown = turns.find((t) => t.id === selectedId)?.response;
+    const context = shown?.parsed && shown.mode !== "rad" ? shown.parsed : undefined;
+    void search(trimmed, { text: trimmed, context });
   }
 
   function submitFilters(f: Filters) {
-    const label = [f.kategoriya, f.jins, f.rang, f.narx_darajasi && `${f.narx_darajasi} narx`].filter(Boolean).join(", ");
+    const label = [
+      f.kategoriya,
+      f.jins,
+      f.rang,
+      f.narx_darajasi && `${f.narx_darajasi} narx`,
+      f.narx_max && `${f.narx_max.toLocaleString("ru-RU")} so'mgacha`,
+      f.olcham,
+    ]
+      .filter(Boolean)
+      .join(", ");
     void search(`Filtr: ${label || "hammasi"}`, { filters: f });
   }
 
@@ -210,7 +224,7 @@ export function Shopper({
           <button onClick={() => setFiltersOpen((o) => !o)} className="text-sm text-neutral-600 hover:underline">
             {filtersOpen ? "Filtrni yopish" : "Filtr bilan tanlash"}
           </button>
-          {filtersOpen && <FilterPanel categories={categories} colors={colors} disabled={loading} onSearch={submitFilters} />}
+          {filtersOpen && <FilterPanel categories={categories} colors={colors} sizes={sizes} disabled={loading} onSearch={submitFilters} />}
         </div>
       </section>
 

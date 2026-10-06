@@ -46,8 +46,15 @@ const unique = (xs: string[]) => [...new Set(xs.filter(Boolean))].slice(0, MAX_L
 
 function normalizeSize(value: string | null): string | null {
   if (!value) return null;
-  const v = value.trim().toUpperCase();
+  const v = value.trim().toUpperCase().replace(/^2XL$/, "XXL").replace(/^3XL$/, "XXXL");
   return /^[A-Z0-9]{1,5}$/.test(v) ? v : null;
+}
+
+function normalizeBudget(value: number | null | undefined): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return null;
+  // LLM ba'zan "300 ming" ni 300 deb yozadi
+  const v = value < 1000 ? value * 1000 : value;
+  return v <= 1_000_000_000 ? Math.round(v) : null;
 }
 
 /** LLM yoki zaxira tahlilchi natijasini bazadagi qiymatlar bilan bir xil ko'rinishga keltiradi */
@@ -60,6 +67,7 @@ export function normalizeQuery(q: ParsedQuery, knownCategories: string[]): Parse
     rang_istisno: exclude,
     uslub: unique(q.uslub.slice(0, MAX_LIST).map(lower)),
     maqsad: q.maqsad ? lower(q.maqsad) || null : null,
+    narx_max: normalizeBudget(q.narx_max),
     olcham: normalizeSize(q.olcham),
     mavsum: normalizeSeason(q.mavsum),
     // Faqat ko'rsatish uchun: boshqaruv belgilari olib tashlanadi, uzunlik cheklanadi

@@ -8,7 +8,16 @@ export type Filters = {
   jins: "erkak" | "ayol" | null;
   rang: string | null;
   narx_darajasi: "arzon" | "orta" | "qimmat" | null;
+  narx_max: number | null;
+  olcham: string | null;
 };
+
+const BUDGETS = [
+  [200_000, "200 minggacha"],
+  [300_000, "300 minggacha"],
+  [500_000, "500 minggacha"],
+  [1_000_000, "1 mln gacha"],
+] as const;
 
 const chip = (active: boolean) =>
   `rounded-full border px-3 py-1.5 text-sm transition ${
@@ -18,15 +27,24 @@ const chip = (active: boolean) =>
 export function FilterPanel({
   categories,
   colors,
+  sizes,
   disabled,
   onSearch,
 }: {
   categories: string[];
   colors: string[];
+  sizes: string[];
   disabled: boolean;
   onSearch: (f: Filters) => void;
 }) {
-  const [f, setF] = useState<Filters>({ kategoriya: null, jins: null, rang: null, narx_darajasi: null });
+  const [f, setF] = useState<Filters>({
+    kategoriya: null,
+    jins: null,
+    rang: null,
+    narx_darajasi: null,
+    narx_max: null,
+    olcham: null,
+  });
   const toggle = <K extends keyof Filters>(key: K, value: Filters[K]) =>
     setF((prev) => ({ ...prev, [key]: prev[key] === value ? null : value }));
 
@@ -47,6 +65,22 @@ export function FilterPanel({
         <button type="button" className={chip(f.narx_darajasi === "orta")} onClick={() => toggle("narx_darajasi", "orta")}>O&apos;rta</button>
         <button type="button" className={chip(f.narx_darajasi === "qimmat")} onClick={() => toggle("narx_darajasi", "qimmat")}>Qimmat</button>
       </div>
+      <div className="flex flex-wrap gap-1.5">
+        {BUDGETS.map(([amount, label]) => (
+          <button key={amount} type="button" className={chip(f.narx_max === amount)} onClick={() => toggle("narx_max", amount)}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {sizes.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {sizes.map((s) => (
+            <button key={s} type="button" className={chip(f.olcham === s)} onClick={() => toggle("olcham", s)}>
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="flex flex-wrap gap-2">
         {colors.map((c) => (
           <button

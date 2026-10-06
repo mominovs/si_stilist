@@ -148,11 +148,70 @@ export function detectColor(text: string): string | null {
   return include[0] ?? exclude[0] ?? null;
 }
 
-function detectSize(original: string): string | null {
-  const letter = original.match(/(?:^|[^\p{L}])(XXL|XL|XS|S|M|L)(?=$|[^\p{L}])/u);
-  if (letter) return letter[1];
-  const numeric = original.match(/(?:^|\D)(3[6-9]|4\d|5[0-8])(?=\s*(-?\s*o'lcham|razmer|размер|\b|$))/u);
+/**
+ * Byudjet: "300 ming so'mgacha", "50 ming", "1,5 mln", "250 000 so'm", "до 300 тыс". Natija so'mda.
+ * Topilgan matn bo'lagi ham qaytariladi: undagi raqam o'lcham deb olinmasligi uchun.
+ */
+export function detectBudget(text: string): { amount: number; span: string } | null {
+  // "300 000" -> "300000"
+  const t = transliterate(normalizeText(text)).replace(/(\d)[ \u00a0](?=\d{3}(?!\d))/g, "$1");
+  const patterns: Array<[RegExp, number]> = [
+    [/(\d+(?:[.,]\d+)?)\s*(?:mln|million|mlн|милл)/u, 1_000_000],
+    [/(\d+(?:[.,]\d+)?)\s*(?:ming|tis|тыс|k(?![\p{L}]))/u, 1000],
+    [/(\d{4,9})\s*(?:so'm|som|sum|сум|uzs)/u, 1],
+  ];
+  for (const [re, mult] of patterns) {
+    const m = t.match(re);
+    if (!m) continue;
+    const amount = Math.round(parseFloat(m[1].replace(",", ".")) * mult);
+    if (amount >= 10_000 && amount <= 100_000_000) return { amount, span: m[0] };
+  }
+  return null;
+}
+
+const SIZE_WORD = "(?:o'lcham|razmer|размер|size)";
+
+function detectSize(original: string, budgetSpan: string | null): string | null {
+  // Byudjetdagi raqam ("50 ming") o'lcham emas
+  let s = original;
+  if (budgetSpan) {
+    const digits = budgetSpan.match(/\d+/)?.[0];
+    if (digits) s = s.replace(new RegExp(`${digits}[\\s\\d.,]*\\S*`, "u"), " ");
+  }
+  // XL, XXL, XS kichik harfda ham taniladi ("xl")
+  const multi = s.match(/(?:^|[^\p{L}\d])(xxxl|xxl|xl|xs|[23]xl)(?=$|[^\p{L}])/iu);
+  if (multi) {
+    const v = multi[1].toUpperCase();
+    return v === "2XL" ? "XXL" : v === "3XL" ? "XXXL" : v;
+  }
+  // Bitta harf (S/M/L) faqat katta harfda yoki "o'lcham"/"razmer" so'zi yonida: "m" oddiy so'zlarda ham uchraydi
+  const upper = s.match(/(?:^|[^\p{L}])(S|M|L)(?=$|[^\p{L}])/u);
+  if (upper) return upper[1];
+  const near =
+    s.match(new RegExp(`${SIZE_WORD}\\s*[:-]?\\s*([sml])(?=$|[^\\p{L}])`, "iu")) ??
+    s.match(new RegExp(`(?:^|[^\\p{L}])([sml])\\s*-?\\s*${SIZE_WORD}`, "iu"));
+  if (near) return near[1].toUpperCase();
+  const numeric = s.match(/(?:^|\D)(3[6-9]|4\d|5[0-8])(?=\s*(-?\s*o'lcham|razmer|размер|\b|$))/u);
   return numeric ? numeric[1] : null;
+}
+
+const CHEAPER_WORDS = ["arzonroq", "arzonrog'", "arzonrog", "дешевле", "подешевле"];
+const PRICIER_WORDS = ["qimmatroq", "qimmatrog'", "qimmatrog", "дороже", "подороже"];
+// Oldingi so'rovga ishora qiluvchi so'zlar ("shuning", "boshqa rangda", "yana")
+const FOLLOW_UP_WORDS = [
+  "shu", "shuning", "shundan", "shunaqa", "yana", "boshqa", "endi", "это", "этот", "такой", "такие", "ещё", "еще",
+  "другой", "другого", "другие", ...CHEAPER_WORDS, ...PRICIER_WORDS,
+];
+
+/** Nisbiy so'rovlar: "arzonrog'ini ko'rsat", "boshqa rangdagisi bormi" */
+export function detectFollowUp(text: string): { cheaper: boolean; pricier: boolean; followUp: boolean } {
+  const t = normalizeText(text);
+  const texts = [t, transliterate(t)];
+  return {
+    cheaper: containsAny(texts, CHEAPER_WORDS),
+    pricier: containsAny(texts, PRICIER_WORDS),
+    followUp: containsAny(texts, FOLLOW_UP_WORDS),
+  };
 }
 
 export function parseByKeywords(text: string): ParsedQuery {
@@ -170,6 +229,7 @@ export function parseByKeywords(text: string): ParsedQuery {
   );
   const colors = detectColors(texts);
   const price = PRICE_WORDS.find(([, words]) => containsAny(texts, words))?.[0] ?? null;
+  const budget = detectBudget(text);
   const season = pickAll(SEASON_WORDS)[0] ?? null;
 
   return {
@@ -181,7 +241,8 @@ export function parseByKeywords(text: string): ParsedQuery {
     uslub: pickAll(STYLE_WORDS),
     maqsad: purposes[0] ?? null,
     narx_darajasi: price,
-    olcham: detectSize(text.replace(/[ʻʼ‘’`´]/g, "'")),
+    narx_max: budget?.amount ?? null,
+    olcham: detectSize(text.replace(/[ʻʼ‘’`´]/g, "'"), budget?.span ?? null),
     mavsum: season,
     izoh: text.trim().slice(0, 200),
   };

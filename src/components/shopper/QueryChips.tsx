@@ -1,3 +1,4 @@
+import { formatPrice } from "@/lib/format";
 import type { ParseMode, ParsedQuery } from "@/lib/query/schema";
 
 const PRICE = { arzon: "arzon", orta: "o'rta narx", qimmat: "qimmat" } as const;
@@ -19,6 +20,7 @@ export function queryChips(q: ParsedQuery): string[] {
     q.maqsad,
     ...q.uslub.filter((u) => u !== q.maqsad),
     q.narx_darajasi ? PRICE[q.narx_darajasi] : null,
+    q.narx_max ? `${formatPrice(q.narx_max)}gacha` : null,
     q.olcham ? `${q.olcham} o'lcham` : null,
     q.mavsum,
   ].filter((x): x is string => Boolean(x));

@@ -55,7 +55,7 @@ export function matchProducts<P extends MatchProduct>(
   limit = 3,
 ): { results: MatchResult<P>[]; status: MatchStatus } {
   const tiers = priceTiers(products);
-  const wantedTags = [...new Set([...q.uslub, ...(q.maqsad ? [q.maqsad] : [])])];
+  const styleTags = q.uslub.filter((t) => t !== q.maqsad);
 
   // Qattiq filtrlar: kategoriya, jins, istisno ranglar, qoldiq > 0
   const candidates = products.filter(
@@ -76,8 +76,14 @@ export function matchProducts<P extends MatchProduct>(
       else reasons.push("Shu rangda yo'q, o'xshashi bor");
     }
 
-    if (wantedTags.length > 0) {
-      const hits = wantedTags.filter((t) => p.styleTags.includes(t)).length;
+    // Maqsad (ish, bayram...) aniq mos bo'lishi shart; uslubdan kamida bittasi.
+    // "Klassik, bayram uchun" so'ralganda faqat "klassik" tovar aniq mos hisoblanmaydi
+    if (q.maqsad) {
+      if (p.styleTags.includes(q.maqsad)) score += 3;
+      else reasons.push(`${q.maqsad[0].toUpperCase()}${q.maqsad.slice(1)} uchun emas, o'xshashi bor`);
+    }
+    if (styleTags.length > 0) {
+      const hits = styleTags.filter((t) => p.styleTags.includes(t)).length;
       score += hits * 3;
       if (hits === 0) reasons.push("Boshqa uslubda, o'xshashi bor");
     }
@@ -90,6 +96,14 @@ export function matchProducts<P extends MatchProduct>(
         reasons.push(tier === "qimmat" || (tier === "orta" && q.narx_darajasi === "arzon")
           ? "Narxi biroz yuqoriroq"
           : "Narxi arzonroq");
+      }
+    }
+
+    if (q.narx_max) {
+      if (p.price <= q.narx_max) score += 2;
+      else {
+        score -= 4;
+        reasons.push("Byudjetdan qimmatroq");
       }
     }
 

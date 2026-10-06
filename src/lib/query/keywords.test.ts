@@ -51,3 +51,26 @@ test("qizil rang jinsni bildirmaydi", () => {
   assert.equal(parseByKeywords("qizil ko'ylak").jins, null);
   assert.equal(parseByKeywords("qizim uchun ko'ylak").jins, "ayol");
 });
+
+test("byudjetdagi raqam o'lcham emas", () => {
+  const q = parseByKeywords("futbolka 50 ming");
+  assert.equal(q.olcham, null);
+  assert.equal(q.narx_max, 50_000);
+});
+
+test("byudjet turli yozuvlarda", () => {
+  assert.equal(parseByKeywords("300 ming so'mgacha futbolka").narx_max, 300_000);
+  assert.equal(parseByKeywords("kostyum 1,5 mln").narx_max, 1_500_000);
+  assert.equal(parseByKeywords("250 000 so'mlik ko'ylak").narx_max, 250_000);
+  assert.equal(parseByKeywords("рубашка до 300 тыс").narx_max, 300_000);
+});
+
+test("o'lcham: kichik harfdagi xl, 2xl, raqam va so'z yonidagi bitta harf", () => {
+  assert.equal(parseByKeywords("xl futbolka").olcham, "XL");
+  assert.equal(parseByKeywords("qizil libos 2xl").olcham, "XXL");
+  assert.equal(parseByKeywords("300 ming so'mgacha erkaklar futbolkasi, XL").olcham, "XL");
+  assert.equal(parseByKeywords("до 300 тыс рубашка 48 размер").olcham, "48");
+  assert.equal(parseByKeywords("m o'lchamli ko'ylak").olcham, "M");
+  // Oddiy so'zdagi "m" o'lcham emas
+  assert.equal(parseByKeywords("menga ko'ylak kerak").olcham, null);
+});

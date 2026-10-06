@@ -1,4 +1,5 @@
-import { parseByKeywords } from "./keywords";
+import { mergeWithContext } from "./context";
+import { detectFollowUp, parseByKeywords } from "./keywords";
 import { describeLlmError, llmConfigured, parseWithLlm, type Vocabulary } from "./llm";
 import { demoSettings } from "@/lib/demo-settings";
 import { normalizeQuery } from "./normalize";
@@ -18,13 +19,21 @@ export type Understanding = {
  *   3) u ham hech narsa topmasa: parsed = null, interfeys filtr tugmalarini ochadi
  * Kiyimga oid bo'lmagan so'rovlar (mode "rad") va mezonsiz so'rovlar hech qachon qidiruvga yuborilmaydi.
  */
-export async function understandQuery(text: string, vocab: Vocabulary): Promise<Understanding> {
+export async function understandQuery(
+  text: string,
+  vocab: Vocabulary,
+  /** Suhbatdagi oldingi so'rov (davom gaplari uchun: "shuning arzonrog'i", "boshqa rangdagisi") */
+  context: ParsedQuery | null = null,
+): Promise<Understanding> {
   let llmError: string | undefined;
   if (llmConfigured() && !demoSettings.llmOff) {
     try {
-      const { mavzu, ...raw } = await parseWithLlm(text, vocab);
-      if (mavzu === "boshqa") return { parsed: null, mode: "rad" };
-      const parsed = normalizeQuery(raw, vocab.categories);
+      const { mavzu, ...raw } = await parseWithLlm(text, vocab, context);
+      // Davom gapini LLM baribir "boshqa" desa, kontekst bilan oddiy tahlilga o'tiladi
+      if (mavzu === "boshqa" && !(context && detectFollowUp(text).followUp)) return { parsed: null, mode: "rad" };
+      let parsed = normalizeQuery(raw, vocab.categories);
+      // LLM kontekstni hisobga olmagan bo'lsa (kategoriya yo'q): oldingi shartlar qo'shiladi
+      if (mavzu === "boshqa" || !parsed.kategoriya) parsed = mergeWithContext(context, parsed, text);
       // Kiyimga oid, lekin hech qanday mezon yo'q ("menga kiyim kerak"): tasodifiy tovar ko'rsatilmaydi
       if (!hasCriteria(parsed)) return { parsed: null, mode: "tushunilmadi" };
       return { parsed, mode: "llm" };
@@ -34,7 +43,7 @@ export async function understandQuery(text: string, vocab: Vocabulary): Promise<
     }
   }
 
-  const parsed = normalizeQuery(parseByKeywords(text), vocab.categories);
+  const parsed = mergeWithContext(context, normalizeQuery(parseByKeywords(text), vocab.categories), text);
   if (hasCriteria(parsed)) return { parsed, mode: "kalit", llmError };
   return { parsed: null, mode: "tushunilmadi", llmError };
 }
