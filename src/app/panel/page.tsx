@@ -12,6 +12,7 @@ export default async function PanelPage({ searchParams }: PageProps<"/panel">) {
   await connection();
   const sp = await searchParams;
   const initial = await loadPanelStats(parsePeriod(typeof sp.period === "string" ? sp.period : null));
-  const url = shopperUrl((await headers()).get("host"));
+  const h = await headers();
+  const url = shopperUrl(h.get("host"), h.get("x-forwarded-proto"));
   return <Dashboard initial={initial} phone={url ? { url, qr: await qrSvg(url) } : null} />;
 }

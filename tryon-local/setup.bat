@@ -52,7 +52,7 @@ echo [4/4] Qolgan kutubxonalar...
 "%VPY%" -c "import torch; print('CUDA:', torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else '')"
 "%VPY%" -c "import mediapipe; print('MediaPipe (kiyim niqobi):', mediapipe.__version__)" || goto :error
 rem Jonli oyna og'irliklari (~40 MB, Google Drive). Xato bo'lsa ham o'rnatish davom etadi: faqat oyna ishlamaydi
-"%VPY%" -c "from pathlib import Path; import mirror; mirror.ensure_weights(Path('models')); print('Jonli oyna (DM-VTON): tayyor')" || echo DIQQAT: jonli oyna og'irliklari yuklanmadi. Internetni tekshirib, setup.bat ni qayta ishga tushiring.
+"%VPY%" mirror.py
 echo.
 echo Tayyor. Serverni ishga tushirish: start.bat
 exit /b 0

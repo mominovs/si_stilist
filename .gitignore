@@ -46,3 +46,5 @@ next-env.d.ts
 # prisma generated client
 /src/generated/
 tryon-test.jpg
+
+certificates

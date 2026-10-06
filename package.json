@@ -5,6 +5,8 @@
   "scripts": {
     "predev": "node scripts/ensure-db.mjs",
     "dev": "next dev",
+    "predev:https": "node scripts/ensure-db.mjs",
+    "dev:https": "next dev --experimental-https",
     "build": "next build",
     "prestart": "node scripts/ensure-db.mjs",
     "start": "next start",

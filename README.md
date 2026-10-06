@@ -49,6 +49,11 @@ almashtiring va `npm run db:setup`.
    bo'lsin. Windows birinchi marta "Node.js tarmoqqa ulanishiga ruxsat" so'rasa, **Allow** (xususiy tarmoq) bosing.
    Telefon brauzeri jonli kamerani faqat HTTPS'da beradi, shuning uchun Wi-Fi (HTTP) manzilda "O'zimda ko'rish"
    oynasida **"Kamera bilan suratga olish"** tugmasi chiqadi: u telefonning o'z kamera ilovasini ochadi.
+   **Jonli oyna telefonda** (yoki noutbukda kamera yo'q bo'lsa): `npm run dev` o'rniga `npm run dev:https`. QR kod
+   `https://...` manzil beradi. Telefon "Ulanish xavfsiz emas" deydi (sertifikat shu kompyuterda yaratilgan):
+   **Qo'shimcha → Baribir o'tish** (Advanced → Proceed) bosing, keyin kameraga ruxsat bering. Noutbukda esa
+   `https://localhost:3000` ochiladi. Muqobil: telefonni noutbuk kamerasi qilish (DroidCam, Iriun yoki Windows 11
+   "Phone Link" kamera) va oynani noutbukda ochish.
 5. **Tayyor kiyintirish natijalari**: ko'rsatiladigan tovarlar uchun oldindan
    `npm run tryon:prepare -- model.jpg FT-06,KY-01` (lokal server ishlab turgan bo'lsin). Model ishlamay qolsa,
    ilova shularni "Demo rejim" belgisi bilan ko'rsatadi.

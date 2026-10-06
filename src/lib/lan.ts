@@ -17,12 +17,16 @@ export function lanAddresses(): string[] {
   return found.sort((a, b) => a.score - b.score).map((f) => f.address);
 }
 
-/** Telefondan ochiladigan xaridor sahifasi manzili. Host sarlavhasidan port olinadi */
-export function shopperUrl(host: string | null): string | null {
+/**
+ * Telefondan ochiladigan xaridor sahifasi manzili. Host sarlavhasidan port, x-forwarded-proto dan protokol olinadi:
+ * `npm run dev:https` bilan HTTPS manzil chiqadi (telefonda jonli kamera faqat HTTPS'da ishlaydi)
+ */
+export function shopperUrl(host: string | null, proto: string | null = "http"): string | null {
+  const scheme = proto === "https" ? "https" : "http";
   const port = host?.match(/:(\d+)$/)?.[1] ?? "3000";
   const hostname = host?.replace(/:\d+$/, "") ?? "";
   // Sahifa allaqachon tarmoq manzili orqali ochilgan bo'lsa, o'shani ishlatamiz
-  if (hostname && !/^(localhost|127\.|\[?::1\]?$)/.test(hostname)) return `http://${hostname}:${port}/`;
+  if (hostname && !/^(localhost|127\.|\[?::1\]?$)/.test(hostname)) return `${scheme}://${hostname}:${port}/`;
   const ip = lanAddresses()[0];
-  return ip ? `http://${ip}:${port}/` : null;
+  return ip ? `${scheme}://${ip}:${port}/` : null;
 }

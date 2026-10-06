@@ -72,7 +72,13 @@ Asl kod `cupy` talab qiladi, bu yerda u oddiy PyTorch bilan almashtirilgan (`mir
 - Seans 60 soniya, keyin kamera o'chadi. "Sifatli surat" tugmasi joriy kadrni CatVTON bilan (~35 s) qayta chizadi.
 - Jonli ko'rinish taxminiy: model old tomondan turgan odam va ustki kiyimda o'qitilgan. Belgacha, qo'llar yonda turing.
 - Oyna yuklanmasa (`/health` da `mirror: error`), rasm orqali kiyintirish ishlayveradi. O'chirish: `start.bat --no-mirror`.
-- Jonli kamera faqat shu kompyuterda (localhost) yoki HTTPS orqali ochiladi: telefondan Wi-Fi IP orqali ishlamaydi.
+- Google Drive ba'zan avtomatik yuklashni rad etadi ("Cannot retrieve the public link", kunlik limit). Unda
+  `setup.bat` ikkinchi manbani sinaydi, bo'lmasa qo'lda: brauzerda
+  [DM-VTON papkasi](https://drive.google.com/drive/folders/1wfWGsR0vWC5LrA26xhj92ec_GoCKV80A) dan
+  `dmvton_pf_warp.pt` va `dmvton_pf_gen.pt` ni yuklab, `tryon-local\models\dmvton\` ga qo'ying (demo fayllari
+  `mobile_warp.pt`/`mobile_gen.pt` ham bo'ladi). Ikkala manbadagi model ta'rifi kalit va o'lcham bo'yicha bir xil.
+- Jonli kamera faqat shu kompyuterda (localhost) yoki HTTPS orqali ochiladi: telefondan sinash uchun saytni
+  `npm run dev:https` bilan ishga tushiring (batafsil: asosiy README, "Demo kuni").
 
 ## Sozlamalar
 

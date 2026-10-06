@@ -30,7 +30,7 @@ const SWITCHES = [
 
 export default async function DemoStatusPage() {
   await connection();
-  const [checks, url] = await Promise.all([runChecks(), headers().then((h) => shopperUrl(h.get("host")))]);
+  const [checks, url] = await Promise.all([runChecks(), headers().then((h) => shopperUrl(h.get("host"), h.get("x-forwarded-proto")))]);
   const qr = url ? await qrSvg(url) : null;
   const worst: CheckStatus = checks.some((c) => c.status === "fail")
     ? "fail"

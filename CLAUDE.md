@@ -231,5 +231,11 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
   (tovar 1 daqiqa keshda, 2400/daqiqa), `/oyna` sahifasi (`MirrorView`: kadr tsikli ketma-ket, 480 px JPEG, oyna
   teskari, 60 s seans, kiyim almashtirish, "Sifatli surat" -> `TryOnModal initialPhoto`). Faqat
   `MIRROR_CATEGORIES` (futbolka, ko'ylak, sviter, kurtka). Holat sahifasida "Jonli oyna" tekshiruvi
+- Og'irliklar ikki manbadan (`ensure_weights`): demo fayl ID'lari, keyin DM-VTON repo papkasi
+  (`gdown.download_folder(skip_download=True)` bilan ro'yxat, faqat `dmvton_pf_{warp,gen}.pt` yuklanadi; ikkala
+  ta'rif kalit/o'lcham bo'yicha bir xil, tekshirilgan). Ikkala nom ham qabul qilinadi; bo'lmasa `MANUAL_HELP`.
+  `python mirror.py` (setup.bat) traceback'siz yuklaydi
+- Telefonda jonli kamera: `npm run dev:https` (`next dev --experimental-https`, mkcert; `certificates/` gitignore'da).
+  `shopperUrl(host, x-forwarded-proto)`: QR https manzil beradi, telefon sertifikat ogohlantirishini o'tkazib yuboradi
 
 @AGENTS.md

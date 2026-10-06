@@ -23,10 +23,18 @@ from PIL import Image
 
 KISEKLOSET_COMMIT = "118e0da5037550912cf33b1b7bdd46ecf36141e7"
 MODEL_SUBDIR = Path("src/api/tryon/service/dm_vton/models")
-WEIGHTS = {
-    "mobile_warp.pt": "1KJNKjqBeUF9CLcCRFyjONmKzcqjNgj9z",
-    "mobile_gen.pt": "1TP2OiEixy1WEjbJsdDYGL-214v_zkqUV",
-}
+# Og'irliklar ikki manbadan (ikkala model ta'rifi kalit va o'lcham bo'yicha aynan bir xil, tekshirilgan):
+# 1) mualliflar demosi (alohida fayllar), 2) DM-VTON repozitoriysining Drive papkasi (README'dagi havola)
+WEIGHT_NAMES = {"warp": ("mobile_warp.pt", "dmvton_pf_warp.pt"), "gen": ("mobile_gen.pt", "dmvton_pf_gen.pt")}
+DEMO_FILE_IDS = {"warp": "1KJNKjqBeUF9CLcCRFyjONmKzcqjNgj9z", "gen": "1TP2OiEixy1WEjbJsdDYGL-214v_zkqUV"}
+REPO_FOLDER_ID = "1wfWGsR0vWC5LrA26xhj92ec_GoCKV80A"
+MANUAL_HELP = (
+    "Jonli oyna og'irliklarini Google Drive'dan avtomatik yuklab bo'lmadi (limit yoki ruxsat). Qo'lda yuklang:\n"
+    "  1) https://drive.google.com/drive/folders/" + REPO_FOLDER_ID + " dan dmvton_pf_warp.pt va dmvton_pf_gen.pt\n"
+    "     (yoki https://drive.google.com/uc?id=" + DEMO_FILE_IDS["warp"] + " va https://drive.google.com/uc?id="
+    + DEMO_FILE_IDS["gen"] + ")\n"
+    "  2) ikkala faylni tryon-local\\models\\dmvton\\ papkasiga qo'ying, keyin start.bat"
+)
 SIZE = (192, 256)  # (w, h): model shu o'lchamda o'qitilgan
 
 # Poza nuqtalari (MediaPipe)
@@ -52,27 +60,64 @@ def correlation(first, second, intStride: int = 1):
     return torch.cat(out, dim=1)
 
 
+def _find_weights(target: Path) -> dict[str, Path]:
+    """Papkada (ichki papkalar bilan) bor og'irliklar: har bir tur uchun ikkala nomdan biri"""
+    found = {}
+    for kind, names in WEIGHT_NAMES.items():
+        for name in names:
+            hits = [p for p in target.rglob(name) if p.stat().st_size > 100_000]
+            if hits:
+                found[kind] = hits[0]
+                break
+    return found
+
+
 def ensure_weights(models_dir: Path) -> dict[str, Path]:
-    """Og'irliklar Google Drive'dan (mualliflar demosidagi havolalar). gdown tasdiqlash sahifasini o'zi o'tadi."""
+    """
+    Og'irliklarni topadi yoki Google Drive'dan yuklaydi (gdown tasdiqlash sahifasini o'zi o'tadi). Drive ba'zan
+    "juda ko'p yuklab olish" deb rad etadi: unda ikkinchi manba, u ham bo'lmasa qo'lda yuklash ko'rsatmasi.
+    """
     target = models_dir / "dmvton"
     target.mkdir(parents=True, exist_ok=True)
-    paths = {}
-    for name, file_id in WEIGHTS.items():
-        path = target / name
-        if not path.exists() or path.stat().st_size < 100_000:
-            print(f"[oyna] {name} yuklanmoqda...", flush=True)
-            try:
-                import gdown
+    found = _find_weights(target)
+    if len(found) == len(WEIGHT_NAMES):
+        return found
+    try:
+        import gdown
+    except ImportError as e:
+        raise RuntimeError(MANUAL_HELP) from e
 
-                gdown.download(f"https://drive.google.com/uc?id={file_id}", str(path), quiet=True)
-            except ImportError:
-                urllib.request.urlretrieve(
-                    f"https://drive.usercontent.google.com/download?id={file_id}&export=download&confirm=t", path
-                )
-            if not path.exists() or path.stat().st_size < 100_000:
-                raise RuntimeError(f"{name} yuklanmadi (Google Drive). setup.bat ni qayta ishga tushiring")
-        paths[name] = path
-    return paths
+    # 1-manba: mualliflar demosidagi alohida fayllar
+    for kind in WEIGHT_NAMES:
+        if kind in found:
+            continue
+        path = target / WEIGHT_NAMES[kind][0]
+        print(f"[oyna] {path.name} yuklanmoqda...", flush=True)
+        try:
+            gdown.download(id=DEMO_FILE_IDS[kind], output=str(path), quiet=True)
+        except Exception as e:  # noqa: BLE001 - keyingi manbaga o'tiladi
+            print(f"[oyna] demo manbasi ishlamadi: {str(e).splitlines()[0]}", flush=True)
+            path.unlink(missing_ok=True)
+    found = _find_weights(target)
+
+    # 2-manba: DM-VTON repozitoriysining papkasi (faqat kerakli fayllar yuklanadi)
+    if len(found) < len(WEIGHT_NAMES):
+        try:
+            print("[oyna] DM-VTON papkasidan qidirilmoqda...", flush=True)
+            listing = gdown.download_folder(id=REPO_FOLDER_ID, output=str(target / "repo"), quiet=True, skip_download=True)
+            wanted = {n for kind in WEIGHT_NAMES if kind not in found for n in WEIGHT_NAMES[kind]}
+            for item in listing or []:
+                name = Path(item.path).name
+                if name in wanted:
+                    print(f"[oyna] {name} yuklanmoqda...", flush=True)
+                    gdown.download(id=item.id, output=str(target / name), quiet=True)
+        except Exception as e:  # noqa: BLE001
+            print(f"[oyna] DM-VTON papkasi ishlamadi: {str(e).splitlines()[0]}", flush=True)
+        found = _find_weights(target)
+
+    if len(found) < len(WEIGHT_NAMES):
+        raise RuntimeError(MANUAL_HELP)
+    return found
 
 
 def load_model_modules(repo: Path):
@@ -180,8 +225,8 @@ class MirrorEngine:
         AFWM, Generator = load_model_modules(repo)
         self.warp = AFWM(3, True).to(device).eval()
         self.gen = Generator(7, 4).to(device).eval()
-        load_state(self.warp, weights["mobile_warp.pt"])
-        load_state(self.gen, weights["mobile_gen.pt"])
+        load_state(self.warp, weights["warp"])
+        load_state(self.gen, weights["gen"])
         self.garments: dict[str, tuple] = {}
 
     def _tensor(self, arr: np.ndarray, normalize: bool = True):
@@ -267,3 +312,13 @@ class MockMirror:
         region = out[70:230, 36:156]
         region[sel] = g[sel]
         return out
+
+
+if __name__ == "__main__":
+    # setup.bat: og'irliklarni yuklash (xato bo'lsa qo'lda yuklash ko'rsatmasi, traceback'siz)
+    try:
+        paths = ensure_weights(Path(__file__).resolve().parent / "models")
+        print("Jonli oyna (DM-VTON): tayyor (" + ", ".join(p.name for p in paths.values()) + ")")
+    except RuntimeError as e:
+        print("DIQQAT: " + str(e))
+        sys.exit(1)
