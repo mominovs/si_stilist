@@ -108,6 +108,7 @@ class Job:
     soft: Image.Image | None = None  # asl o'lchamdagi yumshoq niqob
     full_mask: Image.Image | None = None  # asl o'lchamdagi niqob
     background: object | None = None  # asl suratdagi fon xaritasi (numpy bool)
+    shoulder: float = 0.0  # yelka kengligi, piksel (gavda o'lchami)
     box: tuple[int, int, int, int] | None = None  # kesim chegarasi asl suratda (tashqariga chiqishi mumkin)
 
 
@@ -286,7 +287,7 @@ class Engine:
             person = person.resize((round(person.width * scale), round(person.height * scale)), Image.LANCZOS)
         try:
             with self.mask_lock:  # MediaPipe obyektlari bir vaqtda bitta oqimdan chaqiriladi
-                mask, body, background = self.masker.analyze(person, category)
+                mask, body, background, shoulder = self.masker.analyze(person, category)
         except MaskerPhotoError as e:
             raise PhotoError(str(e)) from e
 
@@ -297,7 +298,8 @@ class Engine:
         crop_mask = crop_padded(mask, box, fill_edge=True).resize(self.size, Image.NEAREST)
         # Niqob chegarasi yumshatiladi: kiyim va asl surat orasida chok ko'rinmasin
         soft = mask.filter(ImageFilter.GaussianBlur(radius=max(2, max(person.size) // 160)))
-        return Job(person=crop, mask=crop_mask, full=person, soft=soft, box=box, full_mask=mask, background=background)
+        return Job(person=crop, mask=crop_mask, full=person, soft=soft, box=box, full_mask=mask, background=background,
+                   shoulder=shoulder)
 
     def compose(self, job: Job, img: Image.Image) -> Image.Image:
         """Model natijasini (kesim) asl suratga qaytaradi: niqobdan tashqarisi pikselma-piksel asl surat."""
@@ -329,7 +331,9 @@ class Engine:
             bg = job.background & ~mask
             # Faqat asl fonga yaqin chekka: kiyim o'rtasidagi qorong'i joy fon deb adashilsa ham tegilmaydi
             dist = cv2.distanceTransform((~bg).astype(np.uint8), cv2.DIST_L2, 3)
-            near = mask & (dist < 0.06 * max(h, w))
+            # Chiziq kengligi gavdaga nisbatan: uzoqdan olingan suratda kadrga nisbatan olinsa, qo'l butunlay
+            # "fon" bo'lib surtilib ketardi
+            near = mask & (dist < max(3.0, 0.1 * job.shoulder))
             if not near.any() or not bg.any():
                 return img
             # Har bir piksel eng yaqin asl fon pikseli rangini oladi (uzoqdagi ranglar aralashmaydi), keyin silliqlanadi
@@ -351,15 +355,17 @@ class Engine:
             # Hoshiyani segmentator ko'pincha "kiyim" deb biladi, shuning uchun rang ham tekshiriladi: piksel yangi
             # kiyim rangidan ko'ra atrofdagi fonga ancha yaqin bo'lsa, u ham hoshiya hisoblanadi
             smooth = cv2.GaussianBlur(arr, (0, 0), max(1.0, max(h, w) / 300)).astype(np.float32)
-            core = mask & (seg == 4) & (dist > 0.1 * max(h, w))
+            d_bg = np.linalg.norm(smooth - filled, axis=-1)
+            core = mask & (seg == 4) & (dist > 0.3 * job.shoulder)
             bglike = np.zeros_like(mask)
             if core.sum() > 100:
                 garment = np.median(smooth[core], axis=0)
-                d_bg = np.linalg.norm(smooth - filled, axis=-1)
                 d_garment = np.linalg.norm(smooth - garment, axis=-1)
                 # Teri, yuz va soch hech qachon fon bilan almashtirilmaydi (teri rangi ko'pincha fonga yaqin)
-                bglike = (d_bg < 0.6 * d_garment) & np.isin(seg, (4, 5))
-            band = near & ((seg == 0) | bglike)
+                bglike = (d_bg < 0.6 * d_garment) & (d_bg < 35) & np.isin(seg, (4, 5))
+            # Fon deb aniqlangan piksel ham fonga rang jihatdan yaqin bo'lishi shart: segmentator adashsa ham
+            # model chizgan kamar, qo'l va boshqa narsalar asl fon bilan almashtirilmaydi
+            band = near & (((seg == 0) & (d_bg < 60)) | bglike)
             kernel = np.ones((3, 3), np.uint8)
             band = cv2.morphologyEx(band.astype(np.uint8), cv2.MORPH_OPEN, kernel)
             band = cv2.morphologyEx(band, cv2.MORPH_CLOSE, kernel).astype(bool) & mask

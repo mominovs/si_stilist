@@ -171,6 +171,8 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
   Segmentator hoshiyani ko'pincha "kiyim" deydi, shuning uchun rang ham tekshiriladi: kiyim sinfidagi piksel yangi
   kiyim medianasidan ko'ra yaqin fonga ancha yaqin bo'lsa (d_bg < 0.6*d_garment) u ham to'ldiriladi; teri/yuz/soch
   hech qachon. `fit_box`: odam tegib turgan kadr chetida kesim kadrdan 4% tashqariga chiqadi (model rasm chekkasida
-  rangli chiziq chizardi)
+  rangli chiziq chizardi). Tozalash chizig'i kengligi gavdaga nisbatan (0.1 * yelka kengligi,
+  `Job.shoulder`), kadrga nisbatan emas: uzoqdan olingan suratda qo'l butunlay surtilib ketardi. Qat'iy rang
+  chegaralari: fon sinfi uchun d_bg < 60, kiyim sinfi uchun d_bg < 35
 
 @AGENTS.md

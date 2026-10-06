@@ -91,10 +91,11 @@ class ClothMasker:
 
     def analyze(
         self, image: Image.Image, part: str = "tops"
-    ) -> tuple[Image.Image, tuple[int, int, int, int], np.ndarray]:
+    ) -> tuple[Image.Image, tuple[int, int, int, int], np.ndarray, float]:
         """
         part: tops | bottoms | one-pieces.
-        Qaytadi: L rejimdagi niqob (255 = almashtiriladi), odamning chegarasi (x0, y0, x1, y1) va fon xaritasi.
+        Qaytadi: L rejimdagi niqob (255 = almashtiriladi), odamning chegarasi (x0, y0, x1, y1), fon xaritasi
+        va yelka kengligi (piksel, gavda o'lchami sifatida).
         """
         rgb = np.asarray(image.convert("RGB"))
         h, w = rgb.shape[:2]
@@ -210,4 +211,4 @@ class ClothMasker:
             raise PhotoError("Kiyimingizni aniqlab bo'lmadi. Yorug'roq joyda, to'g'ri turib suratga tushing.")
         ys, xs = np.nonzero((seg != BACKGROUND) | (mask > 0))
         box = (int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1)
-        return Image.fromarray(mask), box, seg == BACKGROUND
+        return Image.fromarray(mask), box, seg == BACKGROUND, sw
