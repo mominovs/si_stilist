@@ -59,11 +59,14 @@ async function demoComposite(photo: string, garmentUrl: string, category: string
   return canvas.toDataURL("image/jpeg", 0.9);
 }
 
-/** 3:4 ramka: model natijasi shu nisbatda, asl surat ham xuddi shunday kesiladi (solishtirish adolatli bo'lsin) */
-function Figure({ caption, children }: { caption: string; children: React.ReactNode }) {
+/** Ramka asl surat nisbatida: natija ham shu o'lchamda qaytadi, oldin/keyin aynan ustma-ust tushadi */
+function Figure({ caption, aspect, children }: { caption: string; aspect: number; children: React.ReactNode }) {
   return (
     <figure className="space-y-1.5">
-      <div className="relative mx-auto aspect-[3/4] w-full max-w-[calc(55dvh*0.75)] overflow-hidden rounded-xl bg-neutral-100">
+      <div
+        className="relative mx-auto w-full overflow-hidden rounded-xl bg-neutral-100"
+        style={{ aspectRatio: aspect, maxWidth: `calc(55dvh * ${aspect})` }}
+      >
         {children}
       </div>
       <figcaption className="text-center text-xs text-neutral-500">{caption}</figcaption>
@@ -73,7 +76,7 @@ function Figure({ caption, children }: { caption: string; children: React.ReactN
 
 function PhotoImg({ src }: { src: string }) {
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src={src} alt="Asl surat" className="absolute inset-0 h-full w-full object-cover" />;
+  return <img src={src} alt="Asl surat" className="absolute inset-0 h-full w-full object-contain" />;
 }
 
 /** Oxirgi ikki kadr ustma-ust: yangisi eskisining ustida silliq paydo bo'ladi, almashish bilinmaydi */
@@ -114,6 +117,12 @@ export function TryOnModal({
 }) {
   const [step, setStep] = useState<Step>("consent");
   const [photo, setPhoto] = useState<string | null>(null);
+  // Surat eni/bo'yi nisbati (natija ramkasi shunga moslanadi); juda cho'zinchoq suratlar chegaralanadi
+  const [aspect, setAspect] = useState(0.75);
+  const takePhoto = (source: CanvasImageSource, width: number, height: number) => {
+    setPhoto(toJpeg(source, width, height));
+    setAspect(Math.min(1.5, Math.max(0.5, width / height)));
+  };
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [result, setResult] = useState<{ image: string; demo: boolean; reason?: string; seconds: number } | null>(null);
@@ -169,7 +178,7 @@ export function TryOnModal({
       setCountdown(null);
       const v = videoRef.current;
       if (!v || !v.videoWidth) return;
-      setPhoto(toJpeg(v, v.videoWidth, v.videoHeight));
+      takePhoto(v, v.videoWidth, v.videoHeight);
       stopCamera();
       setStep("preview");
     }, 1000);
@@ -180,7 +189,7 @@ export function TryOnModal({
     const url = URL.createObjectURL(file);
     try {
       const img = await loadImage(url);
-      setPhoto(toJpeg(img, img.naturalWidth, img.naturalHeight));
+      takePhoto(img, img.naturalWidth, img.naturalHeight);
       stopCamera();
       setStep("preview");
     } catch {
@@ -356,8 +365,9 @@ export function TryOnModal({
           {step === "processing" && (
             <div className="space-y-4">
               <div className="grid items-start gap-4 sm:grid-cols-2">
-                <Figure caption="Oldin">{photo && <PhotoImg src={photo} />}</Figure>
+                <Figure aspect={aspect} caption="Oldin">{photo && <PhotoImg src={photo} />}</Figure>
                 <Figure
+                  aspect={aspect}
                   caption={progress ? `Shakllanmoqda... ${progress.step}/${progress.total} qadam` : "Kiyintiryapman... odatda 30-45 soniya"}
                 >
                   <Frames frames={frames} />
@@ -387,8 +397,8 @@ export function TryOnModal({
               )}
               {/* Oldin / keyin: asl surat va natija yonma-yon (natija oxirgi oraliq kadr ustida silliq paydo bo'ladi) */}
               <div className="grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_170px]">
-                <Figure caption="Oldin">{photo && <PhotoImg src={photo} />}</Figure>
-                <Figure caption={result.demo ? "Keyin (demo)" : `Keyin · ${result.seconds} soniyada tayyor bo'ldi`}>
+                <Figure aspect={aspect} caption="Oldin">{photo && <PhotoImg src={photo} />}</Figure>
+                <Figure aspect={aspect} caption={result.demo ? "Keyin (demo)" : `Keyin · ${result.seconds} soniyada tayyor bo'ldi`}>
                   <Frames frames={frames.length ? frames : [result.image]} />
                 </Figure>
                 <div className="space-y-2 rounded-xl border border-neutral-200 p-3 text-sm sm:col-span-2 lg:col-span-1">

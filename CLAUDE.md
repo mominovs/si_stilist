@@ -161,5 +161,8 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
   faqat teri piksellari himoyalanadi. Server (`Job`, `fit_box`, `compose`): odam chegarasi bo'yicha 3:4 kesim ->
   model -> natija asl surat o'lchamida (`MAX_OUTPUT_SIDE` 1600) yopishtiriladi. Brauzer surati 1536 px gacha.
   `/health` version 4
+- Segmentatsiya ishonch xaritalari bilinear kattalashtirilib argmax qilinadi (silliq chegara); niqob fonga faqat
+  ingichka chiziq (k/2) bilan kiradi (keng bo'shliqda model yorug' hoshiya chizardi). Kadrdan tashqari kesim qismida
+  niqob ham chetdan davom ettiriladi (aks holda kadr chegarasida chiziq chiqadi). Modal ramkasi surat nisbatida
 
 @AGENTS.md

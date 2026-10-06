@@ -136,7 +136,7 @@ def fit_box(box: tuple[int, int, int, int], image_size: tuple[int, int], margin:
     return left, top, left + round(bw), top + round(bh)
 
 
-def crop_padded(image: Image.Image, box: tuple[int, int, int, int], fill_edge: bool) -> Image.Image:
+def crop_padded(image: Image.Image, box: tuple[int, int, int, int], fill_edge: bool = True) -> Image.Image:
     """Surat chegarasidan chiqadigan kesim: tashqi qism chekka piksellar bilan (yoki 0 bilan) to'ldiriladi."""
     import numpy as np
 
@@ -270,7 +270,9 @@ class Engine:
 
         box = fit_box(body, person.size, margin=0.04, aspect=self.size[0] / self.size[1])
         crop = crop_padded(person, box, fill_edge=True).resize(self.size, Image.LANCZOS)
-        crop_mask = crop_padded(mask, box, fill_edge=False).resize(self.size, Image.NEAREST)
+        # Kadr chetidan tashqariga chiqqan joyda niqob chetdagidek davom etadi: aks holda model kadr chegarasida
+        # "bu yer o'zgarmaydi" deb chiziq chizadi (kesim baribir keyin olib tashlanadi)
+        crop_mask = crop_padded(mask, box, fill_edge=True).resize(self.size, Image.NEAREST)
         # Niqob chegarasi yumshatiladi: kiyim va asl surat orasida chok ko'rinmasin
         soft = mask.filter(ImageFilter.GaussianBlur(radius=max(2, max(person.size) // 160)))
         return Job(person=crop, mask=crop_mask, full=person, soft=soft, box=box)

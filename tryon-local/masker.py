@@ -60,7 +60,8 @@ class ClothMasker:
         self.segmenter = vision.ImageSegmenter.create_from_options(
             vision.ImageSegmenterOptions(
                 base_options=BaseOptions(model_asset_path=str(paths["selfie_multiclass_256x256.tflite"])),
-                output_category_mask=True,
+                output_category_mask=False,
+                output_confidence_masks=True,
             )
         )
         self.pose = vision.PoseLandmarker.create_from_options(
@@ -82,9 +83,10 @@ class ClothMasker:
         h, w = rgb.shape[:2]
         mp_image = self._mp.Image(image_format=self._mp.ImageFormat.SRGB, data=np.ascontiguousarray(rgb))
 
-        seg = self.segmenter.segment(mp_image).category_mask.numpy_view().astype(np.uint8)
-        if seg.shape != (h, w):
-            seg = cv2.resize(seg, (w, h), interpolation=cv2.INTER_NEAREST)
+        # Ishonch xaritalari silliq kattalashtirilib, keyin sinf tanlanadi: 256x256 dan zinapoyasiz aniq chegara
+        conf = [m.numpy_view() for m in self.segmenter.segment(mp_image).confidence_masks]
+        conf = np.stack([c if c.shape == (h, w) else cv2.resize(c, (w, h), interpolation=cv2.INTER_LINEAR) for c in conf])
+        seg = conf.argmax(axis=0).astype(np.uint8)
         poses = self.pose.detect(mp_image).pose_landmarks
         if not poses:
             raise PhotoError("Suratda odam topilmadi. Kameraga qarab, belgacha yoki to'liq ko'rining.")
@@ -162,8 +164,12 @@ class ClothMasker:
             mask[legs > 0] = 0
 
         k = max(3, int(0.015 * max(h, w)))
+        raw = mask
         mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((k * 2 + 1, k * 2 + 1), np.uint8))
         mask = cv2.dilate(mask, np.ones((k, k), np.uint8))
+        # Fonga faqat ingichka chiziq kiradi: keng bo'shliqni model yorug' hoshiya bilan to'ldirib yuboradi
+        near = cv2.dilate(raw, np.ones((max(3, k // 2), max(3, k // 2)), np.uint8))
+        mask[(seg == BACKGROUND) & (near == 0)] = 0
 
         # Himoya: yuz va soch, kaftlarning esa faqat teri qismi (mato emas, aks holda kiyimda "teshik" qoladi)
         protect = np.isin(seg, (FACE_SKIN, HAIR)).astype(np.uint8) * 255
