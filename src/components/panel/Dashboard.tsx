@@ -22,8 +22,12 @@ const MODE_LABEL: Record<string, string> = {
 
 const pct = (part: number, all: number) => (all === 0 ? "0%" : `${Math.round((part / all) * 100)}%`);
 
-export function Dashboard({ initial }: { initial: Stats }) {
+/** Telefondan sinash uchun xaridor sahifasi manzili va uning QR kodi (SVG) */
+export type PhoneLink = { url: string; qr: string };
+
+export function Dashboard({ initial, phone }: { initial: Stats; phone: PhoneLink | null }) {
   const [stats, setStats] = useState(initial);
+  const [showQr, setShowQr] = useState(false);
   const [period, setPeriod] = useState<Period>(initial.period);
   const [online, setOnline] = useState(true);
   const [now, setNow] = useState(() => Date.now());
@@ -113,10 +117,38 @@ export function Dashboard({ initial }: { initial: Stats }) {
               </button>
             ))}
           </div>
+          {phone && (
+            <button
+              onClick={() => setShowQr(true)}
+              className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-sm hover:bg-neutral-50"
+            >
+              Telefondan sinash
+            </button>
+          )}
           <Link href="/" className="text-sm text-neutral-500 hover:text-neutral-900">Xaridor ekrani</Link>
           <Link href="/admin" className="text-sm text-neutral-500 hover:text-neutral-900">Admin</Link>
         </div>
       </header>
+
+      {showQr && phone && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setShowQr(false)}
+        >
+          <div className="w-full max-w-sm space-y-3 rounded-2xl bg-white p-6 text-center shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-xl font-semibold">Telefoningizdan so&apos;rov yozing</h2>
+            <p className="text-sm text-neutral-500">Kamerani QR kodga qarating. So&apos;rovingiz shu panelda darhol paydo bo&apos;ladi.</p>
+            <div className="mx-auto w-64" dangerouslySetInnerHTML={{ __html: phone.qr }} />
+            <div className="font-mono text-sm break-all text-neutral-700">{phone.url}</div>
+            <p className="text-xs text-neutral-400">Telefon kompyuter bilan bir Wi-Fi tarmog&apos;ida bo&apos;lishi kerak</p>
+            <button onClick={() => setShowQr(false)} className="rounded-xl bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-neutral-700">
+              Yopish
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatTile label="Jami so'rovlar" value={String(t.all)} sub={t.rad ? `+${t.rad} ta mavzudan tashqari` : undefined} flash={flashTiles} />

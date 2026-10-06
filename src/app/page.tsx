@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { COLORS } from "@/lib/catalog";
 import { llmConfigured, warmUpLlm } from "@/lib/query/llm";
 import { config } from "@/lib/config";
+import { demoSettings } from "@/lib/demo-settings";
 import { loadVocabulary } from "@/lib/search";
 import { Shopper } from "@/components/shopper/Shopper";
 
@@ -29,7 +30,15 @@ export default async function ShopperPage() {
           <p className="text-sm text-neutral-500">Omborda bor tovarlardan sizga mosini topamiz</p>
         </div>
         <div className="flex items-center gap-4">
-          {llmConfigured() ? (
+          {demoSettings.llmOff ? (
+            <span
+              title="Demo holati sahifasida SI qo'lda o'chirilgan"
+              className="flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1 text-sm font-medium text-amber-800"
+            >
+              <span className="h-2 w-2 rounded-full bg-amber-500" />
+              Zaxira rejim (SI o&apos;chirilgan)
+            </span>
+          ) : llmConfigured() ? (
             <span className="flex items-center gap-2 rounded-full bg-violet-100 px-3 py-1 text-sm font-medium text-violet-800">
               <span className="h-2 w-2 rounded-full bg-violet-600" />
               SI yoqilgan

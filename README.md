@@ -36,6 +36,24 @@ Yangilash: `git pull`, keyin `npm ci`. Agar `git pull` "Your local changes ... p
 Docker bilan ishlamoqchi bo'lsangiz: `docker compose up -d`, `.env` dagi `DATABASE_URL` ni Docker qatoriga
 almashtiring va `npm run db:setup`.
 
+## Demo kuni (taqdimot)
+
+1. `demo.bat` (loyiha papkasida, ikki marta bosing): lokal kiyintirish serveri, sayt va uchta brauzer oynasi ochiladi:
+   demo holati, do'kon paneli va xaridor ekrani. Yoki terminalda: `npm run check:demo`.
+2. **Demo holati** (http://localhost:3000/admin/holat): hammasi yashil bo'lsin. Sariq/qizil kartochkada nima qilish
+   kerakligi yozilgan.
+3. **Zaxira rejimlar** (o'sha sahifada): internet yomon bo'lsa "SI'ni o'chirish" (so'rovlar kalit so'zlar bilan
+   tushuniladi), kiyintirish serveri muammo qilsa "Kiyintirishni demo rejimga o'tkazish". Ikkalasi ham xaridor
+   ekranida aniq belgilanadi va server qayta ishga tushganda o'chadi.
+4. **Hakamlar telefondan**: panelda "Telefondan sinash" QR kodini ko'rsating. Telefon kompyuter bilan bir Wi-Fi'da
+   bo'lsin. Windows birinchi marta "Node.js tarmoqqa ulanishiga ruxsat" so'rasa, **Allow** (xususiy tarmoq) bosing.
+5. **Tayyor kiyintirish natijalari**: ko'rsatiladigan tovarlar uchun oldindan
+   `npm run tryon:prepare -- model.jpg FT-06,KY-01` (lokal server ishlab turgan bo'lsin). Model ishlamay qolsa,
+   ilova shularni "Demo rejim" belgisi bilan ko'rsatadi.
+
+Xaridor ekrani 2 daqiqa hech kim tegmasa boshlang'ich holatga qaytadi (keyingi odam oldingisining so'rovi va
+suratini ko'rmaydi). "Yangi suhbat" tugmasi ham shu ishni qiladi.
+
 ## Onlayn joylash (doimiy ishlab turadigan havola)
 
 GitHub faqat kodni saqlaydi, ilovani ishga tushirmaydi. Doimiy havola uchun bepul variant: **Vercel + Neon**.
@@ -53,6 +71,7 @@ GitHub faqat kodni saqlaydi, ilovani ishga tushirmaydi. Doimiy havola uchun bepu
 | --- | --- |
 | `npm run setup` | Birinchi marta: .env, lokal baza, migratsiya, demo tovarlar |
 | `npm run db:start` / `npm run db:stop` | Lokal bazani yoqish / o'chirish |
+| `npm run check:demo` | Demo oldidan umumiy tekshiruv (baza, SI, kiyintirish, demo natijalari) |
 | `npm run check:ai` | SI (Claude API) ulanishi va tezligini tekshirish |
 | `npm run check:tryon [surat.jpg]` | Virtual kiyintirish (Gemini yoki fal.ai) kalitini tekshirish |
 | `npm run tryon:model [ayol]` | Demo uchun sun'iy model surati yaratish (Gemini, pullik) |

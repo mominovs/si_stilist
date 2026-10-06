@@ -11,6 +11,7 @@ export default function AdminLayout({ children }: LayoutProps<"/admin">) {
           <Link href="/admin" className="text-neutral-600 hover:text-neutral-900">Tovarlar</Link>
           <Link href="/admin/products/new" className="text-neutral-600 hover:text-neutral-900">Yangi tovar</Link>
           <Link href="/admin/import" className="text-neutral-600 hover:text-neutral-900">CSV import</Link>
+          <Link href="/admin/holat" className="text-neutral-600 hover:text-neutral-900">Demo holati</Link>
           <Link href="/panel" className="ml-auto text-neutral-600 hover:text-neutral-900">Do&apos;kon paneli</Link>
         </nav>
       </header>

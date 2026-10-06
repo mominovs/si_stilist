@@ -3,6 +3,7 @@ import path from "node:path";
 import { ApiError } from "@fal-ai/client";
 import { ApiError as GeminiApiError } from "@google/genai";
 import { config } from "@/lib/config";
+import { demoSettings } from "@/lib/demo-settings";
 import { garmentPng } from "./garment";
 import { runFalTryOn, type TryOnCategory } from "./fal";
 import { GeminiBlockedError, runGeminiTryOn } from "./gemini";
@@ -32,6 +33,12 @@ const CATEGORY: Record<string, TryOnCategory> = {
 export const tryOnCategory = (category: string): TryOnCategory => CATEGORY[category] ?? "tops";
 
 let quota = { day: "", used: 0 };
+
+/** Bugungi pullik kiyintirishlar soni (holat sahifasi uchun) */
+export function tryOnUsage(): { used: number; limit: number } {
+  const day = new Date().toISOString().slice(0, 10);
+  return { used: quota.day === day ? quota.used : 0, limit: config.tryOn.dailyLimit };
+}
 
 function takeQuota(): boolean {
   const day = new Date().toISOString().slice(0, 10);
@@ -121,6 +128,7 @@ export async function tryOn(
   photoType: string,
   onPreview?: (p: TryOnPreview) => void,
 ): Promise<TryOnResult> {
+  if (demoSettings.tryOnDemo) return demo(product, "demo rejim qo'lda yoqilgan");
   if (!config.tryOn.activeKey) return demo(product, "virtual kiyintirish kaliti sozlanmagan");
   if (config.tryOn.isPaid && !takeQuota()) return demo(product, "kunlik kiyintirish limiti tugadi");
 

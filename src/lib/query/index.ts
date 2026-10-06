@@ -1,5 +1,6 @@
 import { parseByKeywords } from "./keywords";
 import { describeLlmError, llmConfigured, parseWithLlm, type Vocabulary } from "./llm";
+import { demoSettings } from "@/lib/demo-settings";
 import { normalizeQuery } from "./normalize";
 import { hasCriteria, type ParseMode, type ParsedQuery } from "./schema";
 
@@ -19,7 +20,7 @@ export type Understanding = {
  */
 export async function understandQuery(text: string, vocab: Vocabulary): Promise<Understanding> {
   let llmError: string | undefined;
-  if (llmConfigured()) {
+  if (llmConfigured() && !demoSettings.llmOff) {
     try {
       const { mavzu, ...raw } = await parseWithLlm(text, vocab);
       if (mavzu === "boshqa") return { parsed: null, mode: "rad" };

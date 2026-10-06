@@ -24,6 +24,10 @@ const EXAMPLES = [
 
 let nextId = 1;
 
+// Kiosk rejimi: shuncha vaqt hech kim ekranga tegmasa, suhbat va kiyintirish oynasi tozalanadi
+// (keyingi xaridor oldingisining so'rovlari va suratini ko'rmasligi uchun)
+const IDLE_RESET_MS = 120_000;
+
 export function Shopper({
   categories,
   colors,
@@ -41,11 +45,28 @@ export function Shopper({
   const [toast, setToast] = useState<string | null>(null);
   const [tryOnCard, setTryOnCard] = useState<Card | null>(null);
   const chatEnd = useRef<HTMLDivElement>(null);
+  const lastActivity = useRef(0);
 
   // Blok tanasi ataylab: yangi brauzerlarda scrollIntoView Promise qaytaradi, useEffect esa uni qabul qilmaydi
   useEffect(() => {
     chatEnd.current?.scrollIntoView({ behavior: "smooth" });
   }, [turns, loading]);
+  useEffect(() => {
+    lastActivity.current = Date.now();
+    const touch = () => {
+      lastActivity.current = Date.now();
+    };
+    const events = ["pointerdown", "keydown", "wheel", "touchstart"] as const;
+    events.forEach((e) => window.addEventListener(e, touch, { passive: true }));
+    return () => events.forEach((e) => window.removeEventListener(e, touch));
+  }, []);
+  useEffect(() => {
+    if (turns.length === 0 && !tryOnCard) return;
+    const timer = setInterval(() => {
+      if (!loading && Date.now() - lastActivity.current > IDLE_RESET_MS) resetSession();
+    }, 5000);
+    return () => clearInterval(timer);
+  });
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), 3000);
@@ -83,6 +104,14 @@ export function Shopper({
     }
   }
 
+  function resetSession() {
+    setTryOnCard(null);
+    setTurns([]);
+    setSelectedId(null);
+    setInput("");
+    setFiltersOpen(false);
+  }
+
   function submitText(text: string) {
     const trimmed = text.trim();
     if (!trimmed) return;
@@ -101,6 +130,17 @@ export function Shopper({
     <div className="grid flex-1 gap-6 lg:grid-cols-[400px_1fr]">
       {/* Chat */}
       <section className="flex max-h-[55dvh] min-h-[300px] flex-col lg:max-h-[calc(100dvh-7rem)] lg:min-h-[420px] rounded-2xl border border-neutral-200 bg-white">
+        {turns.length > 0 && (
+          <div className="flex justify-end border-b border-neutral-100 px-3 py-2">
+            <button
+              onClick={resetSession}
+              disabled={loading}
+              className="rounded-lg px-3 py-1 text-sm text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 disabled:opacity-40"
+            >
+              Yangi suhbat
+            </button>
+          </div>
+        )}
         <div className="flex-1 space-y-4 overflow-y-auto p-4">
           {turns.length === 0 && (
             <div className="space-y-3">

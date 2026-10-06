@@ -175,4 +175,20 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
   `Job.shoulder`), kadrga nisbatan emas: uzoqdan olingan suratda qo'l butunlay surtilib ketardi. Qat'iy rang
   chegaralari: fon sinfi uchun d_bg < 60, kiyim sinfi uchun d_bg < 35
 
+## Texnik eslatmalar (5-bosqichdan keyin)
+- Demo holati: `/admin/holat` (Basic Auth). Tekshiruvlar `src/lib/health.ts` dagi `runChecks()`: baza, SI (tekin
+  `models.list`, 6 s), kiyintirish (lokal `/health`, 3 s; pullik provayderlar chaqirilmaydi), tayyor demo natijalari
+  (`public/tryon-demo` vs SKU'lar), tovar rasmlari (SVG ulushi), admin paroli. Terminalda: `npm run check:demo`
+  (xato bo'lsa exit 1)
+- Zaxira rejimlar: `src/lib/demo-settings.ts` (`llmOff`, `tryOnDemo`), faqat jarayon xotirasida (`globalThis`),
+  server qayta ishga tushganda o'chadi. `/admin/holat` dagi server action bilan almashtiriladi. `llmOff`:
+  `understandQuery` LLM'ni chaqirmaydi (mode `kalit`), isitish ham o'chadi, sarlavhada sariq "Zaxira rejim" belgisi.
+  `tryOnDemo`: `tryOn()` darhol demo natija qaytaradi ("demo rejim qo'lda yoqilgan")
+- Telefondan sinash: `src/lib/lan.ts` (`shopperUrl`: Host sarlavhasi yoki birinchi xususiy IPv4), QR `src/lib/qr.ts`
+  (`qrcode`, SVG, serverda). Panelda "Telefondan sinash" oynasi va `/admin/holat` da. `next.config.ts`
+  `allowedDevOrigins` xususiy tarmoqlar uchun: aks holda Next 16 dev telefon (IP orqali) so'rovlarini bloklaydi
+- Kiosk: xaridor ekrani 120 s harakatsizlikdan keyin (`IDLE_RESET_MS`) suhbat va kiyintirish oynasini tozalaydi,
+  "Yangi suhbat" tugmasi. `demo.bat`: kiyintirish serveri + `npm run dev` + brauzerda holat/panel/xaridor ekrani
+- Rate limit kaliti: Next `x-forwarded-for` ni socket manzilidan to'ldiradi, ya'ni har telefon alohida hisoblanadi
+
 @AGENTS.md

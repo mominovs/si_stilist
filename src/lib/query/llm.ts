@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { config } from "@/lib/config";
+import { demoSettings } from "@/lib/demo-settings";
 import { llmOutputSchema, type LlmOutput } from "./schema";
 
 export type Vocabulary = {
@@ -87,6 +88,12 @@ function takeDailyQuota() {
   quota.used++;
 }
 
+/** Bugungi SI so'rovlari soni (holat sahifasi uchun) */
+export function llmUsage(): { used: number; limit: number } {
+  const day = new Date().toISOString().slice(0, 10);
+  return { used: quota.day === day ? quota.used : 0, limit: config.llm.dailyLimit };
+}
+
 export function llmConfigured(): boolean {
   return config.llm.apiKey.length > 0;
 }
@@ -146,7 +153,7 @@ const WARM_UP_EVERY_MS = 10 * 60_000;
  * kompilyatsiya qilinadi, shunda xaridorning birinchi so'rovi tez qaytadi. 10 daqiqada ko'pi bilan bir marta.
  */
 export async function warmUpLlm(vocab: () => Promise<Vocabulary>): Promise<void> {
-  if (!llmConfigured() || Date.now() - lastWarmUp < WARM_UP_EVERY_MS) return;
+  if (!llmConfigured() || demoSettings.llmOff || Date.now() - lastWarmUp < WARM_UP_EVERY_MS) return;
   lastWarmUp = Date.now();
   const t0 = Date.now();
   try {
