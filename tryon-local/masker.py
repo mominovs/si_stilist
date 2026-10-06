@@ -71,7 +71,13 @@ class ClothMasker:
         )
 
     def __call__(self, image: Image.Image, part: str = "tops") -> Image.Image:
-        """part: tops | bottoms | one-pieces. Qaytadi: L rejimdagi niqob (255 = almashtiriladi)."""
+        return self.analyze(image, part)[0]
+
+    def analyze(self, image: Image.Image, part: str = "tops") -> tuple[Image.Image, tuple[int, int, int, int]]:
+        """
+        part: tops | bottoms | one-pieces.
+        Qaytadi: L rejimdagi niqob (255 = almashtiriladi) va odamning chegarasi (x0, y0, x1, y1).
+        """
         rgb = np.asarray(image.convert("RGB"))
         h, w = rgb.shape[:2]
         mp_image = self._mp.Image(image_format=self._mp.ImageFormat.SRGB, data=np.ascontiguousarray(rgb))
@@ -88,56 +94,91 @@ class ClothMasker:
             p = lm[i]
             return getattr(p, "visibility", 1.0) >= th and 0 <= p.x <= 1 and 0 <= p.y <= 1
 
-        def pt(i: int) -> tuple[int, int]:
-            return int(lm[i].x * w), int(lm[i].y * h)
+        # Kadrdan tashqaridagi nuqtalar ham taxminiy koordinata bilan keladi: shakl qurishda ular ham ishlatiladi
+        def pt(i: int) -> np.ndarray:
+            return np.array([lm[i].x * w, lm[i].y * h], dtype=np.float32)
 
         face_ratio = float((seg == FACE_SKIN).mean())
         if face_ratio > 0.22:
             raise PhotoError("Kameraga juda yaqin turibsiz. Biroz uzoqlashing: yelka va belingiz ko'rinsin.")
-        shoulders = [i for i in (L_SHOULDER, R_SHOULDER) if visible(i)]
-        if not shoulders:
+        if not (visible(L_SHOULDER) or visible(R_SHOULDER)):
             raise PhotoError("Yelkalaringiz ko'rinmayapti. Kameradan uzoqroq turing, belgacha ko'rining.")
 
-        shoulder_y = min(pt(i)[1] for i in shoulders)
-        hips_visible = visible(L_HIP, 0.3) and visible(R_HIP, 0.3)
-        hip_y = (pt(L_HIP)[1] + pt(R_HIP)[1]) // 2 if hips_visible else h
-        torso = max(1, hip_y - shoulder_y)
+        ls, rs, lh, rh = pt(L_SHOULDER), pt(R_SHOULDER), pt(L_HIP), pt(R_HIP)
+        sw = max(float(np.linalg.norm(ls - rs)), 0.15 * w)  # yelka kengligi: hamma o'lchamlar shunga nisbatan
+        shoulder_mid, hip_mid = (ls + rs) / 2, (lh + rh) / 2
+        down = hip_mid - shoulder_mid
+        if np.linalg.norm(down) < 0.8 * sw:  # poza noaniq: tana uzunligini yelka kengligidan taxmin qilamiz
+            down = np.array([0, 1.4 * sw], dtype=np.float32)
+        unit = down / np.linalg.norm(down)
+        side = np.array([-unit[1], unit[0]], dtype=np.float32)
+        if np.dot(side, ls - rs) < 0:
+            side = -side  # side: o'ng yelkadan chap yelkaga
 
         clothes = np.isin(seg, (CLOTHES, OTHERS))
         skin = seg == BODY_SKIN
-        rows = np.arange(h)[:, None]
+        region = np.zeros((h, w), np.uint8)
+
+        def poly(points) -> None:
+            cv2.fillPoly(region, [np.round(np.array(points)).astype(np.int32)], 255)
+
+        def limb(a: int, b: int, radius: float, out: np.ndarray | None = None) -> None:
+            cv2.line(region if out is None else out, tuple(int(v) for v in pt(a)), tuple(int(v) for v in pt(b)),
+                     255, max(1, int(radius * 2)))
 
         if part == "bottoms":
-            if not hips_visible or not (visible(L_KNEE, 0.3) or visible(R_KNEE, 0.3)):
+            if not (visible(L_HIP, 0.3) or visible(R_HIP, 0.3)) or not (visible(L_KNEE, 0.3) or visible(R_KNEE, 0.3)):
                 raise PhotoError("Shim yoki yubka uchun belingiz va tizzangiz ko'rinishi kerak. To'liq gavda bilan suratga tushing.")
-            region = rows >= hip_y - int(0.12 * torso)
-            mask = (clothes | skin) & region
-        elif part == "one-pieces":
-            region = rows >= shoulder_y - int(0.05 * torso)
-            mask = (clothes | skin) & region
-        else:  # tops
-            # Belning biroz pastigacha (ko'ylak etagi), qo'llar terisi ham: yengi uzun/qisqa bo'lishi mumkin
-            region = (rows >= shoulder_y - int(0.25 * torso)) & (rows <= hip_y + int(0.18 * torso))
-            mask = (clothes | skin) & region
+            top = hip_mid - 0.25 * down
+            poly([top + side * 0.75 * sw, top - side * 0.75 * sw, rh - side * 0.35 * sw, lh + side * 0.35 * sw])
+            for a, b in ((L_HIP, L_KNEE), (R_HIP, R_KNEE), (L_KNEE, 27), (R_KNEE, 28)):
+                limb(a, b, 0.32 * sw)
+        else:
+            # Tana: yelkadan biroz yuqori (yoqa, bo'yin) va kengroq, sondan biroz pastgacha (etak)
+            up = -unit * 0.35 * sw
+            bottom = 0.15 if part == "tops" else 0.0
+            poly([
+                ls + side * 0.2 * sw + up, rs - side * 0.2 * sw + up,
+                rh - side * 0.3 * sw + down * bottom, lh + side * 0.3 * sw + down * bottom,
+            ])
+            # Qo'llar (yeng): yelka -> tirsak -> bilak
+            for a, b in ((L_SHOULDER, L_ELBOW), (R_SHOULDER, R_ELBOW), (L_ELBOW, L_WRIST), (R_ELBOW, R_WRIST)):
+                limb(a, b, 0.2 * sw)
+            if part == "one-pieces":
+                for a, b in ((L_HIP, L_KNEE), (R_HIP, R_KNEE), (L_KNEE, 27), (R_KNEE, 28)):
+                    limb(a, b, 0.32 * sw)
 
-        mask = mask.astype(np.uint8) * 255
-        k = max(3, int(0.02 * max(h, w)))
+        mask = ((clothes | skin) & (region > 0)).astype(np.uint8) * 255
+
+        if part == "tops":
+            # Oyoqlar (shim) ustki kiyimga kirmaydi: o'tirgan odamda tizza tana ichiga tushib qoladi
+            legs = np.zeros((h, w), np.uint8)
+            for a, b in ((L_HIP, L_KNEE), (R_HIP, R_KNEE)):
+                if visible(b, 0.5):
+                    knee, hip = pt(b), pt(a)
+                    start = hip + (knee - hip) * 0.25
+                    cv2.line(legs, tuple(int(v) for v in start), tuple(int(v) for v in knee), 255, int(0.7 * sw))
+                    cv2.circle(legs, tuple(int(v) for v in knee), int(0.35 * sw), 255, -1)
+            mask[legs > 0] = 0
+
+        k = max(3, int(0.015 * max(h, w)))
         mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((k * 2 + 1, k * 2 + 1), np.uint8))
         mask = cv2.dilate(mask, np.ones((k, k), np.uint8))
 
-        # Himoya: yuz, soch va kaftlar hech qachon o'zgartirilmaydi
+        # Himoya: yuz va soch, kaftlarning esa faqat teri qismi (mato emas, aks holda kiyimda "teshik" qoladi)
         protect = np.isin(seg, (FACE_SKIN, HAIR)).astype(np.uint8) * 255
         protect = cv2.dilate(protect, np.ones((k, k), np.uint8))
-        hand_r = int(0.09 * torso) + k
+        hands = np.zeros((h, w), np.uint8)
         for wrist, elbow in ((L_WRIST, L_ELBOW), (R_WRIST, R_ELBOW)):
             if visible(wrist, 0.3):
-                wx, wy = pt(wrist)
-                ex, ey = pt(elbow)
-                # Kaft markazi bilakdan tirsakka teskari yo'nalishda biroz siljigan
-                cx, cy = int(wx + 0.35 * (wx - ex)), int(wy + 0.35 * (wy - ey))
-                cv2.circle(protect, (cx, cy), hand_r, 255, -1)
+                wr, el = pt(wrist), pt(elbow)
+                c = wr + 0.4 * (wr - el)  # kaft markazi bilakdan tirsakka teskari tomonda
+                cv2.circle(hands, tuple(int(v) for v in c), int(0.28 * sw), 255, -1)
+        hand_skin = ((hands > 0) & skin).astype(np.uint8) * 255
+        protect |= cv2.dilate(hand_skin, np.ones((max(3, k // 2), max(3, k // 2)), np.uint8))
         mask[protect > 0] = 0
 
         if mask.mean() < 255 * 0.03:
             raise PhotoError("Kiyimingizni aniqlab bo'lmadi. Yorug'roq joyda, to'g'ri turib suratga tushing.")
-        return Image.fromarray(mask)
+        ys, xs = np.nonzero((seg != BACKGROUND) | (mask > 0))
+        return Image.fromarray(mask), (int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1)

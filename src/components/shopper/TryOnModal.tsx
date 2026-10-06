@@ -6,7 +6,7 @@ import type { TryOnResult } from "@/lib/tryon";
 
 type Step = "consent" | "camera" | "preview" | "processing" | "result";
 
-const MAX_SIDE = 1024;
+const MAX_SIDE = 1536;
 
 /** Rasmni brauzerning o'zida kichraytirib JPEG data URL ga aylantiradi (serverga kichik hajm boradi) */
 function toJpeg(source: CanvasImageSource, width: number, height: number): string {
@@ -358,7 +358,7 @@ export function TryOnModal({
               <div className="grid items-start gap-4 sm:grid-cols-2">
                 <Figure caption="Oldin">{photo && <PhotoImg src={photo} />}</Figure>
                 <Figure
-                  caption={progress ? `Shakllanmoqda... ${progress.step}/${progress.total} qadam` : "Kiyintiryapman... odatda 20-40 soniya"}
+                  caption={progress ? `Shakllanmoqda... ${progress.step}/${progress.total} qadam` : "Kiyintiryapman... odatda 30-45 soniya"}
                 >
                   <Frames frames={frames} />
                   {frames.length === 0 && (

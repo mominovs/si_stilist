@@ -148,7 +148,7 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
   kunlik limit qo'llanmaydi. `--mock` rejimi GPU'siz sinov uchun. Adapter: `src/lib/tryon/local.ts`
 - Progressiv natija: lokal server `POST /tryon/stream` (NDJSON) bitta generatsiyada 25/50/75% qadamlarda DDIM
   `pred_original_sample` ni dekodlab yuboradi; `/api/tryon` `{stream: true}` bilan oqimni brauzerga uzatadi,
-  `TryOnModal` kadrlarni ustma-ust silliq almashtiradi. Presetlar: tez 768x576/20, orta 768x576/40, sifat 1024x768/50
+  `TryOnModal` kadrlarni ustma-ust silliq almashtiradi. Presetlar: tez 768x576/20, orta 768x576/40, sifat 1024x768/50 (orta keyinchalik 50 qadamga oshirildi)
 - Niqobli rejim (standart, `--mode mask`): `tryon-local/masker.py` (MediaPipe selfie_multiclass + pose_landmarker_full,
   modellar `tryon-local/models/` ga avtomatik yuklanadi) kiyim niqobini yasaydi, yuz/soch/kaftlar himoyalanadi.
   `CatVTONPipeline` (base `booksforcharlie/stable-diffusion-inpainting`, `zhengchong/CatVTON` mix) faqat niqob ichini
@@ -156,5 +156,10 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
   yelka ko'rinmaydi, juda yaqin) -> 422 -> `TryOnResult` `{mode: "photo", message}` -> modal "Qayta suratga tushish".
   `/health` version 3 + `mode`. `--mode maskfree` eski niqobsiz model. `--mock` da ham niqob va tekshiruv ishlaydi.
   numpy 1.26 (torch 2.4) uchun `opencv-contrib-python==4.10.0.84` qotirilgan
+- Niqob geometriyasi pozadan: tana ko'pburchagi (yelkadan yuqori: yoqa/bo'yin) + qo'l chiziqlari; kadrdan tashqaridagi
+  nuqtalar ham taxminiy koordinata sifatida ishlatiladi; tops uchun ko'rinib turgan tizza/son chiqariladi; kaftning
+  faqat teri piksellari himoyalanadi. Server (`Job`, `fit_box`, `compose`): odam chegarasi bo'yicha 3:4 kesim ->
+  model -> natija asl surat o'lchamida (`MAX_OUTPUT_SIDE` 1600) yopishtiriladi. Brauzer surati 1536 px gacha.
+  `/health` version 4
 
 @AGENTS.md

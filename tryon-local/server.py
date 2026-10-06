@@ -10,7 +10,7 @@ Xaridor surati faqat xotirada qayta ishlanadi: diskka yozilmaydi va internetga c
 Model og'irliklari birinchi ishga tushishda Hugging Face'dan yuklanadi (~4-5 GB), keyin keshdan olinadi.
 
 Ishga tushirish:
-    python server.py                      # standart: --preset orta (768x576, 40 qadam), bf16, port 8001
+    python server.py                      # standart: --preset orta (768x576, 50 qadam), bf16, port 8001
     python server.py --preset sifat       # 1024x768, 50 qadam (sekinroq, ko'proq GPU xotira)
     python server.py --preset tez         # 768x576, 20 qadam (tezroq)
     python server.py --height 640 --width 480   # GPU xotirasi yetmasa
@@ -31,6 +31,7 @@ import queue
 import sys
 import threading
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
@@ -44,15 +45,17 @@ HERE = Path(__file__).resolve().parent
 CATVTON_DIR = HERE / "CatVTON"
 MODELS_DIR = HERE / "models"
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
+# Natija asl surat o'lchamida qaytariladi (yuz va fon tiniq qoladi), lekin bundan katta bo'lmaydi
+MAX_OUTPUT_SIDE = 1600
 
 # tez: demo uchun eng tez; orta: 6 GB GPU uchun muvozanat; sifat: model o'qitilgan o'lcham (GPU xotirasi ko'proq kerak)
 PRESETS = {
     "tez": {"height": 768, "width": 576, "steps": 20},
-    "orta": {"height": 768, "width": 576, "steps": 40},
+    "orta": {"height": 768, "width": 576, "steps": 50},
     "sifat": {"height": 1024, "width": 768, "steps": 50},
 }
 
-# Oraliq ko'rinishlar shu ulushlarda yuboriladi (40 qadamda: 10, 20, 30), oxirida yakuniy natija
+# Oraliq ko'rinishlar shu ulushlarda yuboriladi (50 qadamda: 12, 25, 38), oxirida yakuniy natija
 PREVIEW_FRACTIONS = (0.25, 0.5, 0.75)
 
 PreviewFn = Callable[[int, Image.Image], None]
@@ -93,6 +96,58 @@ def parse_args() -> argparse.Namespace:
     a.base_model = a.base_model or MODES[a.mode]["base"]
     a.weights = a.weights or MODES[a.mode]["weights"]
     return a
+
+
+@dataclass
+class Job:
+    """Bitta kiyintirish uchun tayyorlangan ma'lumot (prepare -> run)."""
+
+    person: Image.Image  # model o'lchamidagi kesim
+    mask: Image.Image | None = None  # kesimdagi kiyim niqobi (mask rejimi)
+    full: Image.Image | None = None  # asl surat (natija shunga yopishtiriladi)
+    soft: Image.Image | None = None  # asl o'lchamdagi yumshoq niqob
+    box: tuple[int, int, int, int] | None = None  # kesim chegarasi asl suratda (tashqariga chiqishi mumkin)
+
+
+def fit_box(box: tuple[int, int, int, int], image_size: tuple[int, int], margin: float, aspect: float) -> tuple[int, int, int, int]:
+    """
+    Odam chegarasini biroz kengaytiradi, eni/bo'yi nisbatini aspect (w/h) ga keltiradi va iloji boricha surat
+    ichiga suradi. Odam kadr chetiga tegib turgan tomonda zaxira qo'shilmaydi (gavda kadrdan tashqarida davom etadi).
+    """
+    x0, y0, x1, y1 = box
+    w, h = image_size
+    pad = margin * max(x1 - x0, y1 - y0)
+    x0, y0 = (x0 - pad if x0 > 2 else 0), (y0 - pad if y0 > 2 else 0)
+    x1, y1 = (x1 + pad if x1 < w - 2 else w), (y1 + pad if y1 < h - 2 else h)
+    bw, bh = x1 - x0, y1 - y0
+    if bw / bh < aspect:
+        bw = bh * aspect
+    else:
+        bh = bw / aspect
+    cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+
+    def place(center: float, length: float, limit: int) -> int:
+        start = center - length / 2
+        if length <= limit:
+            start = min(max(start, 0), limit - length)
+        return round(start)
+
+    left, top = place(cx, bw, w), place(cy, bh, h)
+    return left, top, left + round(bw), top + round(bh)
+
+
+def crop_padded(image: Image.Image, box: tuple[int, int, int, int], fill_edge: bool) -> Image.Image:
+    """Surat chegarasidan chiqadigan kesim: tashqi qism chekka piksellar bilan (yoki 0 bilan) to'ldiriladi."""
+    import numpy as np
+
+    x0, y0, x1, y1 = box
+    w, h = image.size
+    arr = np.asarray(image)
+    pads = ((max(0, -y0), max(0, y1 - h)), (max(0, -x0), max(0, x1 - w))) + (((0, 0),) if arr.ndim == 3 else ())
+    if any(a or b for a, b in pads):
+        arr = np.pad(arr, pads, mode="edge" if fill_edge else "constant")
+    ox, oy = max(0, -x0), max(0, -y0)
+    return Image.fromarray(arr[y0 + oy:y1 + oy, x0 + ox:x1 + ox])
 
 
 class Engine:
@@ -193,42 +248,49 @@ class Engine:
     def size(self) -> tuple[int, int]:
         return self.args.width, self.args.height
 
-    def prepare(self, person: Image.Image, category: str) -> tuple[Image.Image, Image.Image | None]:
+    def prepare(self, person: Image.Image, category: str) -> Job:
         """
-        Suratni model o'lchamiga keltiradi va (mask rejimida) kiyim niqobini yasaydi.
+        mask rejimi: niqob asl suratda yasaladi, keyin odam atrofidan kesib olinib model o'lchamiga keltiriladi
+        (uzoqdan olingan suratda ham kiyimga ko'proq piksel tushadi). Natija keyin asl suratga qaytariladi.
         Yaroqsiz surat bo'lsa PhotoError: so'rov GPU navbatiga tushmasdan darhol rad etiladi.
         """
-        person = resize_and_crop(person.convert("RGB"), self.size)
+        person = person.convert("RGB")
         if self.masker is None:
-            return person, None
+            return Job(person=resize_and_crop(person, self.size))
         from masker import PhotoError as MaskerPhotoError
 
+        scale = min(1.0, MAX_OUTPUT_SIDE / max(person.size))
+        if scale < 1:
+            person = person.resize((round(person.width * scale), round(person.height * scale)), Image.LANCZOS)
         try:
             with self.mask_lock:  # MediaPipe obyektlari bir vaqtda bitta oqimdan chaqiriladi
-                return person, self.masker(person, category)
+                mask, body = self.masker.analyze(person, category)
         except MaskerPhotoError as e:
             raise PhotoError(str(e)) from e
 
-    def run(
-        self,
-        person: Image.Image,
-        mask: Image.Image | None,
-        garment: Image.Image,
-        steps: int,
-        seed: int,
-        on_preview: PreviewFn | None = None,
-    ) -> Image.Image:
-        """person va mask prepare() dan keladi. Natija niqob bo'yicha asl suratga qayta yopishtiriladi."""
-        size = self.size
-        preview_at = {max(1, round(steps * f)) for f in PREVIEW_FRACTIONS} if on_preview else set()
+        box = fit_box(body, person.size, margin=0.04, aspect=self.size[0] / self.size[1])
+        crop = crop_padded(person, box, fill_edge=True).resize(self.size, Image.LANCZOS)
+        crop_mask = crop_padded(mask, box, fill_edge=False).resize(self.size, Image.NEAREST)
         # Niqob chegarasi yumshatiladi: kiyim va asl surat orasida chok ko'rinmasin
-        soft = mask.filter(ImageFilter.GaussianBlur(radius=max(2, size[0] // 96))) if mask is not None else None
+        soft = mask.filter(ImageFilter.GaussianBlur(radius=max(2, max(person.size) // 160)))
+        return Job(person=crop, mask=crop_mask, full=person, soft=soft, box=box)
 
-        def repaint(img: Image.Image) -> Image.Image:
-            return Image.composite(img.convert("RGB").resize(size), person, soft) if soft is not None else img
+    def compose(self, job: Job, img: Image.Image) -> Image.Image:
+        """Model natijasini (kesim) asl suratga qaytaradi: niqobdan tashqarisi pikselma-piksel asl surat."""
+        if job.full is None:
+            return img
+        x0, y0, x1, y1 = job.box
+        layer = job.full.copy()
+        layer.paste(img.convert("RGB").resize((x1 - x0, y1 - y0), Image.LANCZOS), (x0, y0))
+        return Image.composite(layer, job.full, job.soft)
+
+    def run(self, job: Job, garment: Image.Image, steps: int, seed: int, on_preview: PreviewFn | None = None) -> Image.Image:
+        size = self.size
+        person, mask = job.person, job.mask
+        preview_at = {max(1, round(steps * f)) for f in PREVIEW_FRACTIONS} if on_preview else set()
 
         def preview(step: int, img: Image.Image) -> None:
-            on_preview(step, repaint(img))
+            on_preview(step, self.compose(job, img))
 
         if self.args.mock:
             out = person.copy()
@@ -238,7 +300,7 @@ class Engine:
                 time.sleep(0.4)
                 preview(step, out.filter(ImageFilter.GaussianBlur(radius=12 * (1 - step / steps))))
             time.sleep(0.4)
-            return repaint(out)
+            return self.compose(job, out)
 
         with self.lock:
             try:
@@ -247,11 +309,11 @@ class Engine:
                 if self.args.safety or not on_preview:
                     generator = self._torch.Generator(device=self.device).manual_seed(seed)
                     extra = {"mask": mask} if mask is not None else {}
-                    return repaint(self.pipeline(
+                    return self.compose(job, self.pipeline(
                         image=person, condition_image=garment, num_inference_steps=steps,
                         guidance_scale=2.5, height=size[1], width=size[0], generator=generator, **extra,
                     )[0])
-                return repaint(self._run_progressive(person, mask, garment, steps, seed, preview_at, preview))
+                return self.compose(job, self._run_progressive(person, mask, garment, steps, seed, preview_at, preview))
             finally:
                 if self.device == "cuda":
                     self._torch.cuda.empty_cache()
@@ -402,7 +464,7 @@ def health():
         "preset": args.preset,
         "mode": args.mode,
         # Server imkoniyatlari: ilova eski serverni aniqlashi uchun
-        "version": 3,
+        "version": 4,
         "stream": True,
     }
 
@@ -420,15 +482,15 @@ def to_b64(image: Image.Image, quality: int = 90) -> str:
     return base64.b64encode(buf.getvalue()).decode()
 
 
-def prepare_or_reject(req: "TryOnRequest") -> tuple[Image.Image, Image.Image | None, Image.Image, int]:
+def prepare_or_reject(req: "TryOnRequest") -> tuple[Job, Image.Image, int]:
     """Rasmlarni ochadi va suratni tekshiradi. Yaroqsiz surat: 422 va xaridorga tushunarli sabab."""
     person, garment = decode_image(req.person), decode_image(req.garment)
     try:
-        person, mask = engine.prepare(person, req.category)
+        job = engine.prepare(person, req.category)
     except PhotoError as e:
         print(f"[tryon] surat rad etildi: {e}", flush=True)
         raise HTTPException(422, str(e)) from e
-    return person, mask, garment, max(10, min(50, req.steps or args.steps))
+    return job, garment, max(10, min(50, req.steps or args.steps))
 
 
 def describe_failure(e: Exception) -> tuple[int, str]:
@@ -440,10 +502,10 @@ def describe_failure(e: Exception) -> tuple[int, str]:
 @app.post("/tryon")
 def tryon(req: TryOnRequest):
     ensure_ready()
-    person, mask, garment, steps = prepare_or_reject(req)
+    job, garment, steps = prepare_or_reject(req)
     t0 = time.time()
     try:
-        result = engine.run(person, mask, garment, steps, req.seed)
+        result = engine.run(job, garment, steps, req.seed)
     except Exception as e:  # noqa: BLE001
         status, detail = describe_failure(e)
         raise HTTPException(status, detail) from e
@@ -458,7 +520,7 @@ def tryon_stream(req: TryOnRequest):
     oxirida {"type":"result","image","seconds"} yoki {"type":"error","status","detail"}.
     """
     ensure_ready()
-    person, mask, garment, steps = prepare_or_reject(req)
+    job, garment, steps = prepare_or_reject(req)
     events: queue.Queue = queue.Queue()
 
     def work() -> None:
@@ -467,7 +529,7 @@ def tryon_stream(req: TryOnRequest):
             def on_preview(step: int, img: Image.Image) -> None:
                 events.put({"type": "preview", "step": step, "total": steps, "image": to_b64(img, quality=75)})
 
-            result = engine.run(person, mask, garment, steps, req.seed, on_preview=on_preview)
+            result = engine.run(job, garment, steps, req.seed, on_preview=on_preview)
             seconds = round(time.time() - t0, 1)
             print(f"[tryon] {req.category}, {steps} qadam (oqim), {seconds} s", flush=True)
             events.put({"type": "result", "image": to_b64(result), "seconds": seconds})

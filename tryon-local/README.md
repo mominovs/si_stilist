@@ -48,7 +48,10 @@ Oxirida `CUDA: True NVIDIA GeForce RTX ...` va `MediaPipe (kiyim niqobi): 1.0.1`
    tugmasi chiqadi (demo rejim emas).
 2. **Kiyim niqobi**: segmentatsiya (kiyim, teri, yuz, soch) + poza (yelka, bilak, son) bo'yicha faqat almashtiriladigan
    kiyim qismi belgilanadi. Yuz, soch va kaftlar himoyalanadi. Shim/yubka uchun beldan pasti, libos uchun butun gavda.
-3. **CatVTON faqat niqob ichini chizadi**, keyin natija asl suratga yumshoq chegara bilan qayta yopishtiriladi:
+   O'tirgan odamda tizza va son (shim) ustki kiyim niqobidan chiqariladi.
+3. **Odamga yaqinlashtirish**: model odam atrofidagi kesimni ishlaydi (uzoqdan olingan suratda kiyimga ko'proq
+   piksel tushadi), natija esa asl surat o'lchamida (ko'pi bilan 1600 px) qaytariladi: yuz va fon tiniq qoladi.
+4. **CatVTON faqat niqob ichini chizadi**, keyin natija asl suratga yumshoq chegara bilan qayta yopishtiriladi:
    yuz, qo'llar, fon pikselma-piksel o'zgarmaydi.
 
 Avvalgi niqobsiz rejim butun suratni qayta chizardi: yaqin portretda yuzni "kesib" tashlar, galstuk va qo'llar
@@ -61,7 +64,7 @@ MediaPipe modellari (~15 MB) birinchi ishga tushishda `tryon-local/models/` ga y
 | Parametr | Standart | Izoh |
 | --- | --- | --- |
 | `--mode` | mask | `mask`: faqat kiyim qismi o'zgaradi (tavsiya). `maskfree`: eski niqobsiz model |
-| `--preset` | orta | `tez` (768x576, 20 qadam), `orta` (768x576, 40), `sifat` (1024x768, 50). Masalan: `start.bat --preset sifat` |
+| `--preset` | orta | `tez` (768x576, 20 qadam), `orta` (768x576, 50), `sifat` (1024x768, 50). Masalan: `start.bat --preset sifat` |
 | `--height --width` | presetdan | GPU xotirasi yetmasa: `start.bat --height 640 --width 480`. 8 GB+ bo'lsa: 1024 768 |
 | `--steps` | presetdan | Kamroq: tezroq (20), ko'proq: sifatliroq (40-50) |
 | `--safety` | o'chiq | NSFW filtri (+~1 GB GPU xotira) |
@@ -70,8 +73,8 @@ MediaPipe modellari (~15 MB) birinchi ishga tushishda `tryon-local/models/` ga y
 Kutish vaqti ilovada 120 s (`TRYON_TIMEOUT_MS`). Server ishlamasa yoki xato bersa, ilova "Demo rejim" ga o'tadi.
 
 Natija bitta generatsiyada shakllanib boradi: 25%, 50%, 75% qadamlarda oraliq ko'rinish (`/tryon/stream`)
-yuboriladi va saytda xiradan aniqqa silliq almashadi. RTX 3060 Laptop (6 GB) da 30 qadam ~20 s edi, `orta` (40 qadam)
-taxminan 27 s bo'lishi kutiladi. `sifat` rejimi 2 barobardan ko'proq
+yuboriladi va saytda xiradan aniqqa silliq almashadi. RTX 3060 Laptop (6 GB) da 40 qadam ~30 s, `orta` (50 qadam)
+taxminan 38 s. `sifat` rejimi 2 barobardan ko'proq
 piksel ishlaydi, shuning uchun sekinroq va GPU xotirasi yetmasligi mumkin; yetmasa `orta` ga qayting.
 
 ## Sifatni oshirish (ta'siri bo'yicha)
