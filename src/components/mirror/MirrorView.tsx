@@ -7,8 +7,11 @@ import { TryOnModal } from "@/components/shopper/TryOnModal";
 
 // Seans cheklovi (CLAUDE.md: real vaqt seansi ko'pi bilan 60 soniya, keyin avtomatik to'xtaydi)
 const SESSION_SECONDS = 60;
-// Serverga yuboriladigan kadr: uzun tomoni shuncha piksel (model 192x256 da ishlaydi, kattasi faqat tarmoqni band qiladi)
-const FRAME_SIDE = 480;
+// Serverga yuboriladigan kadr: uzun tomoni shuncha piksel. Model kesimni 192x256 da ko'radi, lekin yuz, fon va
+// kiyim teksturasi shu o'lchamda chiqadi: kattaroq kadr ekranda tiniqroq
+const FRAME_SIDE = 640;
+// Bir vaqtda yo'lda bo'lgan kadrlar: biri serverda ishlanayotganda keyingisi yuklanadi (tarmoq kutilmaydi)
+const IN_FLIGHT = 2;
 const FULL_SIDE = 1536;
 
 type Phase = "consent" | "live" | "ended" | "unavailable";
@@ -37,6 +40,8 @@ export function MirrorView({
   const [hint, setHint] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fps, setFps] = useState(0);
+  // Kechikish: kadr olingandan ekranga chiqquncha (ms) va shundan serverdagi ish vaqti
+  const [latency, setLatency] = useState<{ total: number; server: number | null } | null>(null);
   const [left, setLeft] = useState(SESSION_SECONDS);
   const [hasFrame, setHasFrame] = useState(false);
   const [quality, setQuality] = useState<{ src: string; aspect: number } | null>(null);
@@ -58,68 +63,81 @@ export function MirrorView({
 
   useEffect(() => stopCamera, [stopCamera]);
 
-  // Kadr tsikli: bitta kadr yuboriladi, javob kelgach keyingisi (navbat to'planmaydi, kechikish oshmaydi)
+  // Kadr tsikli: IN_FLIGHT ta parallel ishchi. Har biri kadr oladi, yuboradi va javobni chizadi. Kechroq kelgan
+  // eski kadr yangisining ustiga chizilmaydi (tartib raqami bo'yicha). Navbat to'planmaydi, kechikish oshmaydi
   const loop = useCallback(async () => {
+    let seq = 0;
+    let drawn = 0;
     let frames = 0;
     let since = performance.now();
-    while (running.current) {
-      const v = videoRef.current;
-      if (Date.now() > deadline.current) {
-        stopCamera();
-        setPhase("ended");
-        break;
-      }
-      if (!v || !v.videoWidth) {
-        await new Promise((r) => setTimeout(r, 100));
-        continue;
-      }
-      const blob = await new Promise<Blob | null>((r) => frameCanvas(v, FRAME_SIDE).toBlob(r, "image/jpeg", 0.8));
-      if (!blob || !running.current) continue;
-      try {
-        const res = await fetch(`/api/mirror?productId=${selectedRef.current}`, {
-          method: "POST",
-          headers: { "Content-Type": "image/jpeg" },
-          body: blob,
-        });
-        if (res.ok) {
-          const bmp = await createImageBitmap(await res.blob());
-          const out = outRef.current;
-          if (out && running.current) {
-            out.width = bmp.width;
-            out.height = bmp.height;
-            out.getContext("2d")!.drawImage(bmp, 0, 0);
-            setHasFrame(true);
-            setHint(null);
-          }
-          bmp.close();
-          frames++;
-        } else {
-          const data = await res.json().catch(() => ({}));
-          if (res.status === 422) {
-            // Kadrda odam yo'q yoki juda yaqin: jonli kamera ko'rsatiladi va sabab yoziladi
-            setHasFrame(false);
-            setHint(data.error ?? "Kameraga belgacha ko'rining");
-          } else if (res.status === 503 || res.status === 500) {
-            stopCamera();
-            setError(data.error ?? "Jonli oyna ishlamayapti");
-            setPhase("unavailable");
-            break;
-          } else {
-            setHint(data.error ?? `Xato (${res.status})`);
-            await new Promise((r) => setTimeout(r, 500));
-          }
+    const worker = async () => {
+      while (running.current) {
+        const v = videoRef.current;
+        if (Date.now() > deadline.current) {
+          stopCamera();
+          setPhase("ended");
+          return;
         }
-      } catch {
-        setHint("Server bilan aloqa yo'q");
-        await new Promise((r) => setTimeout(r, 1000));
+        if (!v || !v.videoWidth) {
+          await new Promise((r) => setTimeout(r, 100));
+          continue;
+        }
+        const my = ++seq;
+        const t0 = performance.now();
+        const blob = await new Promise<Blob | null>((r) => frameCanvas(v, FRAME_SIDE).toBlob(r, "image/jpeg", 0.85));
+        if (!blob || !running.current) continue;
+        try {
+          const res = await fetch(`/api/mirror?productId=${selectedRef.current}`, {
+            method: "POST",
+            headers: { "Content-Type": "image/jpeg" },
+            body: blob,
+          });
+          if (res.ok) {
+            const bmp = await createImageBitmap(await res.blob());
+            const out = outRef.current;
+            if (out && running.current && my > drawn) {
+              drawn = my;
+              if (out.width !== bmp.width || out.height !== bmp.height) {
+                out.width = bmp.width;
+                out.height = bmp.height;
+              }
+              out.getContext("2d")!.drawImage(bmp, 0, 0);
+              setHasFrame(true);
+              setHint(null);
+              const server = Number(res.headers.get("x-mirror-ms"));
+              setLatency({ total: Math.round(performance.now() - t0), server: Number.isFinite(server) && server > 0 ? server : null });
+              frames++;
+            }
+            bmp.close();
+          } else {
+            const data = await res.json().catch(() => ({}));
+            if (res.status === 422) {
+              // Kadrda odam yo'q yoki juda yaqin: jonli kamera ko'rsatiladi va sabab yoziladi
+              setHasFrame(false);
+              setHint(data.error ?? "Kameraga belgacha ko'rining");
+            } else if (res.status === 503 || res.status === 500) {
+              stopCamera();
+              setError(data.error ?? "Jonli oyna ishlamayapti");
+              setPhase("unavailable");
+              return;
+            } else {
+              setHint(data.error ?? `Xato (${res.status})`);
+              await new Promise((r) => setTimeout(r, 500));
+            }
+          }
+        } catch {
+          setHint("Server bilan aloqa yo'q");
+          await new Promise((r) => setTimeout(r, 1000));
+        }
+        const now = performance.now();
+        if (now - since > 1000) {
+          setFps(Math.round((frames * 1000) / (now - since)));
+          frames = 0;
+          since = now;
+        }
       }
-      const now = performance.now();
-      if (now - since > 1000) {
-        setFps(Math.round((frames * 1000) / (now - since)));
-        frames = 0;
-        since = now;
-      }
-    }
+    };
+    await Promise.all(Array.from({ length: IN_FLIGHT }, worker));
   }, [stopCamera]);
 
   async function start() {
@@ -202,6 +220,11 @@ export function MirrorView({
               <div className="absolute left-3 top-3 flex items-center gap-2 rounded-full bg-black/60 px-3 py-1 text-xs text-white">
                 <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
                 {left} s · {fps} kadr/s
+                {latency && (
+                  <span className="text-white/70">
+                    · {latency.total} ms{latency.server !== null ? ` (server ${latency.server})` : ""}
+                  </span>
+                )}
               </div>
               {hint && (
                 <div className="absolute inset-x-4 bottom-4 rounded-xl bg-amber-50/95 px-4 py-3 text-center text-sm text-amber-900">{hint}</div>

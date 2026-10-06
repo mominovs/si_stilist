@@ -7,7 +7,7 @@ import { garmentPng } from "./garment";
  */
 
 export type MirrorResult =
-  | { ok: true; image: ArrayBuffer }
+  | { ok: true; image: ArrayBuffer; serverMs: string | null }
   | { ok: false; status: number; error: string };
 
 // Lokal serverga allaqachon yuborilgan kiyimlar (server qayta ishga tushsa 404 qaytadi va qayta yuboriladi)
@@ -47,7 +47,7 @@ export async function mirrorFrame(product: MirrorProduct, frame: Uint8Array): Pr
         body: frame as unknown as BodyInit,
         signal: AbortSignal.timeout(5000),
       });
-      if (res.ok) return { ok: true, image: await res.arrayBuffer() };
+      if (res.ok) return { ok: true, image: await res.arrayBuffer(), serverMs: res.headers.get("x-mirror-ms") };
       if (res.status === 404 && attempt === 0) {
         uploaded.delete(garmentId(product)); // server qayta ishga tushgan: kiyim qayta yuboriladi
         continue;

@@ -45,5 +45,7 @@ export async function POST(request: Request) {
 
   const result = await mirrorFrame(product, frame);
   if (!result.ok) return Response.json({ error: result.error }, { status: result.status });
-  return new Response(result.image, { headers: { "Content-Type": "image/jpeg", "Cache-Control": "no-store" } });
+  return new Response(result.image, {
+    headers: { "Content-Type": "image/jpeg", "Cache-Control": "no-store", "X-Mirror-Ms": result.serverMs ?? "" },
+  });
 }

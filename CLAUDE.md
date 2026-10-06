@@ -237,5 +237,11 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
   `python mirror.py` (setup.bat) traceback'siz yuklaydi
 - Telefonda jonli kamera: `npm run dev:https` (`next dev --experimental-https`, mkcert; `certificates/` gitignore'da).
   `shopperUrl(host, x-forwarded-proto)`: QR https manzil beradi, telefon sertifikat ogohlantirishini o'tkazib yuboradi
+- Oyna sifati: model egish xaritasini (last_flow, [-1,1]) kesim o'lchamiga (ko'pi bilan `HR_SIZE` 576x768)
+  kattalashtirib, kiyimning tiniq nusxasiga `grid_sample` qiladi; model chizgan qism va aralashtirish niqobi silliq
+  kattalashtiriladi (identik xarita sinovida farq ~1/255, chegaralar ~3x tiniq). `prepare_analysis`: kesim va
+  yumshoq niqob niqob yangilanganda bir marta hisoblanadi, poza oldingisi bilan o'rtachalanadi (titrash yo'q).
+  JPEG `cv2.imencode` q85, `X-Mirror-Ms` sarlavhasi. Brauzer: 640 px kadr, `IN_FLIGHT = 2` parallel ishchi (eski
+  kadr yangisining ustiga chizilmaydi), ekranda kadr/s va kechikish (server qismi bilan)
 
 @AGENTS.md

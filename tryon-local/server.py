@@ -235,12 +235,14 @@ class Engine:
     def _mirror_analyze(self, frame: Image.Image, background_job: bool = False) -> dict:
         """Kiyim niqobi va poza (MediaPipe, CPU). Fonda ishlasa xatoni yutadi, keyingi kadr qayta urinadi"""
         from masker import PhotoError as MaskerPhotoError
+        from mirror import prepare_analysis
 
         try:
             with self.mask_lock:
                 mask, _, background, _ = self.masker.analyze(frame, "tops")
                 points = self.masker.last_landmarks.copy()
-            cache = {"t": time.time(), "size": frame.size, "mask": mask, "bg": background, "points": points}
+            cache = prepare_analysis(frame.size, mask, background, points, prev=self.mirror_cache)
+            cache["t"] = time.time()
             self.mirror_cache = cache
             return cache
         except MaskerPhotoError as e:
@@ -252,8 +254,12 @@ class Engine:
             if background_job:
                 self.mirror_busy = False
 
-    def mirror_frame(self, data: bytes, garment_id: str) -> bytes:
-        """Bitta kamera kadri -> kiyintirilgan kadr (JPEG). Niqob fonda yangilanadi, kadr kutmaydi"""
+    def mirror_frame(self, data: bytes, garment_id: str) -> tuple[bytes, float]:
+        """
+        Bitta kamera kadri -> (kiyintirilgan kadr JPEG, model va kompozitsiya vaqti ms). Niqob fonda yangilanadi,
+        kadr uni kutmaydi
+        """
+        import cv2
         from mirror import compose_frame
 
         if self.mirror_status != "ready":
@@ -277,12 +283,13 @@ class Engine:
             self.mirror_busy = True
             threading.Thread(target=self._mirror_analyze, args=(frame.copy(), True), daemon=True).start()
 
+        t0 = time.time()
         with self.mirror_lock:
-            result = compose_frame(frame, cache["mask"], cache["bg"], cache["points"],
-                                   lambda person: self.mirror.run(person, garment_id))
-        buf = io.BytesIO()
-        result.save(buf, format="JPEG", quality=80)
-        return buf.getvalue()
+            result = compose_frame(frame, cache, lambda person, size: self.mirror.run(person, garment_id, size))
+        ok, jpg = cv2.imencode(".jpg", cv2.cvtColor(result, cv2.COLOR_RGB2BGR), [cv2.IMWRITE_JPEG_QUALITY, 85])
+        if not ok:
+            raise HTTPException(500, "Kadrni kodlab bo'lmadi")
+        return jpg.tobytes(), (time.time() - t0) * 1000
 
     def load(self) -> None:
         if self.args.mock:
@@ -761,8 +768,9 @@ async def mirror(request: Request, id: str):
     data = await request.body()
     if not data or len(data) > 2 * 1024 * 1024:
         raise HTTPException(413, "Kadr 2 MB dan katta")
-    image = await run_in_threadpool(engine.mirror_frame, data, id[:64])
-    return Response(content=image, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
+    image, ms = await run_in_threadpool(engine.mirror_frame, data, id[:64])
+    # X-Mirror-Ms: serverdagi ish vaqti (sayt kechikishni tarmoq va server qismiga ajratib ko'rsatadi)
+    return Response(content=image, media_type="image/jpeg", headers={"Cache-Control": "no-store", "X-Mirror-Ms": f"{ms:.0f}"})
 
 
 def port_is_free(host: str, port: int) -> bool:

@@ -35,6 +35,9 @@ MANUAL_HELP = (
     "  2) ikkala faylni tryon-local\\models\\dmvton\\ papkasiga qo'ying, keyin start.bat"
 )
 SIZE = (192, 256)  # (w, h): model shu o'lchamda o'qitilgan
+# Kiyim teksturasi shu o'lchamda saqlanadi: model hisoblagan egish xaritasi kattalashtirilib, kiyimning tiniq
+# nusxasiga qo'llanadi (yoqa, naqsh, chok 192x256 dagidek xira bo'lmaydi)
+HR_SIZE = (576, 768)
 
 # Poza nuqtalari (MediaPipe)
 L_EYE, R_EYE, L_HIP, R_HIP = 2, 5, 23, 24
@@ -154,9 +157,9 @@ def load_state(model, path: Path) -> None:
     model.load_state_dict({k: pretrained[k] for k in state})
 
 
-def garment_inputs(image: Image.Image) -> tuple[np.ndarray, np.ndarray]:
+def garment_inputs(image: Image.Image, size: tuple[int, int] = SIZE) -> tuple[np.ndarray, np.ndarray]:
     """
-    Oq fondagi kiyim rasmi -> (kiyim 256x192x3 uint8, kontur 256x192 0/1). Kiyim kesib olinib, 3:4 nisbatda
+    Oq fondagi kiyim rasmi -> (kiyim HxWx3 uint8, kontur HxW 0/1), standart 256x192. Kiyim kesib olinib, 3:4 nisbatda
     ozgina zaxira bilan markazlashtiriladi (VITON'dagi kiyim rasmlari kadrni deyarli to'liq egallaydi).
     """
     rgb = np.asarray(image.convert("RGB"))
@@ -179,8 +182,8 @@ def garment_inputs(image: Image.Image) -> tuple[np.ndarray, np.ndarray]:
     canvas.paste(image.convert("RGB"), (-box[0], -box[1]))
     mcanvas = Image.new("L", canvas.size, 0)
     mcanvas.paste(Image.fromarray(mask * 255), (-box[0], -box[1]))
-    cloth = np.asarray(canvas.resize(SIZE, Image.BICUBIC))
-    edge = (np.asarray(mcanvas.resize(SIZE, Image.NEAREST)) > 127).astype(np.float32)
+    cloth = np.asarray(canvas.resize(size, Image.LANCZOS if size[0] > SIZE[0] else Image.BICUBIC))
+    edge = (np.asarray(mcanvas.resize(size, Image.BILINEAR)) > 127).astype(np.float32)
     return cloth, edge
 
 
@@ -238,15 +241,22 @@ class MirrorEngine:
     def set_garment(self, garment_id: str, image: Image.Image) -> None:
         cloth, edge = garment_inputs(image)
         clothes = self._tensor(cloth) * self.torch.from_numpy(edge).to(self.device)[None, None]
-        self.garments[garment_id] = (clothes, self._tensor(edge, normalize=False))
+        cloth_hr, edge_hr = garment_inputs(image, HR_SIZE)
+        clothes_hr = self._tensor(cloth_hr) * self.torch.from_numpy(edge_hr).to(self.device)[None, None]
+        self.garments[garment_id] = (clothes, self._tensor(edge, normalize=False), clothes_hr)
         if len(self.garments) > 64:
             self.garments.pop(next(iter(self.garments)))
 
-    def run(self, person: np.ndarray, garment_id: str) -> np.ndarray:
-        """person: 256x192x3 uint8 (oq fonda) -> natija 256x192x3 uint8"""
+    def run(self, person: np.ndarray, garment_id: str, out_size: tuple[int, int] | None = None) -> np.ndarray:
+        """
+        person: 256x192x3 uint8 (oq fonda) -> natija out_size (w, h) da, uint8.
+        out_size kattaroq bo'lsa: egish xaritasi (last_flow, normallashgan [-1, 1] koordinatalar) kattalashtirilib
+        kiyimning tiniq nusxasiga qo'llanadi; model chizgan qism (teri, soya) va aralashtirish niqobi esa silliq
+        kattalashtiriladi. Model hisobi o'zgarmaydi, qo'shimcha xarajat bitta grid_sample.
+        """
         import torch.nn.functional as F
 
-        clothes, edge = self.garments[garment_id]
+        clothes, edge, clothes_hr = self.garments[garment_id]
         with self.torch.no_grad():
             img = self._tensor(person)
             warped_cloth, last_flow = self.warp(img, clothes)
@@ -256,42 +266,71 @@ class MirrorEngine:
             rendered, comp = self.torch.split(out, [3, 1], 1)
             rendered = self.torch.tanh(rendered)
             comp = self.torch.sigmoid(comp) * warped_edge
-            tryon = warped_cloth * comp + rendered * (1 - comp)
-        arr = ((tryon[0].permute(1, 2, 0).float().cpu().numpy() + 1) * 127.5).clip(0, 255)
-        return arr.astype(np.uint8)
+            if out_size and out_size[0] > SIZE[0]:
+                w, h = out_size
+                up = lambda t: F.interpolate(t, size=(h, w), mode="bilinear", align_corners=True)  # noqa: E731
+                grid = up(last_flow).permute(0, 2, 3, 1)
+                warped_hr = F.grid_sample(clothes_hr, grid, mode="bilinear", padding_mode="zeros", align_corners=True)
+                comp_hr = up(comp)
+                tryon = warped_hr * comp_hr + up(rendered) * (1 - comp_hr)
+            else:
+                tryon = warped_cloth * comp + rendered * (1 - comp)
+        arr = ((tryon[0].permute(1, 2, 0).float().cpu().numpy() + 1) * 127.5).clip(0, 255).astype(np.uint8)
+        if out_size and (arr.shape[1], arr.shape[0]) != tuple(out_size):
+            arr = cv2.resize(arr, tuple(out_size), interpolation=cv2.INTER_CUBIC)
+        return arr
 
 
-def compose_frame(
-    frame: Image.Image,
+def prepare_analysis(
+    frame_size: tuple[int, int],
     mask: Image.Image,
     background: np.ndarray,
     points: np.ndarray,
-    infer,
-) -> Image.Image:
+    prev: dict | None = None,
+) -> dict:
     """
-    Bitta kadr: fon oqqa almashtiriladi, yuqori gavda kesiladi, model (infer) ishlaydi, natija joyiga qaytariladi va
-    faqat kiyim niqobi ichida asl kadrga yopishtiriladi.
+    Niqob va pozadan kadr uchun kerakli hamma narsa (niqob yangilanganda bir marta hisoblanadi, kadrlar qayta
+    ishlatadi): silliqlangan poza nuqtalari, yuqori gavda kesimi, yumshoq niqob.
+    Poza oldingisi bilan o'rtachalanadi: kesim har yangilanishda sakramaydi (kiyim titramaydi).
+    """
+    w, h = frame_size
+    if prev is not None and prev.get("size") == frame_size:
+        points = 0.5 * points + 0.5 * prev["points"]
+    box = upper_body_box(points, (w, h))
+    x0, y0, x1, y1 = box
+    sx0, sy0, sx1, sy1 = max(0, x0), max(0, y0), min(w, x1), min(h, y1)
+    # Model kesimdagi fonni oq chizadi: niqobning fonga kirgan qismi olinmaydi (aks holda oq hoshiya chiqadi).
+    # Niqob faqat kesim ichida amal qiladi; chegarasi yumshatiladi
+    m = (np.asarray(mask, dtype=np.float32) / 255.0) * (~background)
+    inside = np.zeros_like(m)
+    inside[sy0:sy1, sx0:sx1] = 1
+    soft = cv2.GaussianBlur(m * inside, (0, 0), max(1.5, w / 250))[..., None]
+    return {"size": frame_size, "points": points, "box": box, "bg": background, "soft": soft}
+
+
+def compose_frame(frame: Image.Image, analysis: dict, infer) -> np.ndarray:
+    """
+    Bitta kadr: fon oqqa almashtiriladi, yuqori gavda kesiladi, model (infer) kesim o'lchamida natija beradi, u joyiga
+    qaytariladi va faqat kiyim niqobi ichida asl kadrga qo'yiladi. Natija: RGB uint8 massiv.
     """
     rgb = np.asarray(frame.convert("RGB"))
     h, w = rgb.shape[:2]
     white = rgb.copy()
-    white[background] = 255
-    box = upper_body_box(points, (w, h))
+    white[analysis["bg"]] = 255
+    x0, y0, x1, y1 = box = analysis["box"]
     crop = crop_white(white, box)
     person = cv2.resize(crop, SIZE, interpolation=cv2.INTER_AREA)
-    result = infer(person)
-    x0, y0, x1, y1 = box
-    up = cv2.resize(result, (x1 - x0, y1 - y0), interpolation=cv2.INTER_CUBIC)
+    # Natija kesim o'lchamida (ko'pi bilan HR_SIZE), kattaroq bo'lsa oxirida oddiy kattalashtiriladi
+    bw, bh = x1 - x0, y1 - y0
+    scale = min(1.0, HR_SIZE[0] / bw)
+    up = infer(person, (max(SIZE[0], int(bw * scale)), max(SIZE[1], int(bh * scale))))
+    if up.shape[:2] != (bh, bw):
+        up = cv2.resize(up, (bw, bh), interpolation=cv2.INTER_CUBIC)
     layer = rgb.copy()
     sx0, sy0, sx1, sy1 = max(0, x0), max(0, y0), min(w, x1), min(h, y1)
     layer[sy0:sy1, sx0:sx1] = up[sy0 - y0:sy1 - y0, sx0 - x0:sx1 - x0]
-    # Niqob faqat kesim ichida amal qiladi; chegarasi yumshatiladi
-    # Model kesimdagi fonni oq chizadi: niqobning fonga kirgan qismi olinmaydi (aks holda oq hoshiya chiqadi)
-    m = (np.asarray(mask, dtype=np.float32) / 255.0) * (~background)
-    inside = np.zeros_like(m)
-    inside[sy0:sy1, sx0:sx1] = 1
-    m = cv2.GaussianBlur(m * inside, (0, 0), max(1.5, w / 250))[..., None]
-    return Image.fromarray((layer * m + rgb * (1 - m)).astype(np.uint8))
+    m = analysis["soft"]
+    return (layer * m + rgb * (1 - m)).astype(np.uint8)
 
 
 class MockMirror:
@@ -304,13 +343,13 @@ class MockMirror:
         cloth, edge = garment_inputs(image)
         self.garments[garment_id] = np.where(edge[..., None] > 0, cloth, 255).astype(np.uint8)
 
-    def run(self, person: np.ndarray, garment_id: str) -> np.ndarray:
+    def run(self, person: np.ndarray, garment_id: str, out_size: tuple[int, int] | None = None) -> np.ndarray:
         out = person.copy()
         g = cv2.resize(self.garments[garment_id], (120, 160))
         sel = g.min(axis=2) < 250
         region = out[70:230, 36:156]
         region[sel] = g[sel]
-        return out
+        return cv2.resize(out, tuple(out_size), interpolation=cv2.INTER_CUBIC) if out_size else out
 
 
 if __name__ == "__main__":
