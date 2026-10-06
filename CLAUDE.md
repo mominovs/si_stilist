@@ -164,5 +164,9 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
 - Segmentatsiya ishonch xaritalari bilinear kattalashtirilib argmax qilinadi (silliq chegara); niqob fonga faqat
   ingichka chiziq (k/2) bilan kiradi (keng bo'shliqda model yorug' hoshiya chizardi). Kadrdan tashqari kesim qismida
   niqob ham chetdan davom ettiriladi (aks holda kadr chegarasida chiziq chiqadi). Modal ramkasi surat nisbatida
+- Qo'l chiziqlari 0.3*sw, ko'rinadigan qo'l o'qi (0.1*sw) sinfidan qat'i nazar niqobga kiradi (to'q yeng fon deb
+  aniqlanib, eski kiyim bo'laklari qolardi). `Engine.refine`: yakuniy natija qayta segmentlanadi; niqob ichida fon
+  deb aniqlangan, asl fonga yaqin (6%) chekka eng yaqin niqobdan tashqi asl fon rangi bilan to'ldiriladi
+  (`distanceTransformWithLabels`): yangi kiyim tor bo'lganda chiqadigan "hoshiya" yo'qoladi. Faqat yakuniy natijada
 
 @AGENTS.md

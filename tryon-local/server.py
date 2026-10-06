@@ -106,6 +106,8 @@ class Job:
     mask: Image.Image | None = None  # kesimdagi kiyim niqobi (mask rejimi)
     full: Image.Image | None = None  # asl surat (natija shunga yopishtiriladi)
     soft: Image.Image | None = None  # asl o'lchamdagi yumshoq niqob
+    full_mask: Image.Image | None = None  # asl o'lchamdagi niqob
+    background: object | None = None  # asl suratdagi fon xaritasi (numpy bool)
     box: tuple[int, int, int, int] | None = None  # kesim chegarasi asl suratda (tashqariga chiqishi mumkin)
 
 
@@ -264,7 +266,7 @@ class Engine:
             person = person.resize((round(person.width * scale), round(person.height * scale)), Image.LANCZOS)
         try:
             with self.mask_lock:  # MediaPipe obyektlari bir vaqtda bitta oqimdan chaqiriladi
-                mask, body = self.masker.analyze(person, category)
+                mask, body, background = self.masker.analyze(person, category)
         except MaskerPhotoError as e:
             raise PhotoError(str(e)) from e
 
@@ -275,7 +277,7 @@ class Engine:
         crop_mask = crop_padded(mask, box, fill_edge=True).resize(self.size, Image.NEAREST)
         # Niqob chegarasi yumshatiladi: kiyim va asl surat orasida chok ko'rinmasin
         soft = mask.filter(ImageFilter.GaussianBlur(radius=max(2, max(person.size) // 160)))
-        return Job(person=crop, mask=crop_mask, full=person, soft=soft, box=box)
+        return Job(person=crop, mask=crop_mask, full=person, soft=soft, box=box, full_mask=mask, background=background)
 
     def compose(self, job: Job, img: Image.Image) -> Image.Image:
         """Model natijasini (kesim) asl suratga qaytaradi: niqobdan tashqarisi pikselma-piksel asl surat."""
@@ -285,6 +287,53 @@ class Engine:
         layer = job.full.copy()
         layer.paste(img.convert("RGB").resize((x1 - x0, y1 - y0), Image.LANCZOS), (x0, y0))
         return Image.composite(layer, job.full, job.soft)
+
+    def refine(self, job: Job, img: Image.Image) -> Image.Image:
+        """
+        Yangi kiyim eskisidan tor bo'lsa, model ortib qolgan joyga fonni o'zi chizadi va u xira "hoshiya" bo'lib
+        ko'rinadi. Natijada fon deb aniqlangan, asl suratda esa kiyim bo'lgan chekka chiziq atrofdagi asl fondan
+        silliq to'ldiriladi. Xato bo'lsa natija o'zgarishsiz qaytadi.
+        """
+        if job.background is None or self.masker is None:
+            return img
+        try:
+            import cv2
+            import numpy as np
+
+            with self.mask_lock:
+                seg = self.masker.segment(img)
+            arr = np.asarray(img.convert("RGB"))
+            h, w = arr.shape[:2]
+            mask = np.asarray(job.full_mask) > 127
+            # Manba: model tegmagan asl fon (niqobdan tashqarida)
+            bg = job.background & ~mask
+            # Faqat asl fonga yaqin chekka: kiyim o'rtasidagi qorong'i joy fon deb adashilsa ham tegilmaydi
+            dist = cv2.distanceTransform((~bg).astype(np.uint8), cv2.DIST_L2, 3)
+            band = mask & (seg == 0) & (dist < 0.06 * max(h, w))
+            if band.mean() < 0.001:
+                return img
+            # Har bir piksel eng yaqin asl fon pikseli rangini oladi (uzoqdagi ranglar aralashmaydi), keyin silliqlanadi
+            scale = min(1.0, 480 / max(h, w))
+            sw_, sh_ = max(1, round(w * scale)), max(1, round(h * scale))
+            small = cv2.resize(arr, (sw_, sh_), interpolation=cv2.INTER_AREA)
+            small_bg = cv2.resize(bg.astype(np.uint8), (sw_, sh_), interpolation=cv2.INTER_NEAREST) > 0
+            if not small_bg.any():
+                return img
+            _, labels = cv2.distanceTransformWithLabels(
+                (~small_bg).astype(np.uint8), cv2.DIST_L2, 5, labelType=cv2.DIST_LABEL_PIXEL
+            )
+            coords = np.argwhere(small_bg)  # yorliqlar fon piksellariga qator tartibida 1 dan beriladi
+            nearest = coords[np.clip(labels - 1, 0, len(coords) - 1)]
+            filled = small[nearest[..., 0], nearest[..., 1]]
+            filled = cv2.GaussianBlur(filled, (0, 0), 2.5)
+            filled = cv2.resize(filled, (w, h), interpolation=cv2.INTER_LINEAR).astype(np.float32)
+            alpha = cv2.GaussianBlur(band.astype(np.float32), (0, 0), max(1.0, max(h, w) / 400))[..., None]
+            out = arr.astype(np.float32) * (1 - alpha) + filled * alpha
+            print(f"[tryon] chekka tozalandi: {band.mean() * 100:.1f}% piksel", flush=True)
+            return Image.fromarray(out.round().clip(0, 255).astype(np.uint8))
+        except Exception as e:  # noqa: BLE001
+            print(f"[tryon] chekkani tozalab bo'lmadi: {e}", flush=True)
+            return img
 
     def run(self, job: Job, garment: Image.Image, steps: int, seed: int, on_preview: PreviewFn | None = None) -> Image.Image:
         size = self.size
@@ -302,7 +351,7 @@ class Engine:
                 time.sleep(0.4)
                 preview(step, out.filter(ImageFilter.GaussianBlur(radius=12 * (1 - step / steps))))
             time.sleep(0.4)
-            return self.compose(job, out)
+            return self.refine(job, self.compose(job, out))
 
         with self.lock:
             try:
@@ -311,11 +360,12 @@ class Engine:
                 if self.args.safety or not on_preview:
                     generator = self._torch.Generator(device=self.device).manual_seed(seed)
                     extra = {"mask": mask} if mask is not None else {}
-                    return self.compose(job, self.pipeline(
+                    return self.refine(job, self.compose(job, self.pipeline(
                         image=person, condition_image=garment, num_inference_steps=steps,
                         guidance_scale=2.5, height=size[1], width=size[0], generator=generator, **extra,
-                    )[0])
-                return self.compose(job, self._run_progressive(person, mask, garment, steps, seed, preview_at, preview))
+                    )[0]))
+                result = self._run_progressive(person, mask, garment, steps, seed, preview_at, preview)
+                return self.refine(job, self.compose(job, result))
             finally:
                 if self.device == "cuda":
                     self._torch.cuda.empty_cache()

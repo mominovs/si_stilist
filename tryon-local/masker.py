@@ -32,6 +32,9 @@ L_SHOULDER, R_SHOULDER, L_ELBOW, R_ELBOW, L_WRIST, R_WRIST = 11, 12, 13, 14, 15,
 L_HIP, R_HIP, L_KNEE, R_KNEE = 23, 24, 25, 26
 
 
+ARMS = ((L_SHOULDER, L_ELBOW), (R_SHOULDER, R_ELBOW), (L_ELBOW, L_WRIST), (R_ELBOW, R_WRIST))
+
+
 class PhotoError(Exception):
     """Surat kiyintirish uchun yaroqsiz: xabar xaridorga ko'rsatiladi."""
 
@@ -74,19 +77,30 @@ class ClothMasker:
     def __call__(self, image: Image.Image, part: str = "tops") -> Image.Image:
         return self.analyze(image, part)[0]
 
-    def analyze(self, image: Image.Image, part: str = "tops") -> tuple[Image.Image, tuple[int, int, int, int]]:
+    def _segment(self, mp_image, h: int, w: int) -> np.ndarray:
+        # Ishonch xaritalari silliq kattalashtirilib, keyin sinf tanlanadi: 256x256 dan zinapoyasiz aniq chegara
+        conf = [m.numpy_view() for m in self.segmenter.segment(mp_image).confidence_masks]
+        conf = np.stack([c if c.shape == (h, w) else cv2.resize(c, (w, h), interpolation=cv2.INTER_LINEAR) for c in conf])
+        return conf.argmax(axis=0).astype(np.uint8)
+
+    def segment(self, image: Image.Image) -> np.ndarray:
+        """Har bir piksel sinfi (BACKGROUND, HAIR, ... ) asl o'lchamda."""
+        rgb = np.ascontiguousarray(np.asarray(image.convert("RGB")))
+        mp_image = self._mp.Image(image_format=self._mp.ImageFormat.SRGB, data=rgb)
+        return self._segment(mp_image, *rgb.shape[:2])
+
+    def analyze(
+        self, image: Image.Image, part: str = "tops"
+    ) -> tuple[Image.Image, tuple[int, int, int, int], np.ndarray]:
         """
         part: tops | bottoms | one-pieces.
-        Qaytadi: L rejimdagi niqob (255 = almashtiriladi) va odamning chegarasi (x0, y0, x1, y1).
+        Qaytadi: L rejimdagi niqob (255 = almashtiriladi), odamning chegarasi (x0, y0, x1, y1) va fon xaritasi.
         """
         rgb = np.asarray(image.convert("RGB"))
         h, w = rgb.shape[:2]
         mp_image = self._mp.Image(image_format=self._mp.ImageFormat.SRGB, data=np.ascontiguousarray(rgb))
 
-        # Ishonch xaritalari silliq kattalashtirilib, keyin sinf tanlanadi: 256x256 dan zinapoyasiz aniq chegara
-        conf = [m.numpy_view() for m in self.segmenter.segment(mp_image).confidence_masks]
-        conf = np.stack([c if c.shape == (h, w) else cv2.resize(c, (w, h), interpolation=cv2.INTER_LINEAR) for c in conf])
-        seg = conf.argmax(axis=0).astype(np.uint8)
+        seg = self._segment(mp_image, h, w)
         poses = self.pose.detect(mp_image).pose_landmarks
         if not poses:
             raise PhotoError("Suratda odam topilmadi. Kameraga qarab, belgacha yoki to'liq ko'rining.")
@@ -143,14 +157,22 @@ class ClothMasker:
                 ls + side * 0.2 * sw + up, rs - side * 0.2 * sw + up,
                 rh - side * 0.3 * sw + down * bottom, lh + side * 0.3 * sw + down * bottom,
             ])
-            # Qo'llar (yeng): yelka -> tirsak -> bilak
-            for a, b in ((L_SHOULDER, L_ELBOW), (R_SHOULDER, R_ELBOW), (L_ELBOW, L_WRIST), (R_ELBOW, R_WRIST)):
-                limb(a, b, 0.2 * sw)
+            # Qo'llar (yeng): yelka -> tirsak -> bilak. Qalin kostyum yengi ham to'liq sig'sin
+            for a, b in ARMS:
+                limb(a, b, 0.3 * sw)
             if part == "one-pieces":
                 for a, b in ((L_HIP, L_KNEE), (R_HIP, R_KNEE), (L_KNEE, 27), (R_KNEE, 28)):
                     limb(a, b, 0.32 * sw)
 
         mask = ((clothes | skin) & (region > 0)).astype(np.uint8) * 255
+        if part != "bottoms":
+            # Qo'l o'qi bo'ylab ingichka chiziq sinfidan qat'i nazar niqobga kiradi: to'q yeng ba'zan fon deb
+            # aniqlanadi va eski kiyimning yirtiq bo'laklari qolib ketardi
+            core = np.zeros((h, w), np.uint8)
+            for a, b in ARMS:
+                if visible(b, 0.3):  # taxminiy (ko'rinmas) nuqtalar fon ustidan o'tib ketishi mumkin
+                    limb(a, b, 0.1 * sw, out=core)
+            mask[core > 0] = 255
 
         if part == "tops":
             # Oyoqlar (shim) ustki kiyimga kirmaydi: o'tirgan odamda tizza tana ichiga tushib qoladi
@@ -187,4 +209,5 @@ class ClothMasker:
         if mask.mean() < 255 * 0.03:
             raise PhotoError("Kiyimingizni aniqlab bo'lmadi. Yorug'roq joyda, to'g'ri turib suratga tushing.")
         ys, xs = np.nonzero((seg != BACKGROUND) | (mask > 0))
-        return Image.fromarray(mask), (int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1)
+        box = (int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1)
+        return Image.fromarray(mask), box, seg == BACKGROUND
