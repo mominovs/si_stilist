@@ -6,8 +6,7 @@ import { config } from "@/lib/config";
 import { prisma } from "@/lib/db";
 import { formatPrice } from "@/lib/format";
 import { priceTiers } from "@/lib/matching";
-import type { ResultCard } from "@/lib/search";
-import { MirrorView } from "@/components/mirror/MirrorView";
+import { MirrorView, type MirrorCard } from "@/components/mirror/MirrorView";
 
 export const metadata: Metadata = { title: "Jonli oyna · SI Stilist" };
 
@@ -23,7 +22,7 @@ export default async function MirrorPage({ searchParams }: PageProps<"/oyna">) {
     orderBy: [{ category: "asc" }, { price: "asc" }],
   });
   const tiers = priceTiers(products);
-  const cards: ResultCard[] = products.map((p) => ({
+  const cards: MirrorCard[] = products.map((p) => ({
     id: p.id,
     name: p.name,
     category: p.category,
@@ -36,6 +35,7 @@ export default async function MirrorPage({ searchParams }: PageProps<"/oyna">) {
     isExact: true,
     reason: null,
     sizes: p.variants.map((v) => ({ size: v.size, inStock: v.stock > 0 })),
+    gender: p.gender,
   }));
 
   return (

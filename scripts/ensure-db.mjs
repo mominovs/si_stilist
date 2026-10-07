@@ -24,3 +24,14 @@ if (match && !(await reachable(Number(match[1])))) {
     console.log("Bazani yoqib bo'lmadi. Qo'lda: npm run db:start");
   }
 }
+
+// Yangi migratsiyalar (git pull dan keyin) avtomatik qo'llanadi: aks holda yangi ustunlar yo'qligidan sahifa xato beradi
+if (match && (await reachable(Number(match[1])))) {
+  try {
+    const out = execSync("npx prisma migrate deploy", { stdio: "pipe" }).toString();
+    if (!/No pending migrations/i.test(out)) console.log("Baza yangilandi (yangi migratsiyalar qo'llandi)");
+  } catch (e) {
+    console.log("Migratsiyani qo'llab bo'lmadi. Qo'lda: npx prisma migrate deploy");
+    console.log(String(e.stderr ?? e).split("\n").slice(0, 5).join("\n"));
+  }
+}

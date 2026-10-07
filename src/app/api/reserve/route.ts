@@ -17,6 +17,8 @@ export type ReserveResponse = {
   color: string;
   size: string;
   priceLabel: string;
+  /** Omborda yo'q o'lcham: sotuvchi buyurtma qiladi (jonli oynadan) */
+  ordered?: boolean;
 };
 
 /**

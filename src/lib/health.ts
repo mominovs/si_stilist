@@ -177,6 +177,9 @@ async function checkMirror(): Promise<Check> {
     if (h.mirror === undefined) {
       return { ...base, status: "warn", detail: "Lokal server eski versiyada", hint: "git pull, tryon-local\\setup.bat, keyin start.bat" };
     }
+    if (h.mirror === "ready" && (h.version ?? 0) < 6 && h.device !== "mock") {
+      return { ...base, status: "warn", detail: "Ishlaydi, lekin server eski: kamera o'lcham o'lchamaydi", hint: "git pull, keyin tryon-local\\stop.bat va start.bat" };
+    }
     if (h.mirror === "ready") {
       return h.device === "mock"
         ? { ...base, status: "warn", detail: "Sinov (mock) rejimi: model o'rniga kiyim rasmi qo'yiladi", hint: "start.bat ni --mock siz" }

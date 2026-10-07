@@ -75,17 +75,20 @@ model Request {
 }
 
 model RequestResult {
-  id           Int       @id @default(autoincrement())
-  requestId    Int
-  productId    Int
-  rank         Int
+  id              Int       @id @default(autoincrement())
+  requestId       Int
+  productId       Int
+  rank            Int
   // false bo'lsa: "Shu rangda yo'q, o'xshashi bor"
-  isExact      Boolean   @default(true)
+  isExact         Boolean   @default(true)
   // "Sotuvchiga ko'rsatish": xaridor shu tovarni tanlab, sotuvchiga ko'rsatgan vaqt va o'lcham
-  reservedAt   DateTime?
-  reservedSize String?
-  request      Request   @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  product      Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  reservedAt      DateTime?
+  reservedSize    String?
+  // Jonli oyna o'lcham tavsiyasi: SI tavsiya qilgan o'lcham va sotuvchi belgilagan haqiqatda to'g'ri kelgani (sinov aniqligi)
+  recommendedSize String?
+  fittedSize      String?
+  request         Request   @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  product         Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([requestId])
   @@index([reservedAt])

@@ -22,7 +22,13 @@ export function SellerModal({ data, onClose }: { data: ReserveResponse; onClose:
             <span className="text-xl font-semibold">{data.priceLabel}</span>
           </div>
         </div>
-        <p className="text-xs text-neutral-500">Sotuvchi do&apos;kon panelida ham shu kodni ko&apos;radi va tovarni olib keladi.</p>
+        {data.ordered ? (
+          <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
+            Bu o&apos;lcham hozir omborda yo&apos;q: sotuvchi buyurtma qiladi va kelganda sizga xabar beradi.
+          </p>
+        ) : (
+          <p className="text-xs text-neutral-500">Sotuvchi do&apos;kon panelida ham shu kodni ko&apos;radi va tovarni olib keladi.</p>
+        )}
         <button onClick={onClose} className="w-full rounded-xl bg-neutral-900 px-5 py-3 text-sm font-medium text-white hover:bg-neutral-700">
           Yopish
         </button>

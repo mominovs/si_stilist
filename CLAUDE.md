@@ -19,7 +19,9 @@ AI faqat ikki joyda ishlatiladi:
 - Virtual kiyintirish: tashqi try-on API.
 Qolgan hamma narsa oddiy, deterministik kod bilan qilinadi: SQL filtrlash, ball berish, statistika.
 Natija hech qachon omborda yo'q tovarni "o'ylab topmasligi" kerak.
-Kamera orqali tashqi ko'rinish yoki teri tusi tahlili bu versiyada YO'Q.
+Kamera orqali tashqi ko'rinish yoki teri tusi tahlili bu versiyada YO'Q. Istisno (foydalanuvchi qarori): jonli oynada
+o'lcham tavsiyasi uchun faqat yelka va gavda nisbati o'lchanadi (yuz va teri tahlil qilinmaydi), o'lchov faqat
+seans davomida brauzer xotirasida turadi va saqlanmaydi, ekranda "taxminiy" deb yoziladi.
 
 ## Texnologiyalar
 - Next.js (App Router, TypeScript): frontend va API bitta loyihada
@@ -245,3 +247,20 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
   kadr yangisining ustiga chizilmaydi), ekranda kadr/s va kechikish (server qismi bilan)
 
 @AGENTS.md
+
+## Texnik eslatmalar (o'lcham tavsiyasi)
+- Hisob `src/lib/sizing.ts` (toza funksiyalar, testlar bor): `estimateBody` (ixtiyoriy bo'y, vazn, kamera nisbati ->
+  ko'krak va yelka, ishonch past/o'rta/yuqori; hech biri bo'lmasa null), `sizeSpec` (standart jadval: harfli erkak/ayol,
+  raqamli = ko'krak/2; uniseks erkaklar jadvali), `fitSizes` (har o'lcham: juda-tor/tor/mos/keng/juda-keng, tavsiya =
+  eng yaqini), `fitAccuracy`. Kurtka/sviter/kostyum ustidan kiyiladi: tanaga qo'shimcha kenglik
+- Kamera: lokal server `/mirror` javobida `X-Mirror-Body` `{pts: yelka/son nuqtalari 0..1, r: yelka/gavda nisbati, t}`
+  (`mirror.py body_measure`, faqat yelka va sonlar aniq ko'ringanda; belgacha kadrda r yo'q). Nisbat odatdagi nisbatga
+  (`TYPICAL_RATIO`, taxminiy ~0.6) solishtiriladi, yelkani ko'pi bilan ±20% o'zgartiradi. `/health` version 6
+- `MirrorView` + `SizePanel`: bo'y/vazn/jins faqat brauzer holatida, kamera nisbati oxirgi 40 o'lchov mediani (8 tadan
+  keyin), 40 kadr nisbatsiz bo'lsa "uzoqroq turing". Tanlangan o'lcham kadrda strelkalar bilan (tor: ichkariga,
+  keng: tashqariga, juda: ikki qavat, mos: yashil). Kiyimni sun'iy cho'zib ko'rsatish ataylab yo'q (chalg'itadi)
+- `POST /api/mirror/order {productId, size, recommended}`: Request (mode `oyna`, parsed: kategoriya, jins, rang,
+  o'lcham) + RequestResult (reserved, `recommendedSize`). Omborda yo'q o'lcham = buyurtma, panelda "tugagan" talab
+- Panel: "Sotuvchiga ko'rsatilgan" da SI tavsiyasi va sotuvchi belgilaydigan "to'g'ri kelgani" (`POST /api/panel/fit`,
+  `fittedSize`), aniqlik: aniq va ±1 o'lcham. Migratsiya `20261007120000_size_fit`; `npm run dev` lokal bazada
+  yangi migratsiyalarni o'zi qo'llaydi (`scripts/ensure-db.mjs`)

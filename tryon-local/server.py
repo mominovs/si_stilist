@@ -235,14 +235,16 @@ class Engine:
     def _mirror_analyze(self, frame: Image.Image, background_job: bool = False) -> dict:
         """Kiyim niqobi va poza (MediaPipe, CPU). Fonda ishlasa xatoni yutadi, keyingi kadr qayta urinadi"""
         from masker import PhotoError as MaskerPhotoError
-        from mirror import prepare_analysis
+        from mirror import body_measure, prepare_analysis
 
         try:
             with self.mask_lock:
                 mask, _, background, _ = self.masker.analyze(frame, "tops")
                 points = self.masker.last_landmarks.copy()
+                visibility = self.masker.last_visibility.copy()
             cache = prepare_analysis(frame.size, mask, background, points, prev=self.mirror_cache)
             cache["t"] = time.time()
+            cache["body"] = {**body_measure(points, visibility, frame.size, cache["points"]), "t": round(cache["t"], 3)}
             self.mirror_cache = cache
             return cache
         except MaskerPhotoError as e:
@@ -254,10 +256,10 @@ class Engine:
             if background_job:
                 self.mirror_busy = False
 
-    def mirror_frame(self, data: bytes, garment_id: str) -> tuple[bytes, float]:
+    def mirror_frame(self, data: bytes, garment_id: str) -> tuple[bytes, float, dict]:
         """
-        Bitta kamera kadri -> (kiyintirilgan kadr JPEG, model va kompozitsiya vaqti ms). Niqob fonda yangilanadi,
-        kadr uni kutmaydi
+        Bitta kamera kadri -> (kiyintirilgan kadr JPEG, model va kompozitsiya vaqti ms, gavda o'lchovi).
+        Niqob fonda yangilanadi, kadr uni kutmaydi
         """
         import cv2
         from mirror import compose_frame
@@ -289,7 +291,7 @@ class Engine:
         ok, jpg = cv2.imencode(".jpg", cv2.cvtColor(result, cv2.COLOR_RGB2BGR), [cv2.IMWRITE_JPEG_QUALITY, 85])
         if not ok:
             raise HTTPException(500, "Kadrni kodlab bo'lmadi")
-        return jpg.tobytes(), (time.time() - t0) * 1000
+        return jpg.tobytes(), (time.time() - t0) * 1000, cache.get("body", {})
 
     def load(self) -> None:
         if self.args.mock:
@@ -655,7 +657,7 @@ def health():
         "preset": args.preset,
         "mode": args.mode,
         # Server imkoniyatlari: ilova eski serverni aniqlashi uchun
-        "version": 5,
+        "version": 6,
         # Jonli oyna (DM-VTON): off | ready | error
         "mirror": engine.mirror_status,
         "mirror_error": engine.mirror_error,
@@ -768,9 +770,11 @@ async def mirror(request: Request, id: str):
     data = await request.body()
     if not data or len(data) > 2 * 1024 * 1024:
         raise HTTPException(413, "Kadr 2 MB dan katta")
-    image, ms = await run_in_threadpool(engine.mirror_frame, data, id[:64])
-    # X-Mirror-Ms: serverdagi ish vaqti (sayt kechikishni tarmoq va server qismiga ajratib ko'rsatadi)
-    return Response(content=image, media_type="image/jpeg", headers={"Cache-Control": "no-store", "X-Mirror-Ms": f"{ms:.0f}"})
+    image, ms, body = await run_in_threadpool(engine.mirror_frame, data, id[:64])
+    # X-Mirror-Ms: serverdagi ish vaqti (sayt kechikishni tarmoq va server qismiga ajratib ko'rsatadi).
+    # X-Mirror-Body: yelka/son nuqtalari va gavda nisbati (o'lcham tavsiyasi va belgilar uchun)
+    headers = {"Cache-Control": "no-store", "X-Mirror-Ms": f"{ms:.0f}", "X-Mirror-Body": json.dumps(body, separators=(",", ":"))}
+    return Response(content=image, media_type="image/jpeg", headers=headers)
 
 
 def port_is_free(host: str, port: int) -> bool:

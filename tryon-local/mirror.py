@@ -40,7 +40,7 @@ SIZE = (192, 256)  # (w, h): model shu o'lchamda o'qitilgan
 HR_SIZE = (576, 768)
 
 # Poza nuqtalari (MediaPipe)
-L_EYE, R_EYE, L_HIP, R_HIP = 2, 5, 23, 24
+L_EYE, R_EYE, L_SHOULDER, R_SHOULDER, L_HIP, R_HIP = 2, 5, 11, 12, 23, 24
 
 
 def correlation(first, second, intStride: int = 1):
@@ -306,6 +306,26 @@ def prepare_analysis(
     inside[sy0:sy1, sx0:sx1] = 1
     soft = cv2.GaussianBlur(m * inside, (0, 0), max(1.5, w / 250))[..., None]
     return {"size": frame_size, "points": points, "box": box, "bg": background, "soft": soft}
+
+
+def body_measure(raw: np.ndarray, visibility: np.ndarray, frame_size: tuple[int, int], smooth: np.ndarray) -> dict:
+    """
+    O'lcham tavsiyasi uchun gavda nisbati: yelka kengligi / gavda uzunligi (yelka o'rtasidan son o'rtasigacha).
+    Kamera masofani bilmaydi, shuning uchun santimetr emas, faqat nisbat beriladi: santimetrga sayt xaridor bo'yi
+    bilan o'giradi. Yelka va sonlar aniq ko'rinmasa yoki odam yonboshlab tursa nisbat None.
+    Belgilar uchun silliqlangan yelka va son nuqtalari (0..1, kadrga nisbatan) ham qaytadi. Yuz va teri tahlil qilinmaydi.
+    """
+    w, h = frame_size
+    idx = [L_SHOULDER, R_SHOULDER, L_HIP, R_HIP]
+    pts = [[round(float(x) / w, 4), round(float(y) / h, 4)] for x, y in smooth[idx]]
+    ratio = None
+    if all(visibility[i] >= 0.6 for i in idx):
+        shoulders = float(np.linalg.norm(raw[L_SHOULDER] - raw[R_SHOULDER]))
+        torso = float(np.linalg.norm((raw[L_SHOULDER] + raw[R_SHOULDER]) / 2 - (raw[L_HIP] + raw[R_HIP]) / 2))
+        # Odatdagi qiymat 0.6-0.9; chegaradan tashqarisi yonboshlab turish yoki poza xatosi
+        if torso > 0 and 0.45 <= shoulders / torso <= 1.2:
+            ratio = round(shoulders / torso, 4)
+    return {"pts": pts, "r": ratio}
 
 
 def compose_frame(frame: Image.Image, analysis: dict, infer) -> np.ndarray:

@@ -4,11 +4,11 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PanelStats } from "@/lib/analytics";
 import { PERIODS, type Period } from "@/lib/panel-periods";
-import type { Reservation } from "@/lib/panel";
+import type { Reservation, SizeFitStats } from "@/lib/panel";
 import { queryChips } from "@/components/shopper/QueryChips";
 import { Badge, BarList, Card, CategoryBars, Empty, STATUS, StatTile, UNMET_TYPE, timeAgo } from "./parts";
 
-type Stats = PanelStats & { period: Period; reservations: Reservation[] };
+type Stats = PanelStats & { period: Period; reservations: Reservation[]; sizeFit: SizeFitStats };
 
 const POLL_MS = 2000;
 
@@ -19,6 +19,7 @@ const MODE_LABEL: Record<string, string> = {
   tushunilmadi: "tushunilmadi",
   rad: "mavzudan tashqari",
   namuna: "namuna",
+  oyna: "jonli oyna",
 };
 
 const pct = (part: number, all: number) => (all === 0 ? "0%" : `${Math.round((part / all) * 100)}%`);
@@ -83,6 +84,16 @@ export function Dashboard({ initial, phone }: { initial: Stats; phone: PhoneLink
     };
   }, [period, refresh]);
 
+  // Sotuvchi: xaridor kiyib ko'rgach haqiqatda to'g'ri kelgan o'lcham (o'lcham tavsiyasi aniqligi shundan)
+  async function markFitted(resultId: number, size: string | null) {
+    await fetch("/api/panel/fit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ resultId, size }),
+    });
+    await refresh(period);
+  }
+
   async function resetLog() {
     if (!confirm("Barcha so'rovlar logi (namunaviy tarix ham) o'chirilsinmi?")) return;
     await fetch("/api/panel/reset", { method: "POST" });
@@ -92,6 +103,7 @@ export function Dashboard({ initial, phone }: { initial: Stats; phone: PhoneLink
   const t = stats.totals;
   const unmetCount = t.qisman + t.qoniqtirilmadi;
   const fb = stats.feedback;
+  const sf = stats.sizeFit;
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6 px-4 py-6 sm:px-6">
@@ -231,19 +243,56 @@ export function Dashboard({ initial, phone }: { initial: Stats; phone: PhoneLink
         <div className="space-y-6">
         {stats.reservations.length > 0 && (
           <Card title="Sotuvchiga ko'rsatilgan" subtitle="Xaridor tanlagan tovar: kod bo'yicha toping va olib keling">
+            {sf.recommended > 0 && (
+              <div className="mb-3 rounded-xl bg-neutral-50 p-3 text-xs text-neutral-600">
+                {sf.n > 0 ? (
+                  <>
+                    <span className="font-medium text-neutral-900">O&apos;lcham tavsiyasi aniqligi (sinov):</span> aniq{" "}
+                    {sf.exact}/{sf.n} ({pct(sf.exact, sf.n)}), ±1 o&apos;lcham ichida {sf.within1}/{sf.n} ({pct(sf.within1, sf.n)})
+                  </>
+                ) : (
+                  <>Jonli oyna o&apos;lcham tavsiya qildi: xaridor kiyib ko&apos;rgach, pastda haqiqatda to&apos;g&apos;ri kelgan o&apos;lchamni belgilang. Aniqlik shu yerda hisoblanadi.</>
+                )}
+              </div>
+            )}
             <ul className="space-y-2">
               {stats.reservations.map((r) => (
-                <li key={r.id} className="flex items-center justify-between gap-3 rounded-xl border border-neutral-100 p-3 text-sm">
-                  <div>
-                    <div className="font-medium">{r.name}</div>
-                    <div className="text-xs text-neutral-500">
-                      {r.sku} · {timeAgo(r.at, now)}
+                <li key={r.id} className="space-y-2 rounded-xl border border-neutral-100 p-3 text-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="font-medium">{r.name}</div>
+                      <div className="text-xs text-neutral-500">
+                        {r.sku} · {timeAgo(r.at, now)}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-mono text-lg font-semibold">#{r.code}</div>
+                      <div className="text-xs text-neutral-600">o&apos;lcham {r.size}</div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="font-mono text-lg font-semibold">#{r.code}</div>
-                    <div className="text-xs text-neutral-600">o&apos;lcham {r.size}</div>
-                  </div>
+                  {(!r.inStock || r.recommended) && (
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                      {!r.inStock && <span className="rounded bg-amber-50 px-1.5 py-0.5 text-amber-800 ring-1 ring-amber-200">Buyurtma: omborda yo&apos;q</span>}
+                      {r.recommended && (
+                        <>
+                          <span className="text-neutral-500">SI tavsiyasi: {r.recommended}</span>
+                          <label className="flex items-center gap-1 text-neutral-500">
+                            to&apos;g&apos;ri kelgani:
+                            <select
+                              value={r.fitted ?? ""}
+                              onChange={(e) => void markFitted(r.id, e.target.value || null)}
+                              className={`rounded border px-1 py-0.5 ${r.fitted ? (r.fitted === r.recommended ? "border-green-300 bg-green-50 text-green-800" : "border-amber-300 bg-amber-50 text-amber-800") : "border-neutral-300"}`}
+                            >
+                              <option value="">—</option>
+                              {r.sizes.map((s) => (
+                                <option key={s} value={s}>{s}</option>
+                              ))}
+                            </select>
+                          </label>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>

@@ -132,7 +132,8 @@ export function computeStats(
     if (r.feedback === "mos-emas") feedback.mosEmas++;
     if (r.reserved) {
       feedback.reserved += r.reserved;
-      feedback.reservedRequests++;
+      // Omborda yo'q o'lchamga buyurtma (jonli oyna) "topilgan so'rovdan" foiziga kirmaydi
+      if (r.status !== "qoniqtirilmadi") feedback.reservedRequests++;
     }
 
     if (q.kategoriya) {

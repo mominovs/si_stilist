@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { computeStats, type PanelStats, type RequestRow } from "@/lib/analytics";
 import { withDefaults, type ParsedQuery } from "@/lib/query/schema";
+import { fitAccuracy } from "@/lib/sizing";
 import type { Period } from "@/lib/panel-periods";
 
 export { parsePeriod, type Period } from "@/lib/panel-periods";
@@ -14,11 +15,29 @@ function since(period: Period): Date | undefined {
 }
 
 /** Xaridor sotuvchiga ko'rsatgan tovar: sotuvchi panelda kod bo'yicha topadi */
-export type Reservation = { id: number; code: string; name: string; sku: string | null; size: string; at: string };
+export type Reservation = {
+  id: number;
+  code: string;
+  name: string;
+  sku: string | null;
+  size: string;
+  at: string;
+  /** false: o'lcham omborda yo'q, buyurtma (jonli oynadan) */
+  inStock: boolean;
+  /** Jonli oyna tavsiya qilgan o'lcham va sotuvchi belgilagan haqiqatda to'g'ri kelgani */
+  recommended: string | null;
+  fitted: string | null;
+  sizes: string[];
+};
 
-export async function loadPanelStats(period: Period): Promise<PanelStats & { period: Period; reservations: Reservation[] }> {
+/** Jonli oyna o'lcham tavsiyasi: nechtasi tavsiya bilan, nechtasi belgilangan va aniqligi (sinov) */
+export type SizeFitStats = { recommended: number; n: number; exact: number; within1: number };
+
+export async function loadPanelStats(
+  period: Period,
+): Promise<PanelStats & { period: Period; reservations: Reservation[]; sizeFit: SizeFitStats }> {
   const from = since(period);
-  const [rows, cats, reserved] = await Promise.all([
+  const [rows, cats, reserved, fits] = await Promise.all([
     prisma.request.findMany({
       where: from ? { createdAt: { gte: from } } : undefined,
       select: {
@@ -38,9 +57,13 @@ export async function loadPanelStats(period: Period): Promise<PanelStats & { per
     prisma.product.findMany({ distinct: ["category"], select: { category: true } }),
     prisma.requestResult.findMany({
       where: { reservedAt: from ? { gte: from } : { not: null } },
-      include: { product: { select: { name: true, sku: true } } },
+      include: { product: { select: { name: true, sku: true, variants: { select: { size: true, stock: true }, orderBy: { id: "asc" } } } } },
       orderBy: { reservedAt: "desc" },
       take: 8,
+    }),
+    prisma.requestResult.findMany({
+      where: { recommendedSize: { not: null }, ...(from ? { reservedAt: { gte: from } } : {}) },
+      select: { recommendedSize: true, fittedSize: true },
     }),
   ]);
   const stats = computeStats(
@@ -59,6 +82,13 @@ export async function loadPanelStats(period: Period): Promise<PanelStats & { per
     sku: r.product.sku,
     size: r.reservedSize ?? "",
     at: (r.reservedAt ?? new Date()).toISOString(),
+    inStock: r.product.variants.some((v) => v.size === r.reservedSize && v.stock > 0),
+    recommended: r.recommendedSize,
+    fitted: r.fittedSize,
+    sizes: r.product.variants.map((v) => v.size),
   }));
-  return { ...stats, period, reservations };
+  const accuracy = fitAccuracy(
+    fits.flatMap((f) => (f.recommendedSize && f.fittedSize ? [{ recommended: f.recommendedSize, fitted: f.fittedSize }] : [])),
+  );
+  return { ...stats, period, reservations, sizeFit: { recommended: fits.length, ...accuracy } };
 }
