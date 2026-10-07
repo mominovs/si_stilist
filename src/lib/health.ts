@@ -180,7 +180,7 @@ async function checkMirror(): Promise<Check> {
       device?: string;
       mirror_models?: string[];
     };
-    const trained = (h.mirror_models ?? []).filter((v) => v !== "old");
+    const trained = h.mirror_models ?? [];
     if (h.mirror === undefined) {
       return { ...base, status: "warn", detail: "Lokal server eski versiyada", hint: "git pull, tryon-local\\setup.bat, keyin start.bat" };
     }

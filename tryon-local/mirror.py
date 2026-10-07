@@ -293,13 +293,16 @@ class MirrorEngine:
         load_state(self.gen, weights["gen"])
         # Qo'shimcha o'qitilgan ko'rinish modellari (train_mirror.py): faqat o'sha ko'rinishda ishlatiladi
         self.nets = {"old": (self.warp, self.gen)}
-        for view in ("yon", "orqa"):
+        self.trained: list[str] = []  # train_mirror.py bilan o'qitilgan ko'rinishlar
+        # old_*.pt bo'lsa asl old modelining o'rnini bosadi
+        for view in ("old", "yon", "orqa"):
             wp, gp = models_dir / "dmvton" / f"{view}_warp.pt", models_dir / "dmvton" / f"{view}_gen.pt"
             if wp.exists() and gp.exists():
                 w, g = AFWM(3, True).to(device).eval(), Generator(7, 4).to(device).eval()
                 load_state(w, wp)
                 load_state(g, gp)
                 self.nets[view] = (w, g)
+                self.trained.append(view)
         self.garments: dict[str, dict[str, tuple]] = {}
 
     def _tensor(self, arr: np.ndarray, normalize: bool = True):
@@ -568,6 +571,7 @@ class MockMirror:
     def __init__(self) -> None:
         self.garments: dict[str, np.ndarray] = {}
         self.nets = {"old": None}
+        self.trained: list[str] = []
 
     def set_garment(self, garment_id: str, image: Image.Image, back: Image.Image | None = None) -> None:
         def prep(img: Image.Image) -> np.ndarray:

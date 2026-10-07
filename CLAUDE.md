@@ -296,3 +296,7 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
   3*shovqin+2) yoki Canny konturi, yopish (1.2%), tashqi kontur to'ldiriladi, eng kattasining 15% idan kichik bo'laklar
   (soya) tashlanadi. Avval "min < 235" edi: oq kiyim fon deb o'chib ketardi (o'qitishda ham, jonli oynada ham).
   `prep.bat` `dataset/kiyimlar_hisobot.jpg` da har kiyimni model ko'radigan ko'rinishda chiqaradi
+- `train_mirror.py --view old|orqa|yon|hammasi`: `garment_variants` jonli oynadagi kiyimni takrorlaydi (old: rasm;
+  orqa: orqa surati + naqshsiz aralash, tekshiruv birinchisida; yon: naqshsiz). Saqlangan `<view>_*.pt` dan davom
+  etadi (`--toza`), faqat tekshiruvda yaxshilansa saqlaydi; old tekshiruvsiz (3 odamdan kam) hech qachon saqlanmaydi.
+  `MirrorEngine` `old_*.pt` ni ham yuklaydi (asl o'rniga), `trained` ro'yxati `/health` `mirror_models` da

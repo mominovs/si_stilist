@@ -690,7 +690,7 @@ def health():
         "mirror": engine.mirror_status,
         "mirror_error": engine.mirror_error,
         # Qaysi ko'rinishlarning o'z modeli bor (train_mirror.py bilan o'qitilgan)
-        "mirror_models": sorted(getattr(engine.mirror, "nets", {}) or {}) if engine.mirror else [],
+        "mirror_models": list(getattr(engine.mirror, "trained", [])) if engine.mirror else [],
         "stream": True,
     }
 

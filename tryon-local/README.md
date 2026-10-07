@@ -85,10 +85,16 @@ Asl kod `cupy` talab qiladi, bu yerda u oddiy PyTorch bilan almashtirilgan (`mir
 - Jonli kamera faqat shu kompyuterda (localhost) yoki HTTPS orqali ochiladi: telefondan sinash uchun saytni
   `npm run dev:https` bilan ishga tushiring (batafsil: asosiy README, "Demo kuni").
 
-## Jonli oynani orqa/yon ko'rinish uchun o'qitish
+## Jonli oynani qo'shimcha o'qitish (old, orqa, yon)
 
-DM-VTON faqat old tomonda o'qitilgan. Orqa (yoki yon) ko'rinish uchun o'z rasmlaringiz bilan qo'shimcha o'qitsa
-bo'ladi. Natija alohida faylga yoziladi va faqat shu ko'rinishda ishlatiladi: old tomon modeli o'zgarmaydi.
+DM-VTON studiyadagi old tomon suratlarida o'qitilgan. Har ko'rinish (old, orqa, yon) uchun o'z rasmlaringiz bilan
+alohida o'qitsa bo'ladi: natija `models\dmvton\<ko'rinish>_*.pt` ga yoziladi va faqat shu ko'rinishda ishlatiladi
+(`old_*.pt` asl modelning o'rnini bosadi; o'chirsangiz asl model qaytadi). Saqlangan model bo'lsa o'qitish undan
+davom etadi va yangisi faqat tekshiruvda undan yaxshi bo'lsa saqlanadi (`--toza`: asl modeldan boshlash).
+
+Kiyim rasmlari jonli oynadagidek: old tomon `k01_old.png`; orqa tomon `k01_orqa.png` va naqshsiz variant aralash
+(do'konda orqa surati bo'lmasa oyna naqshsiz variantni ishlatadi); yon tomon doim naqshsiz variant (`k01_yon.png`
+kerak emas). Odam suratlari: `dataset/old/o01/...`, `dataset/yon/o01/...` (yon: 90° va 45° burilish).
 
 1. Rasmlar (masalan, rasm generatorida yaratilgan):
    ```
@@ -99,12 +105,12 @@ bo'ladi. Natija alohida faylga yoziladi va faqat shu ko'rinishda ishlatiladi: ol
    Bir odam papkasidagi rasmlarda poza, fon, shim va soch bir xil bo'lishi shart: faqat ustki kiyim o'zgaradi.
 2. `prep.bat`: rasmlarni bir-biriga tekislaydi, niqob va pozani topadi, har juftlikni baholaydi.
    Natija: `dataset\hisobot.txt` va `dataset\hisobot.jpg` (yashil: yaxshi, sariq: o'rtacha, qizil: yaroqsiz).
-3. `stop.bat` (GPU bo'shasin), keyin `train.bat --view orqa --steps 3000`. Har 200 qadamda `runs\orqa\` ga
+3. `stop.bat` (GPU bo'shasin), keyin `train.bat --view orqa --steps 3000` (yoki `--view hammasi`). Har 200 qadamda `runs\orqa\` ga
    namuna rasm (kirish | kiyim | natija | maqsad) yoziladi. Kamida 3 odam bo'lsa, oxirgisi tekshiruv uchun
    ajratiladi va model faqat tekshiruvda yaxshilansa saqlanadi: `models\dmvton\orqa_warp.pt`, `orqa_gen.pt`.
 4. `start.bat`: server yangi modelni o'zi topadi (`/health` da `mirror_models`). Yoqmasa, shu ikki faylni o'chiring.
 
-Parametrlar: `--view orqa|yon`, `--steps`, `--batch` (standart 4), `--lr` (2e-5), `--faqat-yaxshi`,
+Parametrlar: `--view old|orqa|yon|hammasi`, `--toza`, `--steps`, `--batch` (standart 4), `--lr` (2e-5), `--faqat-yaxshi`,
 `--val o03` (tekshiruv odami), `--no-vgg`.
 
 ## Sozlamalar
