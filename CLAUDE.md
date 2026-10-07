@@ -292,3 +292,7 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
   comp, oqim silliqligi. 3+ odam bo'lsa oxirgisi tekshiruv, faqat yaxshilansa `models/dmvton/<view>_{warp,gen}.pt`.
   `MirrorEngine.nets`: ko'rinish modeli bo'lsa shu ko'rinishda, aks holda old modeli; `/health` `mirror_models`
 - Bu muhitda faqat CPU va tasodifiy og'irliklar bilan sinalgan (zanjir ishlaydi), haqiqiy o'qitish foydalanuvchi GPU'sida
+- `mirror.garment_mask`: katalog rasmidan kiyim niqobi (oq kiyim oq fonda ham): fon = chet mediani, farq > max(4,
+  3*shovqin+2) yoki Canny konturi, yopish (1.2%), tashqi kontur to'ldiriladi, eng kattasining 15% idan kichik bo'laklar
+  (soya) tashlanadi. Avval "min < 235" edi: oq kiyim fon deb o'chib ketardi (o'qitishda ham, jonli oynada ham).
+  `prep.bat` `dataset/kiyimlar_hisobot.jpg` da har kiyimni model ko'radigan ko'rinishda chiqaradi

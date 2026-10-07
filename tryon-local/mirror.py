@@ -169,20 +169,42 @@ def load_state(model, path: Path) -> None:
     model.load_state_dict({k: pretrained[k] for k in state})
 
 
+def garment_mask(rgb: np.ndarray) -> np.ndarray:
+    """
+    Kiyim niqobi (0/1) oddiy fondagi katalog rasmidan. Oq kiyim oq fonda ham ishlashi kerak: fon rangi rasm
+    chetidan olinadi (sof oq bo'lmasligi mumkin), undan sezilarli farq qilgan joy va kiyim konturi (Canny) birga
+    olinadi, yopiladi, tashqi kontur ichi to'ldiriladi (oq naqsh, tugmalar ham kiyim). Kiyimdan ajralgan mayda
+    bo'laklar (pastdagi soya, dog') tashlanadi.
+    """
+    h, w = rgb.shape[:2]
+    border = np.concatenate([rgb[:4].reshape(-1, 3), rgb[-4:].reshape(-1, 3), rgb[:, :4].reshape(-1, 3), rgb[:, -4:].reshape(-1, 3)])
+    bg = np.median(border, axis=0)
+    diff = np.abs(rgb.astype(np.int16) - bg.astype(np.int16)).max(axis=2)
+    # Chegara fon shovqiniga qarab (JPEG, studiya fonining notekisligi): toza fonda 4 gacha tushadi
+    noise = float(np.abs(border.astype(np.int16) - bg.astype(np.int16)).max(axis=1).std())
+    gray = cv2.GaussianBlur(cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY), (5, 5), 0)
+    edges = cv2.Canny(gray, 10, 30)
+    fg = ((diff > max(4.0, 3 * noise + 2)) | (edges > 0)).astype(np.uint8)
+    k = max(7, int(0.012 * max(h, w))) | 1
+    fg = cv2.morphologyEx(fg, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k)))
+    contours, _ = cv2.findContours(fg, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    contours = [c for c in contours if cv2.contourArea(c) > 0.002 * h * w]
+    if not contours:
+        raise ValueError("Kiyim rasmida kiyim topilmadi")
+    largest = max(cv2.contourArea(c) for c in contours)
+    mask = np.zeros((h, w), np.uint8)
+    cv2.drawContours(mask, [c for c in contours if cv2.contourArea(c) >= 0.15 * largest], -1, 1, thickness=-1)
+    # Yopish chegarani biroz kengaytiradi: niqob haqiqiy chetga qaytariladi
+    return cv2.erode(mask, np.ones((3, 3), np.uint8))
+
+
 def garment_inputs(image: Image.Image, size: tuple[int, int] = SIZE) -> tuple[np.ndarray, np.ndarray]:
     """
     Oq fondagi kiyim rasmi -> (kiyim HxWx3 uint8, kontur HxW 0/1), standart 256x192. Kiyim kesib olinib, 3:4 nisbatda
     ozgina zaxira bilan markazlashtiriladi (VITON'dagi kiyim rasmlari kadrni deyarli to'liq egallaydi).
     """
     rgb = np.asarray(image.convert("RGB"))
-    fg = (rgb.min(axis=2) < 235).astype(np.uint8)
-    fg = cv2.morphologyEx(fg, cv2.MORPH_CLOSE, np.ones((7, 7), np.uint8))
-    # Ichki teshiklar (oq naqsh, tugmalar) ham kiyim: tashqi kontur to'liq bo'yaladi
-    contours, _ = cv2.findContours(fg, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    if not contours:
-        raise ValueError("Kiyim rasmida kiyim topilmadi")
-    mask = np.zeros_like(fg)
-    cv2.drawContours(mask, contours, -1, 1, thickness=-1)
+    mask = garment_mask(rgb)
     ys, xs = np.nonzero(mask)
     x0, x1, y0, y1 = xs.min(), xs.max() + 1, ys.min(), ys.max() + 1
     bw, bh = x1 - x0, y1 - y0
@@ -233,14 +255,8 @@ def plain_garment(image: Image.Image) -> Image.Image:
     soyalar qoladi, oldidagi yozuv, naqsh va tugmalar xiralashib yo'qoladi, bo'yin o'yig'i qisman yopiladi
     (orqa yoqa odatda balandroq). Taxminiy: ikki rangli kiyimda ranglar aralashib ketadi.
     """
+    mask = garment_mask(np.asarray(image.convert("RGB")))
     rgb = np.asarray(image.convert("RGB")).astype(np.float32)
-    fg = (rgb.min(axis=2) < 235).astype(np.uint8)
-    fg = cv2.morphologyEx(fg, cv2.MORPH_CLOSE, np.ones((7, 7), np.uint8))
-    contours, _ = cv2.findContours(fg, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    if not contours:
-        raise ValueError("Kiyim rasmida kiyim topilmadi")
-    mask = np.zeros_like(fg)
-    cv2.drawContours(mask, contours, -1, 1, thickness=-1)
     ys, xs = np.nonzero(mask)
     gw, top, bottom = int(xs.max() - xs.min()), int(ys.min()), int(ys.max())
     # Bo'yin o'yig'i: faqat yuqori chorakda katta yopish (qo'ltiq burchaklari o'zgarmaydi)

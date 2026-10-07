@@ -79,6 +79,34 @@ def grade(diff: float, pose: float) -> str:
 COLORS = {"yaxshi": (34, 197, 94), "orta": (245, 158, 11), "yaroqsiz": (239, 68, 68)}
 
 
+def check_garments(garments_dir: Path, out: Path) -> None:
+    """
+    Kiyim rasmlari model ko'radigan ko'rinishda (niqob ichi, tashqarisi kulrang): oq kiyim oq fonda kesilmay
+    qolganini o'qitishdan oldin ko'rish uchun. Niqob o'z chegara to'rtburchagining 45% idan kam bo'lsa ogohlantiradi.
+    """
+    from mirror import garment_inputs
+
+    tiles = []
+    for f in sorted(x for x in garments_dir.iterdir() if x.suffix.lower() in IMAGE_EXT):
+        try:
+            cloth, edge = garment_inputs(Image.open(f).convert("RGB"), (192, 256))
+        except ValueError:
+            print(f"  DIQQAT: {f.name}: kiyim topilmadi")
+            continue
+        ys, xs = np.nonzero(edge)
+        fill = float(edge.sum()) / max(1, (np.ptp(xs) + 1) * (np.ptp(ys) + 1))
+        bad = fill < 0.45
+        if bad:
+            print(f"  DIQQAT: {f.name}: kiyim niqobi shubhali (to'ldirilish {fill:.0%}), kiyimlar_hisobot.jpg ni ko'ring")
+        tile = np.where(edge[..., None] > 0, cloth, 128).astype(np.uint8)
+        tile = cv2.copyMakeBorder(tile, 4, 22, 4, 4, cv2.BORDER_CONSTANT, value=COLORS["yaroqsiz" if bad else "yaxshi"])
+        cv2.putText(tile, f.stem, (6, tile.shape[0] - 7), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 1, cv2.LINE_AA)
+        tiles.append(tile)
+    if tiles:
+        rows = [np.hstack(tiles[i:i + 8] + [np.full_like(tiles[0], 255)] * (8 - len(tiles[i:i + 8]))) for i in range(0, len(tiles), 8)]
+        Image.fromarray(np.vstack(rows)).save(out, quality=90)
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description="Jonli oyna o'qitish to'plamini tekshirish va tayyorlash")
     p.add_argument("--dataset", default=str(ROOT / "dataset"))
@@ -90,6 +118,7 @@ def main() -> int:
         return 1
     garments = sorted({f.stem.rsplit("_", 1)[0] for f in garments_dir.iterdir() if f.suffix.lower() in IMAGE_EXT and "_" in f.stem})
     print(f"Kiyimlar: {len(garments)} ta ({', '.join(garments)})")
+    check_garments(garments_dir, ds / "kiyimlar_hisobot.jpg")
 
     from masker import ClothMasker, PhotoError
 
