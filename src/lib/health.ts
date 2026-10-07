@@ -173,7 +173,14 @@ async function checkMirror(): Promise<Check> {
   const base = { id: "mirror", title: "Jonli oyna (DM-VTON)" };
   try {
     const res = await withTimeout(fetch(`${config.tryOn.localUrl}/health`, { cache: "no-store" }), 3000);
-    const h = (await res.json()) as { mirror?: string; mirror_error?: string | null; version?: number; device?: string };
+    const h = (await res.json()) as {
+      mirror?: string;
+      mirror_error?: string | null;
+      version?: number;
+      device?: string;
+      mirror_models?: string[];
+    };
+    const trained = (h.mirror_models ?? []).filter((v) => v !== "old");
     if (h.mirror === undefined) {
       return { ...base, status: "warn", detail: "Lokal server eski versiyada", hint: "git pull, tryon-local\\setup.bat, keyin start.bat" };
     }
@@ -183,7 +190,11 @@ async function checkMirror(): Promise<Check> {
     if (h.mirror === "ready") {
       return h.device === "mock"
         ? { ...base, status: "warn", detail: "Sinov (mock) rejimi: model o'rniga kiyim rasmi qo'yiladi", hint: "start.bat ni --mock siz" }
-        : { ...base, status: "ok", detail: "Tayyor: /oyna sahifasi" };
+        : {
+            ...base,
+            status: "ok",
+            detail: `Tayyor: /oyna sahifasi${trained.length ? `. O'qitilgan modellar: ${trained.join(", ")} tomon` : ""}`,
+          };
     }
     if (h.mirror === "off") {
       return { ...base, status: "warn", detail: "O'chirilgan (--no-mirror)", hint: "start.bat ni --no-mirror siz ishga tushiring" };

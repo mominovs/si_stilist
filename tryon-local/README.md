@@ -85,6 +85,28 @@ Asl kod `cupy` talab qiladi, bu yerda u oddiy PyTorch bilan almashtirilgan (`mir
 - Jonli kamera faqat shu kompyuterda (localhost) yoki HTTPS orqali ochiladi: telefondan sinash uchun saytni
   `npm run dev:https` bilan ishga tushiring (batafsil: asosiy README, "Demo kuni").
 
+## Jonli oynani orqa/yon ko'rinish uchun o'qitish
+
+DM-VTON faqat old tomonda o'qitilgan. Orqa (yoki yon) ko'rinish uchun o'z rasmlaringiz bilan qo'shimcha o'qitsa
+bo'ladi. Natija alohida faylga yoziladi va faqat shu ko'rinishda ishlatiladi: old tomon modeli o'zgarmaydi.
+
+1. Rasmlar (masalan, rasm generatorida yaratilgan):
+   ```
+   dataset/kiyimlar/k01_old.png, k01_orqa.png        oq fonda kiyim, old va orqa
+   dataset/orqa/o01/asosiy.jpg                       odam orqasi bilan, istalgan kiyimda (faqat kirish)
+   dataset/orqa/o01/k01.jpg, k02.jpg, ...            o'sha surat, faqat ustki kiyim almashtirilgan
+   ```
+   Bir odam papkasidagi rasmlarda poza, fon, shim va soch bir xil bo'lishi shart: faqat ustki kiyim o'zgaradi.
+2. `prep.bat`: rasmlarni bir-biriga tekislaydi, niqob va pozani topadi, har juftlikni baholaydi.
+   Natija: `dataset\hisobot.txt` va `dataset\hisobot.jpg` (yashil: yaxshi, sariq: o'rtacha, qizil: yaroqsiz).
+3. `stop.bat` (GPU bo'shasin), keyin `train.bat --view orqa --steps 3000`. Har 200 qadamda `runs\orqa\` ga
+   namuna rasm (kirish | kiyim | natija | maqsad) yoziladi. Kamida 3 odam bo'lsa, oxirgisi tekshiruv uchun
+   ajratiladi va model faqat tekshiruvda yaxshilansa saqlanadi: `models\dmvton\orqa_warp.pt`, `orqa_gen.pt`.
+4. `start.bat`: server yangi modelni o'zi topadi (`/health` da `mirror_models`). Yoqmasa, shu ikki faylni o'chiring.
+
+Parametrlar: `--view orqa|yon`, `--steps`, `--batch` (standart 4), `--lr` (2e-5), `--faqat-yaxshi`,
+`--val o03` (tekshiruv odami), `--no-vgg`.
+
 ## Sozlamalar
 
 | Parametr | Standart | Izoh |

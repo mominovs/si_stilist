@@ -279,3 +279,16 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
   ko'tarilsa maslahat; o'lcham belgilari va kamera o'lchovi faqat old tomonda
 - Cheklov: DM-VTON faqat old tomonda o'qitilgan (VITON). Yon/orqa natija taxminiy, haqiqiy 360 uchun ko'p
   ko'rinishli ma'lumot bilan qayta o'qitish yoki 3D kerak
+
+## Texnik eslatmalar (oynani qo'shimcha o'qitish)
+- Ma'lumot foydalanuvchi kompyuterida (`tryon-local/dataset/`, gitignore): `kiyimlar/<k>_old|orqa|yon.png`,
+  `<ko'rinish>/<odam>/<k>.jpg` (bir poza, faqat ustki kiyim o'zgargan; kiyim nomiga mos kelmagan rasm = asosiy, faqat
+  kirish). Rasm generatori (ChatGPT) bilan yaratiladi; bitta asosiy suratdan N tahrir -> N*(N-1) juftlik
+- `dataset_prep.py` (`prep.bat`): ECC affin tekislash (kiyimdan tashqari joylar bo'yicha), masker bilan niqob/fon/poza,
+  juftlik bahosi: kiyimdan tashqari farq (yaxshi <= 10, o'rtacha <= 18) va poza siljishi / yelka (0.08 / 0.15).
+  Natija `dataset/_tayyor/` (rasm, `_kiyim.png`, `_fon.png`, `.json`), `pairs.json`, `hisobot.txt/jpg`
+- `train_mirror.py` (`train.bat --view orqa`): KiseKloset AFWM + generator, hozirgi og'irliklardan boshlanadi;
+  kirish/maqsad jonli oynadek kesiladi (192x256, oq fon). Yo'qotish: L1 + 0.2 VGG (natija va egilgan kiyim), qirra,
+  comp, oqim silliqligi. 3+ odam bo'lsa oxirgisi tekshiruv, faqat yaxshilansa `models/dmvton/<view>_{warp,gen}.pt`.
+  `MirrorEngine.nets`: ko'rinish modeli bo'lsa shu ko'rinishda, aks holda old modeli; `/health` `mirror_models`
+- Bu muhitda faqat CPU va tasodifiy og'irliklar bilan sinalgan (zanjir ishlaydi), haqiqiy o'qitish foydalanuvchi GPU'sida

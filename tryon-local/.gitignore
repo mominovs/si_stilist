@@ -3,3 +3,5 @@ CatVTON/
 __pycache__/
 models/
 KiseKloset/
+dataset/
+runs/

@@ -275,6 +275,15 @@ class MirrorEngine:
         self.gen = Generator(7, 4).to(device).eval()
         load_state(self.warp, weights["warp"])
         load_state(self.gen, weights["gen"])
+        # Qo'shimcha o'qitilgan ko'rinish modellari (train_mirror.py): faqat o'sha ko'rinishda ishlatiladi
+        self.nets = {"old": (self.warp, self.gen)}
+        for view in ("yon", "orqa"):
+            wp, gp = models_dir / "dmvton" / f"{view}_warp.pt", models_dir / "dmvton" / f"{view}_gen.pt"
+            if wp.exists() and gp.exists():
+                w, g = AFWM(3, True).to(device).eval(), Generator(7, 4).to(device).eval()
+                load_state(w, wp)
+                load_state(g, gp)
+                self.nets[view] = (w, g)
         self.garments: dict[str, dict[str, tuple]] = {}
 
     def _tensor(self, arr: np.ndarray, normalize: bool = True):
@@ -314,12 +323,13 @@ class MirrorEngine:
         import torch.nn.functional as F
 
         clothes, edge, clothes_hr = self.garments[garment_id][view]
+        warp, gen = self.nets.get(view, self.nets["old"])
         with self.torch.no_grad():
             img = self._tensor(person)
-            warped_cloth, last_flow = self.warp(img, clothes)
+            warped_cloth, last_flow = warp(img, clothes)
             warped_edge = F.grid_sample(edge, last_flow.permute(0, 2, 3, 1), mode="bilinear",
                                         padding_mode="zeros", align_corners=True)
-            out = self.gen(self.torch.cat([img, warped_cloth, warped_edge], 1))
+            out = gen(self.torch.cat([img, warped_cloth, warped_edge], 1))
             rendered, comp = self.torch.split(out, [3, 1], 1)
             rendered = self.torch.tanh(rendered)
             comp = self.torch.sigmoid(comp) * warped_edge
@@ -541,6 +551,7 @@ class MockMirror:
 
     def __init__(self) -> None:
         self.garments: dict[str, np.ndarray] = {}
+        self.nets = {"old": None}
 
     def set_garment(self, garment_id: str, image: Image.Image, back: Image.Image | None = None) -> None:
         def prep(img: Image.Image) -> np.ndarray:
