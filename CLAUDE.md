@@ -264,3 +264,18 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
 - Panel: "Sotuvchiga ko'rsatilgan" da SI tavsiyasi va sotuvchi belgilaydigan "to'g'ri kelgani" (`POST /api/panel/fit`,
   `fittedSize`), aniqlik: aniq va ±1 o'lcham. Migratsiya `20261007120000_size_fit`; `npm run dev` lokal bazada
   yangi migratsiyalarni o'zi qo'llaydi (`scripts/ensure-db.mjs`)
+
+## Texnik eslatmalar (oyna: aylanish va pozalar)
+- `mirror.py body_view`: old/yon/orqa (orqa: yelkadan yuqorida yuz terisi < 12% (soch bor) yoki |yaw| > 125;
+  yon: 55 <= |yaw| <= 125 (yelkalar z farqidan) yoki yelka/gavda < 0.3), `arms_up` (bilak yelkadan yuqori).
+  Server ko'rinishni 3 ta ketma-ket tahlil mos kelsa almashtiradi, burilganda poza EMA o'chadi. `/health` version 7
+- Kiyim uch variantda (`MirrorEngine.set_garment(id, image, back)`): old = rasm, yon = `plain_garment` (naqshsiz,
+  keng xiralash, bo'yin o'yig'i qisman yopiq), orqa = do'kon surati (`public/products/<sku>-orqa.*`,
+  `garmentBackUrl`) yoki tekis variant. `/mirror/garment {id, image, back?}`
+- `compose_frame(frame, analysis, infer, state)`: `track_analysis` (DIS optik oqim 160 px, ~3 ms: niqob, fon va
+  kesim joriy kadrga suriladi), `shading_map` (eski kiyim yorug'ligi, sigma 0.12*yelka, 0.75..1.2, kuch 0.7),
+  turg'unlikda natija oldingisi bilan aralashadi (harakat < 0.5 px: 50%, > 2 px: 0%)
+- Sayt: `X-Mirror-Body` da `view`, `arms_up`; `MirrorView` burchakda "Old/Yon/Orqa tomon" belgisi, qo'llar
+  ko'tarilsa maslahat; o'lcham belgilari va kamera o'lchovi faqat old tomonda
+- Cheklov: DM-VTON faqat old tomonda o'qitilgan (VITON). Yon/orqa natija taxminiy, haqiqiy 360 uchun ko'p
+  ko'rinishli ma'lumot bilan qayta o'qitish yoki 3D kerak

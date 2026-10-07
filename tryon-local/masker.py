@@ -70,6 +70,10 @@ class ClothMasker:
         self.last_landmarks: np.ndarray | None = None
         # Har nuqtaning ishonchi (kadrdan tashqaridagilari 0): jonli oyna o'lchovi faqat aniq ko'ringan nuqtalardan
         self.last_visibility: np.ndarray | None = None
+        # Jonli oyna: nuqtalar chuqurligi (z, x bilan bir xil masshtabda) va sinf xaritasi: odam qaysi tomoni bilan
+        # turganini (old, yon, orqa) aniqlash uchun
+        self.last_z: np.ndarray | None = None
+        self.last_seg: np.ndarray | None = None
         self.pose = vision.PoseLandmarker.create_from_options(
             vision.PoseLandmarkerOptions(
                 base_options=BaseOptions(model_asset_path=str(paths["pose_landmarker_full.task"])),
@@ -111,6 +115,8 @@ class ClothMasker:
         lm = poses[0]
         # Oxirgi poza nuqtalari (piksel): jonli oyna yuqori gavda kesimini shundan oladi
         self.last_landmarks = np.array([[p.x * w, p.y * h] for p in lm], dtype=np.float32)
+        self.last_z = np.array([p.z for p in lm], dtype=np.float32)
+        self.last_seg = seg
         self.last_visibility = np.array(
             [getattr(p, "visibility", 1.0) if 0 <= p.x <= 1 and 0 <= p.y <= 1 else 0.0 for p in lm], dtype=np.float32
         )

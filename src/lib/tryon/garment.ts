@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 
@@ -17,6 +17,26 @@ async function readSource(imageUrl: string): Promise<Buffer> {
   const file = path.normalize(path.join(PUBLIC_DIR, decodeURIComponent(imageUrl)));
   if (!file.startsWith(PUBLIC_DIR + path.sep)) throw new Error("Rasm manzili noto'g'ri");
   return readFile(file);
+}
+
+const BACK_EXTENSIONS = ["jpg", "jpeg", "png", "webp"];
+
+/**
+ * Kiyimning orqa surati (ixtiyoriy): public/products/<sku>-orqa.jpg (.png, .webp). Jonli oyna odam orqasini
+ * o'girganda shuni ko'rsatadi; bo'lmasa naqshsiz "tekis" variant (lokal serverda yasaladi).
+ */
+export async function garmentBackUrl(sku: string | null): Promise<string | null> {
+  if (!sku || !/^[\w-]+$/.test(sku)) return null;
+  for (const ext of BACK_EXTENSIONS) {
+    const name = `${sku.toLowerCase()}-orqa.${ext}`;
+    try {
+      await access(path.join(PUBLIC_DIR, "products", name));
+      return `/products/${name}`;
+    } catch {
+      // keyingi kengaytma
+    }
+  }
+  return null;
 }
 
 export async function garmentPng(imageUrl: string): Promise<Buffer> {

@@ -196,6 +196,11 @@ class Engine:
         self.mirror_lock = threading.Lock()
         self.mirror_cache: dict | None = None
         self.mirror_busy = False
+        # Ko'rinish (old/yon/orqa) oxirgi 3 tahlilda bir xil bo'lsagina almashadi: chegarada kiyim sakramaydi
+        self.mirror_views: list[str] = []
+        self.mirror_view = "old"
+        # Kadrlar orasidagi holat (turg'un turganda natijani silliqlash)
+        self.mirror_state: dict = {}
         self._torch = None
         self._prepare_image = None
         self._prepare_mask_image = None
@@ -235,20 +240,37 @@ class Engine:
     def _mirror_analyze(self, frame: Image.Image, background_job: bool = False) -> dict:
         """Kiyim niqobi va poza (MediaPipe, CPU). Fonda ishlasa xatoni yutadi, keyingi kadr qayta urinadi"""
         from masker import PhotoError as MaskerPhotoError
-        from mirror import body_measure, prepare_analysis
+        import numpy as np
+        from mirror import body_measure, body_view, prepare_analysis
 
         try:
             with self.mask_lock:
                 mask, _, background, _ = self.masker.analyze(frame, "tops")
                 points = self.masker.last_landmarks.copy()
                 visibility = self.masker.last_visibility.copy()
-            cache = prepare_analysis(frame.size, mask, background, points, prev=self.mirror_cache)
+                z = self.masker.last_z.copy()
+                seg = self.masker.last_seg
+            pose = body_view(points, z, visibility, seg, frame.size)
+            self.mirror_views = (self.mirror_views + [pose["view"]])[-3:]
+            if len(self.mirror_views) == 3 and len(set(self.mirror_views)) == 1:
+                self.mirror_view = self.mirror_views[0]
+            view = self.mirror_view
+            # Burilganda poza o'rtachalanmaydi (kesim yangi holatga darhol o'tadi)
+            prev = self.mirror_cache if self.mirror_cache and self.mirror_cache.get("view") == view else None
+            cache = prepare_analysis(frame.size, mask, background, points, prev=prev, frame=np.asarray(frame))
             cache["t"] = time.time()
-            cache["body"] = {**body_measure(points, visibility, frame.size, cache["points"]), "t": round(cache["t"], 3)}
+            cache["view"] = view
+            cache["body"] = {
+                **body_measure(points, visibility, frame.size, cache["points"], view),
+                "t": round(cache["t"], 3),
+                "view": view,
+                "arms_up": pose["arms_up"],
+            }
             self.mirror_cache = cache
             return cache
         except MaskerPhotoError as e:
             self.mirror_cache = None
+            self.mirror_views, self.mirror_view = [], "old"
             if background_job:
                 return {}
             raise HTTPException(422, str(e)) from e
@@ -287,7 +309,13 @@ class Engine:
 
         t0 = time.time()
         with self.mirror_lock:
-            result = compose_frame(frame, cache, lambda person, size: self.mirror.run(person, garment_id, size))
+            view = cache.get("view", "old")
+            result = compose_frame(
+                frame,
+                {**cache, "garment": garment_id},
+                lambda person, size: self.mirror.run(person, garment_id, size, view),
+                self.mirror_state,
+            )
         ok, jpg = cv2.imencode(".jpg", cv2.cvtColor(result, cv2.COLOR_RGB2BGR), [cv2.IMWRITE_JPEG_QUALITY, 85])
         if not ok:
             raise HTTPException(500, "Kadrni kodlab bo'lmadi")
@@ -657,7 +685,7 @@ def health():
         "preset": args.preset,
         "mode": args.mode,
         # Server imkoniyatlari: ilova eski serverni aniqlashi uchun
-        "version": 6,
+        "version": 7,
         # Jonli oyna (DM-VTON): off | ready | error
         "mirror": engine.mirror_status,
         "mirror_error": engine.mirror_error,
@@ -747,6 +775,8 @@ def tryon_stream(req: TryOnRequest):
 class GarmentRequest(BaseModel):
     id: str
     image: str
+    # Ixtiyoriy: kiyimning orqa surati (bo'lmasa orqa ko'rinish naqshsiz "tekis" variantdan)
+    back: str | None = None
 
 
 @app.post("/mirror/garment")
@@ -755,7 +785,7 @@ def mirror_garment(req: GarmentRequest):
     if engine.mirror_status != "ready":
         raise HTTPException(503, f"Jonli oyna ishlamayapti: {engine.mirror_error or 'yuklanmagan'}")
     try:
-        engine.mirror.set_garment(req.id[:64], decode_image(req.image))
+        engine.mirror.set_garment(req.id[:64], decode_image(req.image), decode_image(req.back) if req.back else None)
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
     return {"ok": True}

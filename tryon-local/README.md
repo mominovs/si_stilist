@@ -71,6 +71,11 @@ Asl kod `cupy` talab qiladi, bu yerda u oddiy PyTorch bilan almashtirilgan (`mir
   kadrga qo'yiladi (yuz va fon o'zgarmaydi). Niqob (MediaPipe) fonda yangilanadi, kadr uni kutmaydi.
 - Seans 60 soniya, keyin kamera o'chadi. "Sifatli surat" tugmasi joriy kadrni CatVTON bilan (~35 s) qayta chizadi.
 - Jonli ko'rinish taxminiy: model old tomondan turgan odam va ustki kiyimda o'qitilgan. Belgacha, qo'llar yonda turing.
+- Aylanish: server odam qaysi tomoni bilan turganini aniqlaydi (poza chuqurligi va yuz/soch). Yon va orqa
+  tomonda kiyimning naqshsiz "tekis" varianti ishlatiladi (old tomondagi yozuv orqada chiqmasin). Do'konda orqa
+  surati bo'lsa, `public/products/<sku>-orqa.jpg` (.png, .webp) qilib qo'ying: orqa tomonda o'sha ko'rinadi.
+- Harakatda niqob optik oqim bilan tanaga ergashadi (kiyim orqada qolmaydi), turg'un turganda kadrlar silliqlanadi,
+  xonadagi keng yorug'lik va soya yangi kiyimga o'tkaziladi. Qo'llar ko'tarilsa ekranda maslahat chiqadi.
 - Oyna yuklanmasa (`/health` da `mirror: error`), rasm orqali kiyintirish ishlayveradi. O'chirish: `start.bat --no-mirror`.
 - Google Drive ba'zan avtomatik yuklashni rad etadi ("Cannot retrieve the public link", kunlik limit). Unda
   `setup.bat` ikkinchi manbani sinaydi, bo'lmasa qo'lda: brauzerda

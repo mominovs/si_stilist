@@ -24,15 +24,19 @@ const FULL_SIDE = 1536;
 const MAX_SAMPLES = 40;
 const MIN_SAMPLES = 8;
 
-/** Server o'lchovi (X-Mirror-Body): yelka va son nuqtalari (0..1) va yelka/gavda nisbati */
-type BodyInfo = { pts: [number, number][]; r: number | null; t: number };
+/** Server o'lchovi (X-Mirror-Body): yelka va son nuqtalari (0..1), yelka/gavda nisbati, qaysi tomon va qo'llar */
+type View = "old" | "yon" | "orqa";
+type BodyInfo = { pts: [number, number][]; r: number | null; t: number; view: View; armsUp: boolean };
+
+const VIEW_LABEL: Record<View, string> = { old: "Old tomon", yon: "Yon tomon · taxminiy", orqa: "Orqa tomon · taxminiy" };
 
 function parseBody(raw: string | null): BodyInfo | null {
   if (!raw) return null;
   try {
     const b = JSON.parse(raw);
     if (!Array.isArray(b.pts) || b.pts.length !== 4) return null;
-    return { pts: b.pts, r: typeof b.r === "number" ? b.r : null, t: Number(b.t) || 0 };
+    const view: View = b.view === "yon" || b.view === "orqa" ? b.view : "old";
+    return { pts: b.pts, r: typeof b.r === "number" ? b.r : null, t: Number(b.t) || 0, view, armsUp: b.arms_up === true };
   } catch {
     return null;
   }
@@ -164,6 +168,8 @@ export function MirrorView({
   const [samples, setSamples] = useState(0);
   // Kadrlar kelyapti, lekin nisbat yo'q (beli ko'rinmaydi yoki yonboshlab turibdi): xaridorga aytiladi
   const [cameraBlocked, setCameraBlocked] = useState(false);
+  // Odam qaysi tomoni bilan turibdi (server aniqlaydi) va qo'llar ko'tarilganmi
+  const [pose, setPose] = useState<{ view: View; armsUp: boolean }>({ view: "old", armsUp: false });
   const [sizeChoice, setSizeChoice] = useState<Record<number, string>>({});
   const [order, setOrder] = useState<ReserveResponse | null>(null);
   const [ordering, setOrdering] = useState(false);
@@ -255,7 +261,11 @@ export function MirrorView({
               }
               out.getContext("2d")!.drawImage(bmp, 0, 0);
               const body = parseBody(res.headers.get("x-mirror-body"));
-              bodyPts.current = body?.pts ?? null;
+              // O'lcham belgilari faqat old tomondan to'g'ri (yon va orqada yelka kengligi boshqacha ko'rinadi)
+              bodyPts.current = body && body.view === "old" ? body.pts : null;
+              if (body) {
+                setPose((p) => (p.view === body.view && p.armsUp === body.armsUp ? p : { view: body.view, armsUp: body.armsUp }));
+              }
               if (body?.r && body.t !== lastBodyT.current) {
                 // Har niqob yangilanishida bitta o'lchov (bir xil o'lchov qayta-qayta qo'shilmaydi)
                 lastBodyT.current = body.t;
@@ -414,6 +424,10 @@ export function MirrorView({
                 <li>• Seans {SESSION_SECONDS} soniya, keyin kamera o&apos;zi o&apos;chadi.</li>
                 <li>• Belgacha ko&apos;rining, qo&apos;llaringiz yonda bo&apos;lsin. Jonli ko&apos;rinish taxminiy.</li>
                 <li>
+                  • Sekin aylanib ko&apos;ring: yon va orqa tomon ham ko&apos;rinadi (taxminiy, kiyimning orqa surati bo&apos;lsa
+                  o&apos;sha ishlatiladi).
+                </li>
+                <li>
                   • O&apos;lchamni bilish uchun yelka va gavda nisbati o&apos;lchanadi (yuz va teri tahlil qilinmaydi). Bo&apos;y va
                   vazningizni o&apos;ngda kiritsangiz, aniqroq bo&apos;ladi.
                 </li>
@@ -435,6 +449,18 @@ export function MirrorView({
                   </span>
                 )}
               </div>
+              {hasFrame && (
+                <div
+                  className={`absolute right-3 top-3 rounded-full px-3 py-1 text-xs ${pose.view === "old" ? "bg-black/60 text-white" : "bg-amber-400/90 text-amber-950"}`}
+                >
+                  {VIEW_LABEL[pose.view]}
+                </div>
+              )}
+              {!hint && hasFrame && pose.armsUp && (
+                <div className="absolute inset-x-4 bottom-4 rounded-xl bg-black/60 px-4 py-2 text-center text-sm text-white">
+                  Qo&apos;llaringizni pastroq tushiring: kiyim aniqroq chiqadi
+                </div>
+              )}
               {hint && (
                 <div className="absolute inset-x-4 bottom-4 rounded-xl bg-amber-50/95 px-4 py-3 text-center text-sm text-amber-900">{hint}</div>
               )}

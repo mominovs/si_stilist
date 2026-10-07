@@ -1,5 +1,5 @@
 import { config } from "@/lib/config";
-import { garmentPng } from "./garment";
+import { garmentBackUrl, garmentPng } from "./garment";
 
 /**
  * Jonli oyna: kamera kadri lokal serverga (tryon-local, DM-VTON) yuboriladi, kiyintirilgan kadr qaytadi.
@@ -18,10 +18,12 @@ type MirrorProduct = { id: number; sku: string | null; imageUrl: string };
 const garmentId = (p: MirrorProduct) => `${p.id}-${p.sku ?? ""}`;
 
 async function uploadGarment(p: MirrorProduct): Promise<MirrorResult | null> {
+  const backUrl = await garmentBackUrl(p.sku);
+  const back = backUrl ? (await garmentPng(backUrl)).toString("base64") : null;
   const res = await fetch(`${config.tryOn.localUrl}/mirror/garment`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ id: garmentId(p), image: (await garmentPng(p.imageUrl)).toString("base64") }),
+    body: JSON.stringify({ id: garmentId(p), image: (await garmentPng(p.imageUrl)).toString("base64"), back }),
     signal: AbortSignal.timeout(10_000),
   });
   if (!res.ok) return { ok: false, status: res.status, error: await detail(res) };

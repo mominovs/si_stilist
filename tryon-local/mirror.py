@@ -41,6 +41,18 @@ HR_SIZE = (576, 768)
 
 # Poza nuqtalari (MediaPipe)
 L_EYE, R_EYE, L_SHOULDER, R_SHOULDER, L_HIP, R_HIP = 2, 5, 11, 12, 23, 24
+L_WRIST, R_WRIST = 15, 16
+# masker.py dagi selfie_multiclass sinflari (mediapipe'ni bu yerda import qilmaslik uchun takrorlangan)
+SEG_HAIR, SEG_FACE_SKIN = 1, 3
+# Qaysi tomon: old (oddiy kiyim rasmi), yon va orqa (naqshsiz "tekis" kiyim yoki do'konning orqa surati)
+VIEWS = ("old", "yon", "orqa")
+# Harakatda niqob kuzatuvi (optik oqim) shu kenglikdagi kulrang kadrda hisoblanadi
+TRACK_W = 160
+# Xonadagi yorug'likni yangi kiyimga o'tkazish: kuchi, chegarasi va xiralik radiusi (yelka kengligiga nisbatan).
+# Radius katta: faqat keng yorug'lik/soya o'tadi, eski kiyimdagi naqsh va yozuvlar o'tmaydi
+SHADE_STRENGTH = 0.7
+SHADE_RANGE = (0.75, 1.2)
+SHADE_SIGMA = 0.12
 
 
 def correlation(first, second, intStride: int = 1):
@@ -215,6 +227,40 @@ def crop_white(image: np.ndarray, box: tuple[int, int, int, int]) -> np.ndarray:
     return out
 
 
+def plain_garment(image: Image.Image) -> Image.Image:
+    """
+    Kiyimning naqshsiz "tekis" varianti (orqa va yon ko'rinish uchun, do'konda orqa surati bo'lmasa): rang va keng
+    soyalar qoladi, oldidagi yozuv, naqsh va tugmalar xiralashib yo'qoladi, bo'yin o'yig'i qisman yopiladi
+    (orqa yoqa odatda balandroq). Taxminiy: ikki rangli kiyimda ranglar aralashib ketadi.
+    """
+    rgb = np.asarray(image.convert("RGB")).astype(np.float32)
+    fg = (rgb.min(axis=2) < 235).astype(np.uint8)
+    fg = cv2.morphologyEx(fg, cv2.MORPH_CLOSE, np.ones((7, 7), np.uint8))
+    contours, _ = cv2.findContours(fg, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if not contours:
+        raise ValueError("Kiyim rasmida kiyim topilmadi")
+    mask = np.zeros_like(fg)
+    cv2.drawContours(mask, contours, -1, 1, thickness=-1)
+    ys, xs = np.nonzero(mask)
+    gw, top, bottom = int(xs.max() - xs.min()), int(ys.min()), int(ys.max())
+    # Bo'yin o'yig'i: faqat yuqori chorakda katta yopish (qo'ltiq burchaklari o'zgarmaydi)
+    k = max(3, int(gw * 0.14)) | 1
+    closed = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k)))
+    neck = top + int(0.25 * (bottom - top))
+    out_mask = mask.copy()
+    out_mask[:neck] = closed[:neck]
+    # Naqshni yo'qotish: faqat kiyim piksellari bo'yicha keng xiralash (fonning oq rangi aralashmaydi)
+    m = mask.astype(np.float32)
+    sigma = max(2.0, gw * 0.06)
+    num = cv2.GaussianBlur(rgb * m[..., None], (0, 0), sigma)
+    den = cv2.GaussianBlur(m, (0, 0), sigma)[..., None]
+    median = np.median(rgb[mask > 0], axis=0)
+    smooth = np.where(den > 0.05, num / np.maximum(den, 1e-4), median)
+    out = np.full_like(rgb, 255.0)
+    out[out_mask > 0] = smooth[out_mask > 0]
+    return Image.fromarray(out.clip(0, 255).astype(np.uint8))
+
+
 class MirrorEngine:
     """DM-VTON modeli va kiyimlar keshi. Kadrlar ketma-ket (bitta oqimda) ishlanadi."""
 
@@ -229,7 +275,7 @@ class MirrorEngine:
         self.gen = Generator(7, 4).to(device).eval()
         load_state(self.warp, weights["warp"])
         load_state(self.gen, weights["gen"])
-        self.garments: dict[str, tuple] = {}
+        self.garments: dict[str, dict[str, tuple]] = {}
 
     def _tensor(self, arr: np.ndarray, normalize: bool = True):
         t = self.torch.from_numpy(np.ascontiguousarray(arr)).float()
@@ -238,16 +284,27 @@ class MirrorEngine:
             t = t * 2 - 1
         return t[None].to(self.device)
 
-    def set_garment(self, garment_id: str, image: Image.Image) -> None:
+    def _inputs(self, image: Image.Image) -> tuple:
         cloth, edge = garment_inputs(image)
         clothes = self._tensor(cloth) * self.torch.from_numpy(edge).to(self.device)[None, None]
         cloth_hr, edge_hr = garment_inputs(image, HR_SIZE)
         clothes_hr = self._tensor(cloth_hr) * self.torch.from_numpy(edge_hr).to(self.device)[None, None]
-        self.garments[garment_id] = (clothes, self._tensor(edge, normalize=False), clothes_hr)
-        if len(self.garments) > 64:
+        return clothes, self._tensor(edge, normalize=False), clothes_hr
+
+    def set_garment(self, garment_id: str, image: Image.Image, back: Image.Image | None = None) -> None:
+        """Uch ko'rinish: old (rasm), yon (tekis variant), orqa (do'kon surati yoki tekis variant)"""
+        plain = self._inputs(plain_garment(image))
+        self.garments[garment_id] = {
+            "old": self._inputs(image),
+            "yon": plain,
+            "orqa": self._inputs(back) if back is not None else plain,
+        }
+        if len(self.garments) > 32:
             self.garments.pop(next(iter(self.garments)))
 
-    def run(self, person: np.ndarray, garment_id: str, out_size: tuple[int, int] | None = None) -> np.ndarray:
+    def run(
+        self, person: np.ndarray, garment_id: str, out_size: tuple[int, int] | None = None, view: str = "old"
+    ) -> np.ndarray:
         """
         person: 256x192x3 uint8 (oq fonda) -> natija out_size (w, h) da, uint8.
         out_size kattaroq bo'lsa: egish xaritasi (last_flow, normallashgan [-1, 1] koordinatalar) kattalashtirilib
@@ -256,7 +313,7 @@ class MirrorEngine:
         """
         import torch.nn.functional as F
 
-        clothes, edge, clothes_hr = self.garments[garment_id]
+        clothes, edge, clothes_hr = self.garments[garment_id][view]
         with self.torch.no_grad():
             img = self._tensor(person)
             warped_cloth, last_flow = self.warp(img, clothes)
@@ -287,6 +344,7 @@ def prepare_analysis(
     background: np.ndarray,
     points: np.ndarray,
     prev: dict | None = None,
+    frame: np.ndarray | None = None,
 ) -> dict:
     """
     Niqob va pozadan kadr uchun kerakli hamma narsa (niqob yangilanganda bir marta hisoblanadi, kadrlar qayta
@@ -305,10 +363,119 @@ def prepare_analysis(
     inside = np.zeros_like(m)
     inside[sy0:sy1, sx0:sx1] = 1
     soft = cv2.GaussianBlur(m * inside, (0, 0), max(1.5, w / 250))[..., None]
-    return {"size": frame_size, "points": points, "box": box, "bg": background, "soft": soft}
+    out = {"size": frame_size, "points": points, "box": box, "bg": background, "soft": soft}
+    if frame is not None:
+        # Keyingi kadrlarda niqobni tanaga ergashtirish uchun (track_analysis)
+        out["small"] = small_gray(frame)
+    return out
 
 
-def body_measure(raw: np.ndarray, visibility: np.ndarray, frame_size: tuple[int, int], smooth: np.ndarray) -> dict:
+def small_gray(rgb: np.ndarray) -> np.ndarray:
+    h, w = rgb.shape[:2]
+    return cv2.resize(cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY), (TRACK_W, max(1, round(h * TRACK_W / w))),
+                      interpolation=cv2.INTER_AREA)
+
+
+_flow = None
+_grid_cache: dict[tuple[int, int], tuple[np.ndarray, np.ndarray]] = {}
+
+
+def track_analysis(analysis: dict, rgb: np.ndarray) -> tuple[dict, float]:
+    """
+    Niqob har ~0.12 s da yangilanadi, odam esa shu orada siljiydi (ayniqsa aylanganda): kiyim orqada qolib, eski
+    kiyim chetlari ko'rinardi. Niqob tahlil qilingan kadrdan joriy kadrgacha optik oqim (DIS, 160 px kenglikda,
+    ~1 ms) bilan suriladi. Qaytadi: (joriy kadrga moslangan tahlil, kiyim ichidagi o'rtacha harakat, px kichik
+    o'lchamda). Harakat juda kichik bo'lsa tahlil o'zgarmaydi.
+    """
+    global _flow
+    ref = analysis.get("small")
+    if ref is None:
+        return analysis, 0.0
+    cur = small_gray(rgb)
+    if cur.shape != ref.shape:
+        return analysis, 0.0
+    if _flow is None:
+        _flow = cv2.DISOpticalFlow_create(cv2.DISOPTICAL_FLOW_PRESET_ULTRAFAST)
+    flow = _flow.calc(cur, ref, None)  # cur(x) ~ ref(x + flow(x))
+    sh, sw = cur.shape
+    inside = cv2.resize(analysis["soft"][..., 0], (sw, sh), interpolation=cv2.INTER_AREA) > 0.5
+    if inside.sum() < 20:
+        return analysis, 0.0
+    fx, fy = flow[..., 0][inside], flow[..., 1][inside]
+    motion = float(np.mean(np.hypot(fx, fy)))
+    if motion < 0.25:
+        return analysis, motion
+    h, w = rgb.shape[:2]
+    scale = w / TRACK_W
+    full = cv2.resize(flow, (w, h), interpolation=cv2.INTER_LINEAR) * scale
+    if (w, h) not in _grid_cache:
+        _grid_cache[(w, h)] = np.meshgrid(np.arange(w, dtype=np.float32), np.arange(h, dtype=np.float32))
+    gx, gy = _grid_cache[(w, h)]
+    mx, my = gx + full[..., 0], gy + full[..., 1]
+    soft = cv2.remap(analysis["soft"][..., 0], mx, my, cv2.INTER_LINEAR, borderValue=0)[..., None]
+    bg = cv2.remap(analysis["bg"].astype(np.uint8), mx, my, cv2.INTER_NEAREST, borderValue=1).astype(bool)
+    # Kesim butun gavda siljishi bo'yicha suriladi (ref dagi p nuqta joriy kadrda p - flow da)
+    dx, dy = -float(np.median(fx)) * scale, -float(np.median(fy)) * scale
+    x0, y0, x1, y1 = analysis["box"]
+    box = (int(round(x0 + dx)), int(round(y0 + dy)), int(round(x1 + dx)), int(round(y1 + dy)))
+    return {**analysis, "soft": soft, "bg": bg, "box": box}, motion
+
+
+def body_view(
+    points: np.ndarray,
+    z: np.ndarray,
+    visibility: np.ndarray,
+    seg: np.ndarray,
+    frame_size: tuple[int, int],
+) -> dict:
+    """
+    Odam kameraga qaysi tomoni bilan turibdi (bitta tahlil uchun; silliqlash serverda):
+     - orqa: yelkadan yuqorida yuz terisi deyarli yo'q, soch bor (eng ishonchli belgi) yoki yelkalar teskari
+     - yon: yelkalar chuqurlikda ajralgan (MediaPipe z) yoki yelka kengligi gavda uzunligiga nisbatan juda tor
+     - old: qolgani (3/4 burilish ham: model uni yaxshi ko'taradi)
+    arms_up: bilaklar yelkadan yuqorida (model shu pozada o'qitilmagan, kiyim buziladi)
+    """
+    w, h = frame_size
+    ls, rs = points[L_SHOULDER], points[R_SHOULDER]
+    dx = float(ls[0] - rs[0]) / w  # oldda chap yelka kadrning o'ng tomonida: dx > 0
+    dz = float(z[L_SHOULDER] - z[R_SHOULDER])
+    yaw = float(np.degrees(np.arctan2(dz, dx)))
+    top = int(np.clip(min(ls[1], rs[1]), 0, h))
+    head = seg[:top]
+    face, hair = int((head == SEG_FACE_SKIN).sum()), int((head == SEG_HAIR).sum())
+    face_share = face / (face + hair) if face + hair > 0.002 * w * h else None
+    torso = float(np.linalg.norm((ls + rs) / 2 - (points[L_HIP] + points[R_HIP]) / 2))
+    narrow = torso > 0 and float(np.linalg.norm(ls - rs)) / torso < 0.3
+    if (face_share is not None and face_share < 0.12) or (abs(yaw) > 125 and (face_share is None or face_share < 0.3)):
+        view = "orqa"
+    elif 55 <= abs(yaw) <= 125 or narrow:
+        view = "yon"
+    else:
+        view = "old"
+    shoulder_y = min(ls[1], rs[1])
+    arms_up = any(visibility[i] >= 0.5 and points[i][1] < shoulder_y for i in (L_WRIST, R_WRIST))
+    return {"view": view, "yaw": round(yaw), "arms_up": bool(arms_up)}
+
+
+def shading_map(rgb: np.ndarray, mask: np.ndarray, shoulder_px: float) -> np.ndarray:
+    """
+    Xonadagi yorug'lik (bir tomoni yorug', ikkinchisi soya): eski kiyimning keng yorug'lik xaritasi o'rtachasiga
+    nisbatan. Yangi kiyim shunga ko'paytiriladi, katalog rasmidagi bir tekis yorug'lik "yopishtirilgan" ko'rinardi.
+    """
+    lum = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY).astype(np.float32)
+    total = float(mask.sum())
+    if total < 50:
+        return np.ones_like(lum)
+    sigma = max(3.0, SHADE_SIGMA * shoulder_px)
+    local = cv2.GaussianBlur(lum * mask, (0, 0), sigma) / (cv2.GaussianBlur(mask, (0, 0), sigma) + 1e-3)
+    mean = float((lum * mask).sum()) / total
+    shade = np.clip(local / max(mean, 1.0), *SHADE_RANGE) ** SHADE_STRENGTH
+    return np.where(mask > 0.02, shade, 1.0).astype(np.float32)
+
+
+def body_measure(
+    raw: np.ndarray, visibility: np.ndarray, frame_size: tuple[int, int], smooth: np.ndarray, view: str = "old"
+) -> dict:
     """
     O'lcham tavsiyasi uchun gavda nisbati: yelka kengligi / gavda uzunligi (yelka o'rtasidan son o'rtasigacha).
     Kamera masofani bilmaydi, shuning uchun santimetr emas, faqat nisbat beriladi: santimetrga sayt xaridor bo'yi
@@ -319,7 +486,8 @@ def body_measure(raw: np.ndarray, visibility: np.ndarray, frame_size: tuple[int,
     idx = [L_SHOULDER, R_SHOULDER, L_HIP, R_HIP]
     pts = [[round(float(x) / w, 4), round(float(y) / h, 4)] for x, y in smooth[idx]]
     ratio = None
-    if all(visibility[i] >= 0.6 for i in idx):
+    # Yelka kengligi faqat old tomondan to'g'ri o'lchanadi
+    if view == "old" and all(visibility[i] >= 0.6 for i in idx):
         shoulders = float(np.linalg.norm(raw[L_SHOULDER] - raw[R_SHOULDER]))
         torso = float(np.linalg.norm((raw[L_SHOULDER] + raw[R_SHOULDER]) / 2 - (raw[L_HIP] + raw[R_HIP]) / 2))
         # Odatdagi qiymat 0.6-0.9; chegaradan tashqarisi yonboshlab turish yoki poza xatosi
@@ -328,13 +496,16 @@ def body_measure(raw: np.ndarray, visibility: np.ndarray, frame_size: tuple[int,
     return {"pts": pts, "r": ratio}
 
 
-def compose_frame(frame: Image.Image, analysis: dict, infer) -> np.ndarray:
+def compose_frame(frame: Image.Image, analysis: dict, infer, state: dict | None = None) -> np.ndarray:
     """
-    Bitta kadr: fon oqqa almashtiriladi, yuqori gavda kesiladi, model (infer) kesim o'lchamida natija beradi, u joyiga
-    qaytariladi va faqat kiyim niqobi ichida asl kadrga qo'yiladi. Natija: RGB uint8 massiv.
+    Bitta kadr: niqob joriy kadrga suriladi (optik oqim), fon oqqa almashtiriladi, yuqori gavda kesiladi, model
+    (infer) kesim o'lchamida natija beradi, xonadagi yorug'lik qo'shiladi, u joyiga qaytariladi va faqat kiyim niqobi
+    ichida asl kadrga qo'yiladi. state (kadrlar orasida): odam qimirlamasa natija oldingisi bilan aralashtiriladi,
+    model natijasidagi mayda titrash yo'qoladi; harakatda faqat yangi kadr. Natija: RGB uint8 massiv.
     """
     rgb = np.asarray(frame.convert("RGB"))
     h, w = rgb.shape[:2]
+    analysis, motion = track_analysis(analysis, rgb)
     white = rgb.copy()
     white[analysis["bg"]] = 255
     x0, y0, x1, y1 = box = analysis["box"]
@@ -346,10 +517,22 @@ def compose_frame(frame: Image.Image, analysis: dict, infer) -> np.ndarray:
     up = infer(person, (max(SIZE[0], int(bw * scale)), max(SIZE[1], int(bh * scale))))
     if up.shape[:2] != (bh, bw):
         up = cv2.resize(up, (bw, bh), interpolation=cv2.INTER_CUBIC)
-    layer = rgb.copy()
     sx0, sy0, sx1, sy1 = max(0, x0), max(0, y0), min(w, x1), min(h, y1)
-    layer[sy0:sy1, sx0:sx1] = up[sy0 - y0:sy1 - y0, sx0 - x0:sx1 - x0]
+    region = up[sy0 - y0:sy1 - y0, sx0 - x0:sx1 - x0].astype(np.float32)
     m = analysis["soft"]
+    pts = analysis["points"]
+    shoulder_px = float(np.linalg.norm(pts[L_SHOULDER] - pts[R_SHOULDER]))
+    region *= shading_map(rgb[sy0:sy1, sx0:sx1], m[sy0:sy1, sx0:sx1, 0], shoulder_px)[..., None]
+    if state is not None:
+        key = (analysis.get("garment"), analysis.get("view"), (sx0, sy0, sx1, sy1))
+        prev = state.get("region")
+        if prev is not None and state.get("key") == key and prev.shape == region.shape:
+            # Qimirlamasa (harakat < 0.5 px) yarmi oldingi natija, 2 px dan ko'p harakatda faqat yangisi
+            keep = 0.5 * float(np.clip((2.0 - motion) / 1.5, 0.0, 1.0))
+            region = region * (1 - keep) + prev * keep
+        state["region"], state["key"] = region, key
+    layer = rgb.copy()
+    layer[sy0:sy1, sx0:sx1] = region.clip(0, 255).astype(np.uint8)
     return (layer * m + rgb * (1 - m)).astype(np.uint8)
 
 
@@ -359,13 +542,19 @@ class MockMirror:
     def __init__(self) -> None:
         self.garments: dict[str, np.ndarray] = {}
 
-    def set_garment(self, garment_id: str, image: Image.Image) -> None:
-        cloth, edge = garment_inputs(image)
-        self.garments[garment_id] = np.where(edge[..., None] > 0, cloth, 255).astype(np.uint8)
+    def set_garment(self, garment_id: str, image: Image.Image, back: Image.Image | None = None) -> None:
+        def prep(img: Image.Image) -> np.ndarray:
+            cloth, edge = garment_inputs(img)
+            return np.where(edge[..., None] > 0, cloth, 255).astype(np.uint8)
 
-    def run(self, person: np.ndarray, garment_id: str, out_size: tuple[int, int] | None = None) -> np.ndarray:
+        plain = prep(plain_garment(image))
+        self.garments[garment_id] = {"old": prep(image), "yon": plain, "orqa": prep(back) if back is not None else plain}
+
+    def run(
+        self, person: np.ndarray, garment_id: str, out_size: tuple[int, int] | None = None, view: str = "old"
+    ) -> np.ndarray:
         out = person.copy()
-        g = cv2.resize(self.garments[garment_id], (120, 160))
+        g = cv2.resize(self.garments[garment_id][view], (120, 160))
         sel = g.min(axis=2) < 250
         region = out[70:230, 36:156]
         region[sel] = g[sel]
