@@ -22,6 +22,17 @@ if errorlevel 1 (
   exit /b 1
 )
 
+rem Oldingi nusxalarni to'xtatish: avvalgi run-all oynalari, 3000-portdagi sayt (masalan demo.bat dagi npm run dev),
+rem eski ngrok (tekin tarifda bir vaqtda bitta ulanish) va 8001-portdagi SI server. Aks holda port band bo'ladi
+echo Oldingi nusxalar to'xtatilmoqda...
+taskkill /FI "WINDOWTITLE eq SI Stilist sayt*" /T /F >nul 2>&1
+taskkill /FI "WINDOWTITLE eq SI kiyintirish serveri*" /T /F >nul 2>&1
+taskkill /FI "WINDOWTITLE eq ngrok tunnel*" /T /F >nul 2>&1
+taskkill /IM ngrok.exe /F >nul 2>&1
+for /f "tokens=5" %%p in ('netstat -ano ^| findstr ":3000 " ^| findstr LISTENING') do taskkill /PID %%p /T /F >nul 2>&1
+call "%ROOT%tryon-local\stop.bat" >nul 2>&1
+timeout /t 2 /nobreak >nul
+
 if exist "%ROOT%tryon-local\.venv\Scripts\python.exe" (
   start "SI kiyintirish serveri" cmd /k ""%ROOT%scripts\qayta.bat" "%ROOT%tryon-local\start.bat""
 ) else (

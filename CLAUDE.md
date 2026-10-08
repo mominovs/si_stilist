@@ -302,7 +302,7 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
   `MirrorEngine` `old_*.pt` ni ham yuklaydi (asl o'rniga), `trained` ro'yxati `/health` `mirror_models` da
 
 ## Texnik eslatmalar (internetga ochish)
-- `run-all.bat`: `scripts/public-check.mjs` (ADMIN_PASSWORD yo'q, `demo123` yoki < 8 belgi bo'lsa to'xtaydi;
+- `run-all.bat`: avval oldingi nusxalarni yopadi (oyna nomlari bo'yicha taskkill /T, ngrok.exe, 3000-portni egallagan PID, `tryon-local/stop.bat`), keyin `scripts/public-check.mjs` (ADMIN_PASSWORD yo'q, `demo123` yoki < 8 belgi bo'lsa to'xtaydi;
   LLM_DAILY_LIMIT > 200 ogohlantirish; `--domain` NGROK_DOMAIN ni chiqaradi) -> tryon-local, `npm run build`,
   `npm start`, `ngrok http --domain=<NGROK_DOMAIN> 3000` (eski ngrok `--url` ni bilmaydi); har biri alohida oynada `scripts/qayta.bat` ichida (to'xtasa
   5 s dan keyin qayta). Production (`next start`): dev'dagi `allowedDevOrigins` muammosi yo'q; ngrok Host va
