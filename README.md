@@ -38,12 +38,12 @@ almashtiring va `npm run db:setup`.
 
 ## Internetga ochish: run-all.bat (ngrok, HTTPS)
 
-Kompyuteringiz server bo'ladi: sayt doimiy `https://...ngrok-free.app` manzilda ochiladi, HTTPS bo'lgani uchun
+Kompyuteringiz server bo'ladi: sayt doimiy `https://...ngrok-free.dev` manzilda ochiladi, HTTPS bo'lgani uchun
 telefonda kamera va jonli oyna ham ishlaydi, Wi-Fi shart emas.
 
 1. Bir marta: `winget install ngrok.ngrok`, [dashboard.ngrok.com](https://dashboard.ngrok.com) da ro'yxatdan o'ting,
    `ngrok config add-authtoken <token>`. **Domains** bo'limidan tekin doimiy domen oling.
-2. `.env`: `NGROK_DOMAIN=sizning-nom.ngrok-free.app`, kuchli `ADMIN_PASSWORD` (namunadagi `demo123` bilan ishga
+2. `.env`: `NGROK_DOMAIN=sizning-nom.ngrok-free.dev`, kuchli `ADMIN_PASSWORD` (namunadagi `demo123` bilan ishga
    tushmaydi: panel butun internetga ochiq bo'lib qolardi) va `LLM_DAILY_LIMIT=100` (begonalar API pulini sarflamasin).
 3. `run-all.bat` ni ikki marta bosing. Saytni production rejimda yig'adi, keyin uchta oyna ochadi: SI kiyintirish
    serveri, sayt va ngrok. Biror qismi to'xtab qolsa, 5 soniyadan keyin o'zi qayta ishga tushadi (`scripts\qayta.bat`).

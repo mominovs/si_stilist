@@ -31,7 +31,7 @@ if (!process.env.LLM_DAILY_LIMIT || limit > 200) {
 if (!domain) {
   console.log(
     "Eslatma: NGROK_DOMAIN yo'q, har safar tasodifiy manzil beriladi. Doimiy manzil: dashboard.ngrok.com -> " +
-      "Domains -> tekin domen, keyin .env ga NGROK_DOMAIN=sizning-nom.ngrok-free.app",
+      "Domains -> tekin domen, keyin .env ga NGROK_DOMAIN=sizning-nom.ngrok-free.dev",
   );
 }
 

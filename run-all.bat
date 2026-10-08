@@ -5,7 +5,7 @@ rem   - biror qismi to'xtab qolsa, 5 soniyadan keyin o'zi qayta ishga tushadi (k
 rem Birinchi marta:
 rem   1) winget install ngrok.ngrok
 rem   2) ngrok config add-authtoken ^<dashboard.ngrok.com dagi token^>
-rem   3) .env: ADMIN_PASSWORD=kuchli-parol, LLM_DAILY_LIMIT=100, NGROK_DOMAIN=sizning-nom.ngrok-free.app
+rem   3) .env: ADMIN_PASSWORD=kuchli-parol, LLM_DAILY_LIMIT=100, NGROK_DOMAIN=sizning-nom.ngrok-free.dev
 cd /d %~dp0
 set ROOT=%~dp0
 node scripts/public-check.mjs
