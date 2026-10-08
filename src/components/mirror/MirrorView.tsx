@@ -20,6 +20,18 @@ const FRAME_SIDE = 640;
 // Bir vaqtda yo'lda bo'lgan kadrlar: biri serverda ishlanayotganda keyingisi yuklanadi (tarmoq kutilmaydi)
 const IN_FLIGHT = 2;
 const FULL_SIDE = 1536;
+
+/**
+ * Sayt internet orqali (ngrok) ochilganda har kadr tunneldan ikki marta o'tadi va tekin tarif trafigi tez tugaydi
+ * (640 px, ~20 kadr/s: 60 s seans ~100 MB). Shunda kadr kichikroq, sifati pastroq va soniyasiga ko'pi bilan 8 ta.
+ * Shu kompyuter yoki bir Wi-Fi (xususiy IP) dan ochilganda cheklov yo'q.
+ */
+function frameBudget(): { side: number; quality: number; inFlight: number; minGapMs: number } {
+  const local = /^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|\[?::1\]?$)/.test(window.location.hostname);
+  return local
+    ? { side: FRAME_SIDE, quality: 0.85, inFlight: IN_FLIGHT, minGapMs: 0 }
+    : { side: 400, quality: 0.7, inFlight: 1, minGapMs: 125 };
+}
 // Kamera nisbati: oxirgi shuncha o'lchov mediani; shundan kami bo'lsa hali "o'lchamoqda"
 const MAX_SAMPLES = 40;
 const MIN_SAMPLES = 8;
@@ -228,6 +240,7 @@ export function MirrorView({
     let drawn = 0;
     let frames = 0;
     let since = performance.now();
+    const budget = frameBudget();
     const worker = async () => {
       while (running.current) {
         const v = videoRef.current;
@@ -242,7 +255,7 @@ export function MirrorView({
         }
         const my = ++seq;
         const t0 = performance.now();
-        const blob = await new Promise<Blob | null>((r) => frameCanvas(v, FRAME_SIDE).toBlob(r, "image/jpeg", 0.85));
+        const blob = await new Promise<Blob | null>((r) => frameCanvas(v, budget.side).toBlob(r, "image/jpeg", budget.quality));
         if (!blob || !running.current) continue;
         try {
           const res = await fetch(`/api/mirror?productId=${selectedRef.current}`, {
@@ -312,6 +325,8 @@ export function MirrorView({
           setHint("Server bilan aloqa yo'q");
           await new Promise((r) => setTimeout(r, 1000));
         }
+        const elapsed = performance.now() - t0;
+        if (elapsed < budget.minGapMs) await new Promise((r) => setTimeout(r, budget.minGapMs - elapsed));
         const now = performance.now();
         if (now - since > 1000) {
           setFps(Math.round((frames * 1000) / (now - since)));
@@ -320,7 +335,7 @@ export function MirrorView({
         }
       }
     };
-    await Promise.all(Array.from({ length: IN_FLIGHT }, worker));
+    await Promise.all(Array.from({ length: budget.inFlight }, worker));
   }, [stopCamera]);
 
   async function start() {

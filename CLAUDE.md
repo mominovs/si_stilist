@@ -300,3 +300,12 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
   orqa: orqa surati + naqshsiz aralash, tekshiruv birinchisida; yon: naqshsiz). Saqlangan `<view>_*.pt` dan davom
   etadi (`--toza`), faqat tekshiruvda yaxshilansa saqlaydi; old tekshiruvsiz (3 odamdan kam) hech qachon saqlanmaydi.
   `MirrorEngine` `old_*.pt` ni ham yuklaydi (asl o'rniga), `trained` ro'yxati `/health` `mirror_models` da
+
+## Texnik eslatmalar (internetga ochish)
+- `run-all.bat`: `scripts/public-check.mjs` (ADMIN_PASSWORD yo'q, `demo123` yoki < 8 belgi bo'lsa to'xtaydi;
+  LLM_DAILY_LIMIT > 200 ogohlantirish; `--domain` NGROK_DOMAIN ni chiqaradi) -> tryon-local, `npm run build`,
+  `npm start`, `ngrok http --url=<NGROK_DOMAIN> 3000`; har biri alohida oynada `scripts/qayta.bat` ichida (to'xtasa
+  5 s dan keyin qayta). Production (`next start`): dev'dagi `allowedDevOrigins` muammosi yo'q; ngrok Host va
+  `x-forwarded-proto: https` beradi, QR kod ngrok manzilini ko'rsatadi, `x-forwarded-for` har mijozni ajratadi
+- `MirrorView.frameBudget`: xususiy bo'lmagan host (ngrok) da 400 px, JPEG 0.7, 1 ishchi, kadrlar orasida
+  kamida 125 ms (tekin ngrok trafigi ~1 GB/oy); localhost/LAN da avvalgidek 640 px, 2 ishchi

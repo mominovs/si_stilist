@@ -36,6 +36,25 @@ Yangilash: `git pull`, keyin `npm ci`. Agar `git pull` "Your local changes ... p
 Docker bilan ishlamoqchi bo'lsangiz: `docker compose up -d`, `.env` dagi `DATABASE_URL` ni Docker qatoriga
 almashtiring va `npm run db:setup`.
 
+## Internetga ochish: run-all.bat (ngrok, HTTPS)
+
+Kompyuteringiz server bo'ladi: sayt doimiy `https://...ngrok-free.app` manzilda ochiladi, HTTPS bo'lgani uchun
+telefonda kamera va jonli oyna ham ishlaydi, Wi-Fi shart emas.
+
+1. Bir marta: `winget install ngrok.ngrok`, [dashboard.ngrok.com](https://dashboard.ngrok.com) da ro'yxatdan o'ting,
+   `ngrok config add-authtoken <token>`. **Domains** bo'limidan tekin doimiy domen oling.
+2. `.env`: `NGROK_DOMAIN=sizning-nom.ngrok-free.app`, kuchli `ADMIN_PASSWORD` (namunadagi `demo123` bilan ishga
+   tushmaydi: panel butun internetga ochiq bo'lib qolardi) va `LLM_DAILY_LIMIT=100` (begonalar API pulini sarflamasin).
+3. `run-all.bat` ni ikki marta bosing. Saytni production rejimda yig'adi, keyin uchta oyna ochadi: SI kiyintirish
+   serveri, sayt va ngrok. Biror qismi to'xtab qolsa, 5 soniyadan keyin o'zi qayta ishga tushadi (`scripts\qayta.bat`).
+   Butunlay to'xtatish: o'sha oynalarni yoping. Kompyuter uyquga ketsa sayt to'xtaydi:
+   `powercfg /change standby-timeout-ac 0` (quvvatga ulanganda uyqu yo'q).
+4. Telefon uchun QR kod: `https://<domen>/panel` dagi "Telefondan sinash".
+
+Tekin ngrok trafigi cheklangan (oyiga ~1 GB). Shuning uchun jonli oyna internet orqali ochilganda kadrni kichikroq
+(400 px) va sekinroq (8 kadr/s gacha) yuboradi; shu kompyuterda yoki bir Wi-Fi'da cheklov yo'q. ngrok birinchi
+ochilishda brauzerda ogohlantirish sahifasini ko'rsatadi: "Visit Site" bosing.
+
 ## Demo kuni (taqdimot)
 
 1. `demo.bat` (loyiha papkasida, ikki marta bosing): lokal kiyintirish serveri, sayt va uchta brauzer oynasi ochiladi:
