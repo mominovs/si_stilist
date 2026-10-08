@@ -1,5 +1,6 @@
 @echo off
 rem SI Stilist: hammasini bitta tugma bilan ishga tushirish (internetga ochiq, HTTPS, telefonda ham ishlaydi).
+rem   (--domain: eski ngrok versiyalari --url ni bilmaydi, yangilari --domain ni ham qabul qiladi)
 rem   - SI kiyintirish serveri (tryon-local), sayt (production) va ngrok tunnel: har biri alohida oynada
 rem   - biror qismi to'xtab qolsa, 5 soniyadan keyin o'zi qayta ishga tushadi (kompyuter o'chguncha ishlaydi)
 rem Birinchi marta:
@@ -39,7 +40,7 @@ start "SI Stilist sayt" cmd /k ""%ROOT%scripts\qayta.bat" npm start"
 set NGROK_DOMAIN=
 for /f "usebackq delims=" %%d in (`node scripts/public-check.mjs --domain`) do set NGROK_DOMAIN=%%d
 if defined NGROK_DOMAIN (
-  start "ngrok tunnel" cmd /k ""%ROOT%scripts\qayta.bat" ngrok http --url=%NGROK_DOMAIN% 3000"
+  start "ngrok tunnel" cmd /k ""%ROOT%scripts\qayta.bat" ngrok http --domain=%NGROK_DOMAIN% 3000"
   start "" cmd /c "timeout /t 25 /nobreak >nul & start https://%NGROK_DOMAIN%/admin/holat"
   echo.
   echo Sayt manzili: https://%NGROK_DOMAIN%
