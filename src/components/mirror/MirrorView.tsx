@@ -12,8 +12,6 @@ import { FIT_STYLE, SizePanel, type BodyForm } from "./SizePanel";
 /** Jonli oyna tovari: o'lcham jadvali tovar jinsiga bog'liq */
 export type MirrorCard = ResultCard & { gender: "erkak" | "ayol" | "unisex" };
 
-// Seans cheklovi (CLAUDE.md: real vaqt seansi ko'pi bilan 60 soniya, keyin avtomatik to'xtaydi)
-const SESSION_SECONDS = 60;
 // Serverga yuboriladigan kadr: uzun tomoni shuncha piksel. Model kesimni 192x256 da ko'radi, lekin yuz, fon va
 // kiyim teksturasi shu o'lchamda chiqadi: kattaroq kadr ekranda tiniqroq
 const FRAME_SIDE = 640;
@@ -155,11 +153,15 @@ export function MirrorView({
   cards,
   initialId,
   provider,
+  sessionSeconds,
 }: {
   cards: MirrorCard[];
   initialId: number;
   provider: "local" | "gemini" | "fal";
+  /** Seans uzunligi (MIRROR_SESSION_SECONDS, standart 60): keyin kamera avtomatik o'chadi */
+  sessionSeconds: number;
 }) {
+  const SESSION_SECONDS = sessionSeconds;
   const [phase, setPhase] = useState<Phase>("consent");
   const [selectedId, setSelectedId] = useState(initialId);
   const [hint, setHint] = useState<string | null>(null);

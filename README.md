@@ -36,6 +36,22 @@ Yangilash: `git pull`, keyin `npm ci`. Agar `git pull` "Your local changes ... p
 Docker bilan ishlamoqchi bo'lsangiz: `docker compose up -d`, `.env` dagi `DATABASE_URL` ni Docker qatoriga
 almashtiring va `npm run db:setup`.
 
+## Lokal demo: run-local.bat (bir Wi-Fi yoki hotspot, HTTPS) — jonli oyna uchun tavsiya
+
+Internet shart emas, kadrlar tarmoqdan chiqmaydi, shuning uchun jonli oyna tez ishlaydi (proksi orqali kadr ~30 ms).
+
+1. Telefonni kompyuter bilan bir Wi-Fi'ga ulang yoki kompyuter hotspotini yoqing: Sozlamalar -> Tarmoq va Internet
+   -> Mobil hotspot -> Yoqish, telefonni shu tarmoqqa ulang.
+2. `run-local.bat` ni ikki marta bosing: SI kiyintirish serveri, sayt (production) va "SI HTTPS" oynasi ochiladi,
+   har biri to'xtasa o'zi qayta ishga tushadi. Kompyuterda holat va panel ochiladi.
+3. Telefonda "SI HTTPS" oynasidagi QR kodni skanerlang (yoki panelda "Telefondan sinash"): `https://<IP>:3443`.
+   Telefon "Ulanish xavfsiz emas" deydi (sertifikat shu kompyuterda yaratilgan, `certificates/lan/`): **Qo'shimcha ->
+   Baribir o'tish**, keyin kameraga ruxsat. Windows birinchi marta tarmoq ruxsatini so'rasa: **Allow**.
+4. Jonli oyna seansi standart 60 soniya; lokal model bepul, `.env` da `MIRROR_SESSION_SECONDS=180` bilan uzaytiring.
+
+Eng ishonchli variant (sertifikat ogohlantirishisiz): telefonni noutbuk kamerasi qilish (DroidCam, Iriun yoki
+Windows 11 "Phone Link" kamera) va oynani noutbukning o'zida `http://localhost:3000/oyna` da ochish.
+
 ## Internetga ochish: run-all.bat (ngrok, HTTPS)
 
 Kompyuteringiz server bo'ladi: sayt doimiy `https://...ngrok-free.dev` manzilda ochiladi, HTTPS bo'lgani uchun

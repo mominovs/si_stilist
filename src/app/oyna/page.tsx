@@ -10,6 +10,13 @@ import { MirrorView, type MirrorCard } from "@/components/mirror/MirrorView";
 
 export const metadata: Metadata = { title: "Jonli oyna · SI Stilist" };
 
+// Real vaqt seansi chegarasi (CLAUDE.md: pullik API'da har soniya pul, standart 60 s). Lokal model bepul bo'lgani
+// uchun .env da MIRROR_SESSION_SECONDS bilan uzaytirsa bo'ladi (30..600)
+function sessionSeconds(): number {
+  const n = Number(process.env.MIRROR_SESSION_SECONDS);
+  return Number.isFinite(n) && n >= 30 ? Math.min(600, Math.round(n)) : 60;
+}
+
 export default async function MirrorPage({ searchParams }: PageProps<"/oyna">) {
   await connection();
   const sp = await searchParams;
@@ -54,6 +61,7 @@ export default async function MirrorPage({ searchParams }: PageProps<"/oyna">) {
           cards={cards}
           initialId={cards.some((c) => c.id === wanted) ? wanted : cards[0].id}
           provider={config.tryOn.provider}
+          sessionSeconds={sessionSeconds()}
         />
       )}
     </div>

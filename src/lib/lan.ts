@@ -18,15 +18,22 @@ export function lanAddresses(): string[] {
 }
 
 /**
- * Telefondan ochiladigan xaridor sahifasi manzili. Host sarlavhasidan port, x-forwarded-proto dan protokol olinadi:
- * `npm run dev:https` bilan HTTPS manzil chiqadi (telefonda jonli kamera faqat HTTPS'da ishlaydi)
+ * Telefondan ochiladigan xaridor sahifasi manzili. Host sarlavhasidan port, x-forwarded-proto dan protokol olinadi
+ * (telefonda jonli kamera faqat HTTPS'da ishlaydi).
+ *  - sahifa tarmoq yoki ngrok manzili orqali ochilgan bo'lsa: aynan o'sha manzil (port bo'lsa porti bilan)
+ *  - localhost'dan ochilgan, lokal HTTPS proksi ishlayotgan bo'lsa (run-local.bat, LAN_HTTPS_PORT): https://IP:3443
+ *  - aks holda shu port bilan tarmoq IP manzili
  */
-export function shopperUrl(host: string | null, proto: string | null = "http"): string | null {
+export function shopperUrl(
+  host: string | null,
+  proto: string | null = "http",
+  lanHttpsPort: string | undefined = process.env.LAN_HTTPS_PORT,
+): string | null {
   const scheme = proto === "https" ? "https" : "http";
-  const port = host?.match(/:(\d+)$/)?.[1] ?? "3000";
   const hostname = host?.replace(/:\d+$/, "") ?? "";
-  // Sahifa allaqachon tarmoq manzili orqali ochilgan bo'lsa, o'shani ishlatamiz
-  if (hostname && !/^(localhost|127\.|\[?::1\]?$)/.test(hostname)) return `${scheme}://${hostname}:${port}/`;
+  if (hostname && !/^(localhost|127\.|\[?::1\]?$)/.test(hostname)) return `${scheme}://${host}/`;
   const ip = lanAddresses()[0];
-  return ip ? `${scheme}://${ip}:${port}/` : null;
+  if (!ip) return null;
+  if (lanHttpsPort) return `https://${ip}:${lanHttpsPort}/`;
+  return `${scheme}://${ip}:${host?.match(/:(\d+)$/)?.[1] ?? "3000"}/`;
 }

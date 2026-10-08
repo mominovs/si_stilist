@@ -309,3 +309,10 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
   `x-forwarded-proto: https` beradi, QR kod ngrok manzilini ko'rsatadi, `x-forwarded-for` har mijozni ajratadi
 - `MirrorView.frameBudget`: xususiy bo'lmagan host (ngrok) da 400 px, JPEG 0.7, 1 ishchi, kadrlar orasida
   kamida 125 ms (tekin ngrok trafigi ~1 GB/oy); localhost/LAN da avvalgidek 640 px, 2 ishchi
+- Lokal demo `run-local.bat` (ngrok orqali jonli oyna qotib, uzilib qolardi): `scripts/tozala.bat` (run-all bilan
+  umumiy: oynalar, 3000/3443-portlar, ngrok, tryon stop), tryon-local, `npm run build`, `npm start`,
+  `scripts/https-proxy.mjs` (har biri `qayta.bat` ichida). Proksi: https://IP:3443 -> 127.0.0.1:3000, `selfsigned`
+  sertifikat (`certificates/lan/`, SAN: localhost + hozirgi IP'lar, yangi IP bo'lsa qayta yaratiladi),
+  `x-forwarded-proto/host/for`, terminalda QR. `LAN_HTTPS_PORT` o'rnatilsa `shopperUrl` localhost'dan
+  ochilgan panelda ham telefonga https://IP:3443 beradi; ngrok host'iga endi port qo'shilmaydi (testlar `lan.test.ts`)
+- `MIRROR_SESSION_SECONDS` (30..600, standart 60) `/oyna` sahifasidan `MirrorView sessionSeconds` ga
