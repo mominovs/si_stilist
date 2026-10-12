@@ -15,15 +15,17 @@ const PORT = Number(process.env.LAN_HTTPS_PORT || 3443);
 const TARGET = Number(process.env.PORT || 3000);
 const DIR = path.join(process.cwd(), "certificates", "lan");
 
-/** Tarmoq IPv4 manzillari (src/lib/lan.ts dagi bilan bir xil tartib: virtual adapterlar oxirida) */
+/** Tarmoq IPv4 manzillari (src/lib/lan.ts rankAddresses bilan bir xil tartib: hotspot birinchi, virtual oxirida) */
 function lanIps() {
   const virtual = /vethernet|virtual|vmware|vbox|docker|wsl|hyper-v|tailscale|zerotier|loopback/i;
   const found = [];
   for (const [name, list] of Object.entries(networkInterfaces())) {
     for (const info of list ?? []) {
       if (info.family !== "IPv4" || info.internal) continue;
+      const hotspot = info.address.startsWith("192.168.137."); // Windows mobil hotspoti birinchi
       const privateNet = /^(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(info.address);
-      found.push({ address: info.address, score: (virtual.test(name) ? 2 : 0) + (privateNet ? 0 : 1) });
+      const score = hotspot ? -1 : (virtual.test(name) ? 2 : 0) + (privateNet ? 0 : 1);
+      found.push({ address: info.address, score });
     }
   }
   return found.sort((a, b) => a.score - b.score).map((f) => f.address);

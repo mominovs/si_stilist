@@ -1,20 +1,31 @@
 import { networkInterfaces } from "node:os";
 
+type NetInfo = { family: string | number; internal: boolean; address: string };
+
 /**
- * Kompyuterning lokal tarmoqdagi IPv4 manzillari (Wi-Fi/LAN). Hakamlar telefondan shu manzil orqali
- * xaridor sahifasini ochadi. Virtual adapterlar (Docker, WSL, VPN) oxiriga suriladi.
+ * Manzillarni telefon uchun qulaylik tartibida saralaydi. Windows mobil hotspoti (192.168.137.x) birinchi:
+ * kompyuter bir vaqtda Wi-Fi'ga ham ulangan bo'lsa, hotspotdagi telefonlar faqat shu manzilni ko'radi
+ * (universitet Wi-Fi'larida qurilmalar ko'pincha bir-biridan ajratilgan). Virtual adapterlar (Docker, WSL, VPN)
+ * va xususiy bo'lmagan manzillar oxiriga suriladi.
  */
-export function lanAddresses(): string[] {
+export function rankAddresses(interfaces: Record<string, NetInfo[] | undefined>): string[] {
   const virtual = /vethernet|virtual|vmware|vbox|docker|wsl|hyper-v|tailscale|zerotier|loopback/i;
   const found: { address: string; score: number }[] = [];
-  for (const [name, list] of Object.entries(networkInterfaces())) {
+  for (const [name, list] of Object.entries(interfaces)) {
     for (const info of list ?? []) {
-      if (info.family !== "IPv4" || info.internal) continue;
+      if ((info.family !== "IPv4" && info.family !== 4) || info.internal) continue;
+      const hotspot = info.address.startsWith("192.168.137.");
       const privateNet = /^(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(info.address);
-      found.push({ address: info.address, score: (virtual.test(name) ? 2 : 0) + (privateNet ? 0 : 1) });
+      const score = hotspot ? -1 : (virtual.test(name) ? 2 : 0) + (privateNet ? 0 : 1);
+      found.push({ address: info.address, score });
     }
   }
   return found.sort((a, b) => a.score - b.score).map((f) => f.address);
+}
+
+/** Kompyuterning lokal tarmoqdagi IPv4 manzillari: hakamlar telefondan shu manzil orqali sahifani ochadi */
+export function lanAddresses(): string[] {
+  return rankAddresses(networkInterfaces());
 }
 
 /**
