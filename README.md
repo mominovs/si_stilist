@@ -38,13 +38,18 @@ almashtiring va `npm run db:setup`.
 
 ## Lokal demo: run-local.bat (bir Wi-Fi yoki hotspot, HTTPS) — jonli oyna uchun tavsiya
 
-Internet shart emas, kadrlar tarmoqdan chiqmaydi, shuning uchun jonli oyna tez ishlaydi (proksi orqali kadr ~30 ms).
+Lokal jonli oyna kadrlari shu tarmoq ichida uzatiladi; tezlik kompyuter va Wi-Fi imkoniyatiga bog'liq.
+Tashqi SI xizmatlariga internet kerak. Internet bo'lmasa, matnli qidiruv kalit so'zlar va filtrlar bilan ishlaydi.
 
 1. Telefonni kompyuter bilan bir Wi-Fi'ga ulang yoki kompyuter hotspotini yoqing: Sozlamalar -> Tarmoq va Internet
-   -> Mobil hotspot -> Yoqish, telefonni shu tarmoqqa ulang.
+   -> Mobil hotspot -> Yoqish. Hotspotni **run-local.bat ni ochishdan oldin** yoqing, telefonni shu tarmoqqa ulang.
+   Ulanish uchun Wi-Fi nomi/parolidan yoki Windows ko'rsatgan Wi-Fi QR kodidan foydalaning.
 2. `run-local.bat` ni ikki marta bosing: SI kiyintirish serveri, sayt (production) va "SI HTTPS" oynasi ochiladi,
    har biri to'xtasa o'zi qayta ishga tushadi. Kompyuterda holat va panel ochiladi.
-3. Telefonda "SI HTTPS" oynasidagi QR kodni skanerlang (yoki panelda "Telefondan sinash"): `https://<IP>:3443`.
+   Faol hotspot manzili birinchi tanlanadi; hotspot bo'lmasa, shlyuzli jismoniy Wi-Fi/Ethernet adapteri tanlanadi.
+   Tanlangan IP oynada ko'rinadi va sayt QR kodiga qo'yiladi. Oldindan berilgan `LAN_IP` o'zgaruvchisi ustun.
+3. Telefon tarmoqqa ulangach, **sayt uchun alohida QR kodni** skanerlang: "SI HTTPS" oynasida yoki paneldagi
+   "Telefondan sinash" tugmasida (`https://<IP>:3443`). Wi-Fi QR kodi saytni o'zi ochmaydi.
    Telefon "Ulanish xavfsiz emas" deydi (sertifikat shu kompyuterda yaratilgan, `certificates/lan/`): **Qo'shimcha ->
    Baribir o'tish**, keyin kameraga ruxsat. Windows birinchi marta tarmoq ruxsatini so'rasa: **Allow**.
 4. Jonli oyna seansi standart 60 soniya; lokal model bepul, `.env` da `MIRROR_SESSION_SECONDS=180` bilan uzaytiring.

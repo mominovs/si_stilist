@@ -18,6 +18,8 @@ const FRAME_SIDE = 640;
 // Bir vaqtda yo'lda bo'lgan kadrlar: biri serverda ishlanayotganda keyingisi yuklanadi (tarmoq kutilmaydi)
 const IN_FLIGHT = 2;
 const FULL_SIDE = 1536;
+// Tunnel uzilib qolsa bitta kadrni cheksiz kutmasdan keyingisiga qayta uriniladi.
+const FRAME_TIMEOUT_MS = 15_000;
 
 /**
  * Sayt internet orqali (ngrok) ochilganda har kadr tunneldan ikki marta o'tadi va tekin tarif trafigi tez tugaydi
@@ -192,7 +194,7 @@ export function MirrorView({
   const videoRef = useRef<HTMLVideoElement>(null);
   const outRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const running = useRef(false);
+  const sessionRef = useRef<AbortController | null>(null);
   const selectedRef = useRef(initialId);
   const deadline = useRef(0);
   const overlayRef = useRef<HTMLCanvasElement>(null);
@@ -228,7 +230,8 @@ export function MirrorView({
   }, [chosenFit]);
 
   const stopCamera = useCallback(() => {
-    running.current = false;
+    sessionRef.current?.abort();
+    sessionRef.current = null;
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
   }, []);
@@ -237,14 +240,14 @@ export function MirrorView({
 
   // Kadr tsikli: IN_FLIGHT ta parallel ishchi. Har biri kadr oladi, yuboradi va javobni chizadi. Kechroq kelgan
   // eski kadr yangisining ustiga chizilmaydi (tartib raqami bo'yicha). Navbat to'planmaydi, kechikish oshmaydi
-  const loop = useCallback(async () => {
+  const loop = useCallback(async (signal: AbortSignal) => {
     let seq = 0;
     let drawn = 0;
     let frames = 0;
     let since = performance.now();
     const budget = frameBudget();
     const worker = async () => {
-      while (running.current) {
+      while (!signal.aborted) {
         const v = videoRef.current;
         if (Date.now() > deadline.current) {
           stopCamera();
@@ -258,17 +261,22 @@ export function MirrorView({
         const my = ++seq;
         const t0 = performance.now();
         const blob = await new Promise<Blob | null>((r) => frameCanvas(v, budget.side).toBlob(r, "image/jpeg", budget.quality));
-        if (!blob || !running.current) continue;
+        if (!blob || signal.aborted) continue;
+        const request = new AbortController();
+        const abortRequest = () => request.abort();
+        signal.addEventListener("abort", abortRequest, { once: true });
+        const timeout = setTimeout(abortRequest, FRAME_TIMEOUT_MS);
         try {
           const res = await fetch(`/api/mirror?productId=${selectedRef.current}`, {
             method: "POST",
             headers: { "Content-Type": "image/jpeg" },
             body: blob,
+            signal: request.signal,
           });
           if (res.ok) {
             const bmp = await createImageBitmap(await res.blob());
             const out = outRef.current;
-            if (out && running.current && my > drawn) {
+            if (out && !signal.aborted && !request.signal.aborted && my > drawn) {
               drawn = my;
               if (out.width !== bmp.width || out.height !== bmp.height) {
                 out.width = bmp.width;
@@ -309,6 +317,7 @@ export function MirrorView({
             bmp.close();
           } else {
             const data = await res.json().catch(() => ({}));
+            if (signal.aborted || request.signal.aborted) continue;
             if (res.status === 422) {
               // Kadrda odam yo'q yoki juda yaqin: jonli kamera ko'rsatiladi va sabab yoziladi
               setHasFrame(false);
@@ -324,11 +333,16 @@ export function MirrorView({
             }
           }
         } catch {
+          if (signal.aborted) return;
           setHint("Server bilan aloqa yo'q");
           await new Promise((r) => setTimeout(r, 1000));
+        } finally {
+          clearTimeout(timeout);
+          signal.removeEventListener("abort", abortRequest);
         }
         const elapsed = performance.now() - t0;
         if (elapsed < budget.minGapMs) await new Promise((r) => setTimeout(r, budget.minGapMs - elapsed));
+        if (signal.aborted) return;
         const now = performance.now();
         if (now - since > 1000) {
           setFps(Math.round((frames * 1000) / (now - since)));
@@ -341,6 +355,7 @@ export function MirrorView({
   }, [stopCamera]);
 
   async function start() {
+    stopCamera();
     setError(null);
     setHint(null);
     setHasFrame(false);
@@ -350,11 +365,18 @@ export function MirrorView({
       setPhase("unavailable");
       return;
     }
+    const session = new AbortController();
+    sessionRef.current = session;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 960 } },
         audio: false,
       });
+      // Ruxsat oynasi ochiq paytda sahifa yopilgan yoki boshqa seans boshlangan bo'lishi mumkin.
+      if (session.signal.aborted) {
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
       streamRef.current = stream;
       if (videoRef.current) videoRef.current.srcObject = stream;
       deadline.current = Date.now() + SESSION_SECONDS * 1000;
@@ -367,20 +389,30 @@ export function MirrorView({
       setCameraBlocked(false);
       setLeft(SESSION_SECONDS);
       setPhase("live");
-      running.current = true;
-      void loop();
+      void loop(session.signal);
     } catch {
+      if (session.signal.aborted) return;
+      stopCamera();
       setError("Kameraga ruxsat berilmadi yoki kamera topilmadi.");
       setPhase("unavailable");
     }
   }
 
-  // Qolgan vaqt
+  // Seans kadr javobini kutayotganida ham tugaydi: kamera va pending so'rovlar to'xtatiladi.
   useEffect(() => {
     if (phase !== "live") return;
-    const t = setInterval(() => setLeft(Math.max(0, Math.ceil((deadline.current - Date.now()) / 1000))), 250);
+    const signal = sessionRef.current?.signal;
+    const t = setInterval(() => {
+      if (signal?.aborted) return;
+      const remaining = Math.max(0, Math.ceil((deadline.current - Date.now()) / 1000));
+      setLeft(remaining);
+      if (remaining === 0) {
+        stopCamera();
+        setPhase("ended");
+      }
+    }, 250);
     return () => clearInterval(t);
-  }, [phase]);
+  }, [phase, stopCamera]);
 
   function choose(id: number) {
     setSelectedId(id);

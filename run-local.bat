@@ -1,5 +1,5 @@
 @echo off
-rem SI Stilist: lokal demo (internet shart emas). Telefon kompyuter bilan bir Wi-Fi'da yoki kompyuter hotspotida.
+rem SI Stilist: lokal demo. Telefon kompyuter bilan bir Wi-Fi'da yoki kompyuter hotspotida.
 rem   - SI kiyintirish serveri, sayt (production) va lokal HTTPS (telefon kamerasi uchun): har biri alohida oynada,
 rem     to'xtasa 5 soniyadan keyin o'zi qayta ishga tushadi
 rem   - kadrlar tarmoqdan chiqmaydi: jonli oyna ngrok'dagidan ancha tez
@@ -7,6 +7,10 @@ rem Hotspot: Windows Sozlamalar -> Tarmoq va Internet -> Mobil hotspot -> Yoqish
 cd /d %~dp0
 set ROOT=%~dp0
 set LAN_HTTPS_PORT=3443
+if not defined LAN_IP (
+  for /f "usebackq delims=" %%i in (`powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%ROOT%scripts\select-lan-ip.ps1"`) do set "LAN_IP=%%i"
+)
+if defined LAN_IP echo Telefon uchun tanlangan IP: %LAN_IP%
 call "%ROOT%scripts\tozala.bat"
 
 if exist "%ROOT%tryon-local\.venv\Scripts\python.exe" (

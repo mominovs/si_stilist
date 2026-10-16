@@ -1,8 +1,19 @@
 import { networkInterfaces } from "node:os";
 
+/** LAN_IP faqat shu kompyuterda mavjud bo'lsa QR uchun birinchi bo'ladi. */
+export function preferLanAddress(addresses: string[], preferredIp?: string): string[] {
+  const ip = preferredIp?.trim();
+  if (!ip) return addresses;
+  if (!addresses.includes(ip)) {
+    console.warn(`LAN_IP=${ip} bu kompyuterning IPv4 manzillari orasida yo'q. QR uchun manzil avtomatik tanlanadi.`);
+    return addresses;
+  }
+  return [ip, ...addresses.filter((address) => address !== ip)];
+}
+
 /**
  * Kompyuterning lokal tarmoqdagi IPv4 manzillari (Wi-Fi/LAN). Hakamlar telefondan shu manzil orqali
- * xaridor sahifasini ochadi. Virtual adapterlar (Docker, WSL, VPN) oxiriga suriladi.
+ * xaridor sahifasini ochadi. LAN_IP ustun, virtual adapterlar (Docker, WSL, VPN) oxiriga suriladi.
  */
 export function lanAddresses(): string[] {
   const virtual = /vethernet|virtual|vmware|vbox|docker|wsl|hyper-v|tailscale|zerotier|loopback/i;
@@ -14,7 +25,8 @@ export function lanAddresses(): string[] {
       found.push({ address: info.address, score: (virtual.test(name) ? 2 : 0) + (privateNet ? 0 : 1) });
     }
   }
-  return found.sort((a, b) => a.score - b.score).map((f) => f.address);
+  const addresses = found.sort((a, b) => a.score - b.score).map((f) => f.address);
+  return preferLanAddress(addresses, process.env.LAN_IP);
 }
 
 /**
