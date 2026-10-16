@@ -314,5 +314,7 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
   `scripts/https-proxy.mjs` (har biri `qayta.bat` ichida). Proksi: https://IP:3443 -> 127.0.0.1:3000, `selfsigned`
   sertifikat (`certificates/lan/`, SAN: localhost + hozirgi IP'lar, yangi IP bo'lsa qayta yaratiladi),
   `x-forwarded-proto/host/for`, terminalda QR. `LAN_HTTPS_PORT` o'rnatilsa `shopperUrl` localhost'dan
-  ochilgan panelda ham telefonga https://IP:3443 beradi; ngrok host'iga endi port qo'shilmaydi (testlar `lan.test.ts`)
+  ochilgan panelda ham telefonga https://IP:3443 beradi; ngrok host'iga endi port qo'shilmaydi (testlar `lan.test.ts`). IP tartibi `rankAddresses`: Windows hotspoti
+  (192.168.137.x) birinchi (kompyuter Wi-Fi'ga ham ulangan bo'lsa QR hotspot manzilini beradi), virtual adapterlar oxirida;
+  https-proxy.mjs da ham shu tartib
 - `MIRROR_SESSION_SECONDS` (30..600, standart 60) `/oyna` sahifasidan `MirrorView sessionSeconds` ga

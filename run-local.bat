@@ -4,6 +4,8 @@ rem   - SI kiyintirish serveri, sayt (production) va lokal HTTPS (telefon kamera
 rem     to'xtasa 5 soniyadan keyin o'zi qayta ishga tushadi
 rem   - kadrlar tarmoqdan chiqmaydi: jonli oyna ngrok'dagidan ancha tez
 rem Hotspot: Windows Sozlamalar -> Tarmoq va Internet -> Mobil hotspot -> Yoqish, telefonni shu tarmoqqa ulang.
+rem   Kompyuter Wi-Fi'ga ham ulangan bo'lsa, QR kod baribir hotspot manzilini (192.168.137.1) ko'rsatadi.
+rem   Internet bo'lmasa Windows hotspotni yoqmasligi mumkin: unda telefon hotspotiga kompyuter va telefonlarni ulang.
 cd /d %~dp0
 set ROOT=%~dp0
 set LAN_HTTPS_PORT=3443
