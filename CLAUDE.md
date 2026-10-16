@@ -314,7 +314,10 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
   `scripts/https-proxy.mjs` (har biri `qayta.bat` ichida). Proksi: https://IP:3443 -> 127.0.0.1:3000, `selfsigned`
   sertifikat (`certificates/lan/`, SAN: localhost + hozirgi IP'lar, yangi IP bo'lsa qayta yaratiladi),
   `x-forwarded-proto/host/for`, terminalda QR. `LAN_HTTPS_PORT` o'rnatilsa `shopperUrl` localhost'dan
-  ochilgan panelda ham telefonga https://IP:3443 beradi; ngrok host'iga endi port qo'shilmaydi (testlar `lan.test.ts`). IP tartibi `rankAddresses`: Windows hotspoti
-  (192.168.137.x) birinchi (kompyuter Wi-Fi'ga ham ulangan bo'lsa QR hotspot manzilini beradi), virtual adapterlar oxirida;
-  https-proxy.mjs da ham shu tartib
+  ochilgan panelda ham telefonga https://IP:3443 beradi; ngrok host'iga endi port qo'shilmaydi (testlar `lan.test.ts`). QR uchun IP: `run-local.bat`
+  `scripts/select-lan-ip.ps1` bilan `LAN_IP` ni tanlaydi (faol hotspot = Wi-Fi Direct adapteri, bo'lmasa shlyuzli
+  jismoniy adapter); `preferLanAddress` (lan.ts va https-proxy.mjs) uni birinchi qo'yadi, kompyuterda bo'lmasa bir marta
+  ogohlantirib avtomatik tartibga qaytadi (virtual adapterlar oxirida). Hotspotni run-local.bat dan oldin yoqish kerak
+- Mahsulot suratlari `public/products/<sku>.jpg` (oq fon, ~1200 px): progressive JPEG q88, jami ~8 MB (asli 87 MB edi,
+  telefon hotspot orqali har kartochkada 2-3 MB yuklardi). Yangi surat qo'shilsa ham shunday siqing
 - `MIRROR_SESSION_SECONDS` (30..600, standart 60) `/oyna` sahifasidan `MirrorView sessionSeconds` ga
