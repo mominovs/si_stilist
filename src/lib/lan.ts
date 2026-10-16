@@ -1,11 +1,17 @@
 import { networkInterfaces } from "node:os";
 
+const warnedIps = new Set<string>();
+
 /** LAN_IP faqat shu kompyuterda mavjud bo'lsa QR uchun birinchi bo'ladi. */
 export function preferLanAddress(addresses: string[], preferredIp?: string): string[] {
   const ip = preferredIp?.trim();
   if (!ip) return addresses;
   if (!addresses.includes(ip)) {
-    console.warn(`LAN_IP=${ip} bu kompyuterning IPv4 manzillari orasida yo'q. QR uchun manzil avtomatik tanlanadi.`);
+    // Har sahifa ochilganda takrorlanmasin: har bir eskirgan manzil uchun bir marta
+    if (!warnedIps.has(ip)) {
+      warnedIps.add(ip);
+      console.warn(`LAN_IP=${ip} bu kompyuterning IPv4 manzillari orasida yo'q. QR uchun manzil avtomatik tanlanadi.`);
+    }
     return addresses;
   }
   return [ip, ...addresses.filter((address) => address !== ip)];

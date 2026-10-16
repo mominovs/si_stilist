@@ -15,6 +15,8 @@ test("eskirgan LAN_IP QR ga kirmaydi, ogohlantirish va avtomatik tanlash ishlayd
   const addresses = ["192.168.88.35", "10.10.8.24"];
   assert.deepEqual(preferLanAddress(addresses, "192.168.137.1"), addresses);
   assert.equal(warning.mock.callCount(), 1);
+  preferLanAddress(addresses, "192.168.137.1");
+  assert.equal(warning.mock.callCount(), 1, "bir manzil uchun bir marta ogohlantiriladi");
   assert.match(String(warning.mock.calls[0].arguments[0]), /LAN_IP=192\.168\.137\.1/);
 });
 
