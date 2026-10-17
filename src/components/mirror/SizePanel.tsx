@@ -11,11 +11,12 @@ import {
 } from "@/lib/sizing";
 
 export const FIT_STYLE: Record<FitLevel, { color: string; cls: string }> = {
-  "juda-tor": { color: "#ef4444", cls: "bg-red-50 text-red-700 ring-red-200" },
-  tor: { color: "#f59e0b", cls: "bg-amber-50 text-amber-800 ring-amber-200" },
-  mos: { color: "#22c55e", cls: "bg-green-50 text-green-800 ring-green-200" },
-  keng: { color: "#f59e0b", cls: "bg-amber-50 text-amber-800 ring-amber-200" },
-  "juda-keng": { color: "#ef4444", cls: "bg-red-50 text-red-700 ring-red-200" },
+  // color: kamera kadri ustidagi strelkalar (yorqin, har qanday fonda ko'rinsin); cls: panel ichidagi belgi
+  "juda-tor": { color: "#F2685C", cls: "bg-danger-soft text-danger" },
+  tor: { color: "#F2A40F", cls: "bg-warning-soft text-warning" },
+  mos: { color: "#2FA866", cls: "bg-success-soft text-success" },
+  keng: { color: "#F2A40F", cls: "bg-warning-soft text-warning" },
+  "juda-keng": { color: "#F2685C", cls: "bg-danger-soft text-danger" },
 };
 
 const CONFIDENCE_LABEL = { past: "past", orta: "o'rta", yuqori: "yuqori" } as const;
@@ -72,43 +73,43 @@ export function SizePanel({
         : null;
 
   return (
-    <div className="space-y-3 rounded-2xl border border-neutral-200 bg-white p-4">
-      <div className="flex items-baseline justify-between">
-        <h2 className="font-semibold">O&apos;lcham</h2>
-        {estimate && (
-          <span className="text-xs text-neutral-500">aniqlik: {CONFIDENCE_LABEL[estimate.confidence]}</span>
-        )}
+    <div className="card space-y-4 p-5">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="font-display text-2xl font-extrabold text-brand">O&apos;lcham</h2>
+        <span className="badge badge-warn">
+          Taxminiy{estimate ? ` · aniqlik ${CONFIDENCE_LABEL[estimate.confidence]}` : ""}
+        </span>
       </div>
 
-      <div className="grid grid-cols-[1fr_1fr_auto] gap-2">
-        <label className="text-xs text-neutral-500">
-          Bo&apos;y, sm
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-[1fr_1fr_auto]">
+        <label className="field-label mb-0">
+          Bo&apos;y (sm)
           <input
             inputMode="numeric"
             value={form.height}
             onChange={(e) => onForm({ ...form, height: e.target.value.replace(/[^\d.,]/g, "").slice(0, 5) })}
             placeholder="175"
-            className={`mt-0.5 w-full rounded-lg border px-2 py-1.5 text-sm text-neutral-900 ${outOf(form.height, HEIGHT_RANGE) ? "border-red-400" : "border-neutral-300"}`}
+            className={`field mt-2 ${outOf(form.height, HEIGHT_RANGE) ? "border-danger" : ""}`}
           />
         </label>
-        <label className="text-xs text-neutral-500">
-          Vazn, kg
+        <label className="field-label mb-0">
+          Vazn (kg)
           <input
             inputMode="numeric"
             value={form.weight}
             onChange={(e) => onForm({ ...form, weight: e.target.value.replace(/[^\d.,]/g, "").slice(0, 5) })}
             placeholder="70"
-            className={`mt-0.5 w-full rounded-lg border px-2 py-1.5 text-sm text-neutral-900 ${outOf(form.weight, WEIGHT_RANGE) ? "border-red-400" : "border-neutral-300"}`}
+            className={`field mt-2 ${outOf(form.weight, WEIGHT_RANGE) ? "border-danger" : ""}`}
           />
         </label>
-        <div className="text-xs text-neutral-500">
+        <div className="field-label col-span-2 mb-0 sm:col-span-1">
           Siz
-          <div className="mt-0.5 flex rounded-lg border border-neutral-300 p-0.5">
+          <div className="mt-2 flex min-h-12 rounded-full bg-surface-2 p-1 shadow-[inset_0_0_0_1.5px_var(--color-line)]">
             {(["erkak", "ayol"] as const).map((g) => (
               <button
                 key={g}
                 onClick={() => onForm({ ...form, gender: g })}
-                className={`rounded-md px-2 py-1 text-xs ${form.gender === g ? "bg-neutral-900 text-white" : "text-neutral-600"}`}
+                className={`flex-1 rounded-full px-4 text-sm font-bold ${form.gender === g ? "bg-brand text-white" : "text-muted"}`}
               >
                 {g === "erkak" ? "Erkak" : "Ayol"}
               </button>
@@ -116,13 +117,13 @@ export function SizePanel({
           </div>
         </div>
       </div>
-      <p className="text-xs text-neutral-500">
+      <p className="text-xs font-medium text-muted">
         Ixtiyoriy. Bo&apos;y va vazningizni kiritsangiz, o&apos;lcham aniqroq ko&apos;rsatiladi. Ma&apos;lumotlar saqlanmaydi.
       </p>
 
-      <div className="rounded-xl bg-neutral-50 p-3 text-sm">
+      <div className="rounded-2xl bg-surface-2 p-3 text-sm font-medium">
         {!estimate ? (
-          <span className="text-neutral-600">
+          <span className="text-muted">
             {camera === "measuring"
               ? "Kamera o'lchamoqda: to'g'ri turing, yelkalaringiz va belingiz ko'rinsin…"
               : camera === "blocked"
@@ -132,10 +133,11 @@ export function SizePanel({
         ) : recommended ? (
           <>
             <div>
-              Sizga taxminan <span className="text-lg font-semibold">{recommended}</span> mos
-              {recommendedInStock === false && <span className="text-amber-700"> (omborda yo&apos;q, buyurtma qilsa bo&apos;ladi)</span>}
+              <span className="font-bold text-ink">Tavsiya:</span>{" "}
+              <span className="font-display text-2xl font-extrabold text-accent">{recommended}</span>
+              {recommendedInStock === false && <span className="text-warning"> (omborda yo&apos;q, buyurtma qilsa bo&apos;ladi)</span>}
             </div>
-            <div className="mt-0.5 text-xs text-neutral-500">
+            <div className="mt-0.5 text-xs text-muted">
               {[
                 estimate.sources.height && "bo'y",
                 estimate.sources.weight && "vazn",
@@ -149,11 +151,11 @@ export function SizePanel({
             </div>
           </>
         ) : (
-          <span className="text-neutral-600">Bu tovar o&apos;lchamlarini baholab bo&apos;lmadi</span>
+          <span className="text-muted">Bu tovar o&apos;lchamlarini baholab bo&apos;lmadi</span>
         )}
       </div>
 
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
         {sizes.map((s) => {
           const fit = fits.get(s.size);
           const active = s.size === chosen;
@@ -161,28 +163,32 @@ export function SizePanel({
             <button
               key={s.size}
               onClick={() => onChoose(s.size)}
-              className={`relative rounded-xl border p-2 text-center transition ${
-                active ? "border-neutral-900 ring-2 ring-neutral-900" : "border-neutral-200 hover:border-neutral-400"
-              } ${s.inStock ? "bg-white" : "bg-neutral-50"}`}
+              className={`relative rounded-2xl p-2.5 text-center transition ${
+                active
+                  ? "bg-brand text-white"
+                  : `${s.inStock ? "bg-surface" : "bg-surface-2"} shadow-[inset_0_0_0_1.5px_var(--color-line)] hover:shadow-[inset_0_0_0_1.5px_var(--color-brand)]`
+              }`}
             >
               {s.size === recommended && (
-                <span className="absolute -right-1.5 -top-1.5 rounded-full bg-neutral-900 px-1.5 text-[10px] leading-4 text-white">tavsiya</span>
+                <span className="absolute -right-1.5 -top-2 rounded-full bg-accent px-1.5 text-[10px] font-bold leading-4 text-white">tavsiya</span>
               )}
-              <div className="text-base font-semibold">{s.size}</div>
+              <div className="font-display text-base font-extrabold">{s.size}</div>
               {fit && (
-                <div className="text-[11px] font-medium" style={{ color: FIT_STYLE[fit.overall].color }}>
+                <div className={`text-[11px] font-bold ${active ? "text-white/85" : FIT_STYLE[fit.overall].cls.split(" ")[1]}`}>
                   {FIT_LABELS[fit.overall].short}
                 </div>
               )}
-              <div className={`text-[11px] ${s.inStock ? "text-neutral-500" : "text-amber-700"}`}>{s.inStock ? "bor" : "yo'q"}</div>
+              <div className={`text-[11px] font-semibold ${active ? "text-white/70" : s.inStock ? "text-muted" : "text-warning"}`}>
+                {s.inStock ? "bor" : "yo'q"}
+              </div>
             </button>
           );
         })}
       </div>
 
       {chosenFit && (
-        <div className={`rounded-xl px-3 py-2 text-sm ring-1 ${FIT_STYLE[chosenFit.overall].cls}`}>
-          <div className="font-medium">
+        <div className={`rounded-2xl px-4 py-2.5 text-sm ${FIT_STYLE[chosenFit.overall].cls}`}>
+          <div className="font-bold">
             {chosen}: {FIT_LABELS[chosenFit.overall].text}
           </div>
           <div className="text-xs opacity-80">
@@ -195,15 +201,13 @@ export function SizePanel({
         <button
           onClick={onOrder}
           disabled={ordering}
-          className={`w-full rounded-xl px-4 py-3 text-sm font-medium text-white disabled:opacity-60 ${
-            chosenInStock ? "bg-neutral-900 hover:bg-neutral-700" : "bg-amber-600 hover:bg-amber-700"
-          }`}
+          className={`btn btn-lg w-full ${chosenInStock ? "btn-brand" : "bg-warning text-white hover:opacity-90"}`}
         >
           {ordering ? "Yuborilmoqda…" : chosenInStock ? `Sotuvchiga ko'rsatish · ${chosen}` : `Buyurtma berish · ${chosen} (omborda yo'q)`}
         </button>
       )}
-      {orderError && <p className="text-xs text-red-600">{orderError}</p>}
-      <p className="text-[11px] leading-snug text-neutral-400">
+      {orderError && <p className="text-xs font-semibold text-danger">{orderError}</p>}
+      <p className="text-[11px] leading-snug text-muted">
         O&apos;lcham taxminiy: kamera masofani bilmaydi, bo&apos;y va vazn uni aniqlashtiradi. Iloji bo&apos;lsa kiyib ko&apos;ring.
       </p>
     </div>

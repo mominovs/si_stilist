@@ -6,6 +6,7 @@ import { llmConfigured, warmUpLlm } from "@/lib/query/llm";
 import { config } from "@/lib/config";
 import { demoSettings } from "@/lib/demo-settings";
 import { loadVocabulary } from "@/lib/search";
+import { SiteHeader, StatusPill } from "@/components/brand/SiteHeader";
 import { Shopper } from "@/components/shopper/Shopper";
 
 export default async function ShopperPage() {
@@ -32,47 +33,38 @@ export default async function ShopperPage() {
     .map((c) => c.color)
     .sort((a, b) => (colorOrder.indexOf(a) + 1 || 99) - (colorOrder.indexOf(b) + 1 || 99));
 
+  const status = demoSettings.llmOff ? (
+    <StatusPill tone="warn" title="Demo holati sahifasida SI qo'lda o'chirilgan">
+      Zaxira rejim
+    </StatusPill>
+  ) : llmConfigured() ? (
+    <StatusPill tone="ok">SI tayyor</StatusPill>
+  ) : (
+    <StatusPill tone="off" title=".env faylida ANTHROPIC_API_KEY yo'q">
+      Oddiy rejim
+    </StatusPill>
+  );
+
   return (
-    <div className="mx-auto flex min-h-full w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-6 sm:px-6">
-      <header className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">SI Stilist</h1>
-          <p className="text-sm text-neutral-500">Omborda bor tovarlardan sizga mosini topamiz</p>
-        </div>
-        <div className="flex items-center gap-4">
-          {demoSettings.llmOff ? (
-            <span
-              title="Demo holati sahifasida SI qo'lda o'chirilgan"
-              className="flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1 text-sm font-medium text-amber-800"
-            >
-              <span className="h-2 w-2 rounded-full bg-amber-500" />
-              Zaxira rejim (SI o&apos;chirilgan)
-            </span>
-          ) : llmConfigured() ? (
-            <span className="flex items-center gap-2 rounded-full bg-violet-100 px-3 py-1 text-sm font-medium text-violet-800">
-              <span className="h-2 w-2 rounded-full bg-violet-600" />
-              SI yoqilgan
-            </span>
-          ) : (
-            <span
-              title=".env faylida ANTHROPIC_API_KEY yo'q"
-              className="flex items-center gap-2 rounded-full bg-neutral-200 px-3 py-1 text-sm text-neutral-600"
-            >
-              <span className="h-2 w-2 rounded-full bg-neutral-400" />
-              Oddiy rejim (SI kaliti yo&apos;q)
-            </span>
-          )}
-          <Link href="/oyna" prefetch={false} className="text-sm text-neutral-400 hover:text-neutral-700">Jonli oyna</Link>
-          <Link href="/panel" prefetch={false} className="text-sm text-neutral-400 hover:text-neutral-700">Do&apos;kon paneli</Link>
-          <Link href="/admin" prefetch={false} className="text-sm text-neutral-400 hover:text-neutral-700">Admin</Link>
-        </div>
-      </header>
-      <Shopper
-        categories={cats.map((c) => c.category)}
-        colors={sortedColors}
-        sizes={sortedSizes}
-        tryOnProvider={config.tryOn.provider}
+    <>
+      <SiteHeader
+        active="stilist"
+        status={status}
+        extra={
+          <Link href="/admin" prefetch={false} className="hidden rounded-full px-3 py-2 text-sm font-bold text-muted hover:bg-brand-soft md:block">
+            Admin
+          </Link>
+        }
       />
-    </div>
+      <div className="mx-auto flex min-h-full w-full max-w-7xl flex-1 flex-col gap-6 px-4 py-6 sm:px-6">
+        <div className="sm:hidden">{status}</div>
+        <Shopper
+          categories={cats.map((c) => c.category)}
+          colors={sortedColors}
+          sizes={sortedSizes}
+          tryOnProvider={config.tryOn.provider}
+        />
+      </div>
+    </>
   );
 }

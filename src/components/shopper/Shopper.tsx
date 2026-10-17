@@ -9,6 +9,7 @@ import { SellerModal } from "./SellerModal";
 import { TryOnModal } from "./TryOnModal";
 import type { ReserveResponse } from "@/app/api/reserve/route";
 import type { ResultCard as Card } from "@/lib/search";
+import { HangerIcon, SparkIcon } from "@/components/brand/Logo";
 
 type Turn = {
   id: number;
@@ -173,65 +174,70 @@ export function Shopper({
   const selected = turns.find((t) => t.id === selectedId) ?? null;
 
   return (
-    <div className="grid flex-1 gap-6 lg:grid-cols-[400px_1fr]">
-      {/* Chat */}
-      <section className="flex max-h-[55dvh] min-h-[300px] flex-col lg:max-h-[calc(100dvh-7rem)] lg:min-h-[420px] rounded-2xl border border-neutral-200 bg-white">
-        {turns.length > 0 && (
-          <div className="flex justify-end border-b border-neutral-100 px-3 py-2">
-            <button
-              onClick={resetSession}
-              disabled={loading}
-              className="rounded-lg px-3 py-1 text-sm text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 disabled:opacity-40"
-            >
+    <div className="grid flex-1 gap-6 lg:grid-cols-[380px_1fr]">
+      {/* Suhbat */}
+      <section className="card flex max-h-[60dvh] min-h-[320px] flex-col overflow-hidden lg:max-h-[calc(100dvh-8rem)] lg:min-h-[480px]">
+        <div className="flex items-start justify-between gap-3 px-5 pb-2 pt-5">
+          <div>
+            <h1 className="font-display text-2xl font-extrabold text-brand">Nima qidiryapsiz?</h1>
+            <p className="mt-0.5 text-sm text-muted">Oddiy so&apos;z bilan yozing — stilist tanlab beradi.</p>
+          </div>
+          {turns.length > 0 && (
+            <button onClick={resetSession} disabled={loading} className="btn btn-ghost btn-sm shrink-0">
               Yangi suhbat
             </button>
-          </div>
-        )}
-        <div className="flex-1 space-y-4 overflow-y-auto p-4">
+          )}
+        </div>
+        <div className="flex-1 space-y-4 overflow-y-auto px-5 py-3">
           {turns.length === 0 && (
-            <div className="space-y-3">
-              <p className="text-neutral-600">
-                Assalomu alaykum! Qanday kiyim qidiryapsiz? Erkin yozing: rang, narx, qayerga kiyishingiz.
-              </p>
-              <div className="flex flex-col gap-2">
-                {EXAMPLES.map((e) => (
-                  <button
-                    key={e}
-                    onClick={() => submitText(e)}
-                    className="rounded-xl border border-neutral-200 px-3 py-2 text-left text-sm text-neutral-700 hover:border-neutral-400 hover:bg-neutral-50"
-                  >
-                    {e}
-                  </button>
-                ))}
-              </div>
+            <div className="flex flex-col gap-2">
+              {EXAMPLES.map((e) => (
+                <button
+                  key={e}
+                  onClick={() => submitText(e)}
+                  className="rounded-2xl bg-surface-2 px-4 py-3 text-left text-sm font-semibold text-ink shadow-[inset_0_0_0_1px_var(--color-line)] transition hover:shadow-[inset_0_0_0_1.5px_var(--color-brand)]"
+                >
+                  {e}
+                </button>
+              ))}
             </div>
           )}
 
           {turns.map((t) => (
             <div key={t.id} className="space-y-2">
-              <div className="ml-8 rounded-2xl rounded-br-sm bg-neutral-900 px-4 py-2.5 text-sm text-white">{t.text}</div>
+              <div className="ml-8 flex justify-end">
+                <div className="bubble-user">{t.text}</div>
+              </div>
               {t.response && (
-                <button
-                  onClick={() => setSelectedId(t.id)}
-                  className={`mr-8 block w-[calc(100%-2rem)] space-y-2 rounded-2xl rounded-bl-sm px-4 py-2.5 text-left text-sm transition ${
-                    t.id === selectedId ? "bg-neutral-100 ring-1 ring-neutral-300" : "bg-neutral-50 hover:bg-neutral-100"
-                  }`}
-                >
-                  <div>{t.response.message}</div>
-                  <QueryChips parsed={t.response.parsed} mode={t.response.mode} />
-                  {t.response.llmError && (
-                    <div className="text-xs text-amber-700">SI ishlamadi: {t.response.llmError}. Oddiy tahlil ishlatildi.</div>
-                  )}
-                </button>
+                <div className="flex items-end gap-2">
+                  <span className="mb-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand text-accent-bright">
+                    <SparkIcon className="h-4 w-4" />
+                  </span>
+                  <button
+                    onClick={() => setSelectedId(t.id)}
+                    className={`bubble-ai block w-full space-y-2 text-left transition ${t.id === selectedId ? "ring-2 ring-brand/15" : "opacity-80 hover:opacity-100"}`}
+                  >
+                    <div>{t.response.message}</div>
+                    <QueryChips parsed={t.response.parsed} mode={t.response.mode} />
+                    {t.response.llmError && (
+                      <div className="text-xs font-semibold text-warning">SI ishlamadi: {t.response.llmError}. Oddiy tahlil ishlatildi.</div>
+                    )}
+                  </button>
+                </div>
               )}
-              {t.error && <div className="mr-8 rounded-2xl bg-red-50 px-4 py-2.5 text-sm text-red-700">{t.error}</div>}
+              {t.error && <div className="ml-10 rounded-2xl bg-danger-soft px-4 py-2.5 text-sm font-semibold text-danger">{t.error}</div>}
             </div>
           ))}
-          {loading && <div className="mr-8 w-fit rounded-2xl bg-neutral-50 px-4 py-2.5 text-sm text-neutral-500">Qidiryapman...</div>}
+          {loading && (
+            <div className="ml-10 w-48 space-y-2">
+              <div className="skel h-4" />
+              <div className="skel h-4 w-2/3" />
+            </div>
+          )}
           <div ref={chatEnd} />
         </div>
 
-        <div className="space-y-3 border-t border-neutral-100 p-3">
+        <div className="space-y-3 border-t border-line bg-surface-2 p-4">
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -243,18 +249,26 @@ export function Shopper({
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Masalan: bayramga ko'k ko'ylak"
+              aria-label="So'rovingiz"
               maxLength={500}
-              className="flex-1 rounded-xl border border-neutral-300 px-4 py-3 text-base focus:border-neutral-600 focus:outline-none"
+              className="field flex-1"
             />
-            <button
-              disabled={loading || !input.trim()}
-              className="rounded-xl bg-neutral-900 px-5 py-3 text-sm font-medium text-white hover:bg-neutral-700 disabled:opacity-40"
-            >
+            <button disabled={loading || !input.trim()} className="btn btn-primary">
               Yuborish
             </button>
           </form>
-          <button onClick={() => setFiltersOpen((o) => !o)} className="text-sm text-neutral-600 hover:underline">
-            {filtersOpen ? "Filtrni yopish" : "Filtr bilan tanlash"}
+          <button
+            onClick={() => setFiltersOpen((o) => !o)}
+            className="flex w-full items-center justify-between text-sm font-bold text-brand"
+            aria-expanded={filtersOpen}
+          >
+            <span className="flex items-center gap-2">
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <path d="M4 6h16M7 12h10M10 18h4" strokeLinecap="round" />
+              </svg>
+              Filtr bilan tanlash
+            </span>
+            <span className={`transition ${filtersOpen ? "rotate-180" : ""}`}>⌄</span>
           </button>
           {filtersOpen && <FilterPanel categories={categories} colors={colors} sizes={sizes} disabled={loading} onSearch={submitFilters} />}
         </div>
@@ -263,19 +277,23 @@ export function Shopper({
       {/* Natijalar */}
       <section className="space-y-4">
         {!selected?.response ? (
-          <div className="flex h-full min-h-[300px] items-center justify-center rounded-2xl border border-dashed border-neutral-300 p-8 text-center text-neutral-500">
-            {loading ? "Ombordan mos tovarlarni qidiryapman..." : "Natijalar shu yerda chiqadi. Faqat omborda bor tovarlar taklif qilinadi."}
+          <div className="flex h-full min-h-[320px] flex-col items-center justify-center gap-3 rounded-3xl border-2 border-dashed border-line p-8 text-center">
+            <HangerIcon className="h-10 w-10 text-muted" />
+            <p className="font-display text-lg font-bold text-brand">
+              {loading ? "Ombordan mos tovarlarni qidiryapman..." : "Natijalar shu yerda chiqadi"}
+            </p>
+            <p className="max-w-sm text-sm text-muted">Faqat omborda bor tovarlar taklif qilinadi.</p>
           </div>
         ) : (
           <>
-            <div>
-              <h2 className="text-xl font-semibold">{selected.response.message}</h2>
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="font-display text-2xl font-extrabold text-brand">{selected.response.message}</h2>
               {selected.response.parsed?.izoh && selected.response.mode !== "filtr" && (
-                <p className="mt-1 text-sm text-neutral-500">Tushunganim: {selected.response.parsed.izoh}</p>
+                <p className="text-sm font-semibold text-muted">{selected.response.parsed.izoh}</p>
               )}
             </div>
             {selected.response.results.length > 0 ? (
-              <div className="grid gap-4 sm:grid-cols-3">
+              <div className="grid gap-5 sm:grid-cols-3">
                 {selected.response.results.map((card) => (
                   <ResultCard
                     key={`${selected.id}-${card.id}`}
@@ -288,34 +306,31 @@ export function Shopper({
               </div>
             ) : null}
             {selected.response.results.length > 0 ? (
-              <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm">
+              <div className="card flex flex-wrap items-center gap-3 px-5 py-3 text-sm">
                 {selected.feedback ? (
-                  <span className="text-neutral-600">
+                  <span className="font-semibold text-muted">
                     {selected.feedback === "mos"
                       ? "Rahmat! Yoqqanini sotuvchiga ko'rsatishingiz mumkin."
                       : "Rahmat, do'konga yetkazdik. Nima yoqmaganini yozing, boshqasini topamiz."}
                   </span>
                 ) : (
                   <>
-                    <span className="text-neutral-700">Topilganlar sizga mos keldimi?</span>
-                    <button
-                      onClick={() => void sendFeedback(selected, "mos")}
-                      className="rounded-lg border border-green-200 bg-green-50 px-3 py-1.5 text-green-800 hover:bg-green-100"
-                    >
-                      Ha, mos keldi
-                    </button>
-                    <button
-                      onClick={() => void sendFeedback(selected, "mos-emas")}
-                      className="rounded-lg border border-neutral-300 px-3 py-1.5 text-neutral-700 hover:bg-neutral-50"
-                    >
-                      Yo&apos;q, mos kelmadi
-                    </button>
+                    <span className="font-bold text-ink">Topilganlar sizga mos keldimi?</span>
+                    <span className="ml-auto flex gap-2">
+                      <button onClick={() => void sendFeedback(selected, "mos")} className="btn btn-ghost btn-sm" aria-label="Ha, mos keldi">
+                        👍 Ha
+                      </button>
+                      <button onClick={() => void sendFeedback(selected, "mos-emas")} className="btn btn-ghost btn-sm" aria-label="Yo'q, mos kelmadi">
+                        👎 Yo&apos;q
+                      </button>
+                    </span>
                   </>
                 )}
               </div>
             ) : (
-              <div className="rounded-2xl border border-neutral-200 bg-white p-8 text-center text-neutral-600">
-                Hozircha mos tovar yo&apos;q. Boshqa rang yoki kategoriyani so&apos;rab ko&apos;ring.
+              <div className="card p-8 text-center">
+                <p className="font-display text-lg font-bold text-brand">Hozircha mos tovar yo&apos;q</p>
+                <p className="mt-1 text-sm text-muted">Boshqa rang yoki kategoriyani so&apos;rab ko&apos;ring. So&apos;rovingiz do&apos;konga yetkazildi.</p>
               </div>
             )}
           </>
@@ -325,11 +340,7 @@ export function Shopper({
       {tryOnCard && <TryOnModal card={tryOnCard} provider={tryOnProvider} onClose={() => setTryOnCard(null)} />}
       {seller && <SellerModal data={seller} onClose={() => setSeller(null)} />}
 
-      {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 rounded-xl bg-neutral-900 px-5 py-3 text-sm text-white shadow-lg">
-          {toast}
-        </div>
-      )}
+      {toast && <div className="toast fixed bottom-6 left-1/2 z-50 -translate-x-1/2">{toast}</div>}
     </div>
   );
 }

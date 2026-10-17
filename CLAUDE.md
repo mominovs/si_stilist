@@ -363,3 +363,22 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
   yangisi yo'q va model oq chizgan joy faqat fon yaqinidagi chekkada (`edge`) asl fon bilan to'ldiriladi
   (`background_fill`). `reach`/`edge` ham optik oqim bilan suriladi. Qo'shimcha xarajat ~2 ms/kadr
   (oq aniqlash `cv2.inRange`)
+
+## Texnik eslatmalar (dizayn)
+- Brend tizimi Claude Design'dan ("vizual identitet va UI"): to'q olxo'ri `brand` #2B1638, marjon-qizil `accent` #C23B44
+  (asosiy harakat tugmalari), qum fon `sand` #F7F1EA, `surface`/`surface-2`, `line`, `ink`, `muted`, holatlar
+  `success`/`warning`/`danger` (+ `-soft`, `-dot`), `live`. Hammasi `src/app/globals.css` `@theme` da: Tailwind klasslari
+  `bg-brand`, `text-accent`, `bg-sand` ... Eski `neutral`/`rose` ranglari ishlatilmasin
+- Shriftlar o'zimizda (`public/fonts`, internetsiz ham bir xil, OFL): sarlavhalar Bricolage Grotesque 800
+  (`h1-h3`, `.font-display`), matn Manrope
+- Komponent klasslari (`@layer components`): `btn` + `btn-primary|brand|ghost|soft`, `btn-lg|sm`, `icon-btn`, `chip`
+  (`chip-on`, `chip-off`, `chip-size`), `badge` (`badge-ok|warn|danger|brand`), `live-dot`, `card`, `card-lift`,
+  `panel`, `modal`, `scrim`, `toast`, `field-label`, `field`, `camera-dark`, `bubble-user|ai`, `skel`, `eyebrow`
+- Logo (ilgich + uchqun): `src/components/brand/Logo.tsx` (`Logo`, `LogoMark`, `HangerIcon`, `SparkIcon`), favicon
+  `src/app/icon.svg`. Umumiy sarlavha `SiteHeader` (`active`: stilist|oyna|panel, telefonda faqat belgi)
+- Oq fondagi tovar rasmi: `mix-blend-multiply` faqat rasmning o'zida, fon rangi o'rab turgan elementda bo'lsin
+  (rasmning o'z `bg-*` klassi bilan oq quti ko'rinib qoladi)
+- Ekranlar: xaridor (chat + kartochkalar), kiyintirish modali, `/oyna` (kamera chapda, o'lcham va kiyimlar o'ngda),
+  `/efir` (tepada sherik + PiP, `bg-brand` boshqaruv qatori, pastda 3 ustunli kiyimlar "Kiyish"/"Taklif"), `/panel`
+  (4 KPI, olxo'ri rangli "Qoniqtirilmagan talab" kartasi + "Yetkazuvchiga ro'yxat" CSV, brauzerda yasaladi).
+  Admin sahifalari hali eski neytral uslubda

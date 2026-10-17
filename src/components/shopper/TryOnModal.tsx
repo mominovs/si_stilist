@@ -1,5 +1,6 @@
 "use client";
 
+import { SparkIcon } from "@/components/brand/Logo";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ResultCard } from "@/lib/search";
 import type { TryOnResult } from "@/lib/tryon";
@@ -64,12 +65,12 @@ function Figure({ caption, aspect, children }: { caption: string; aspect: number
   return (
     <figure className="space-y-1.5">
       <div
-        className="relative mx-auto w-full overflow-hidden rounded-xl bg-neutral-100"
+        className="relative mx-auto w-full overflow-hidden rounded-3xl bg-surface-2"
         style={{ aspectRatio: aspect, maxWidth: `calc(55dvh * ${aspect})` }}
       >
         {children}
       </div>
-      <figcaption className="text-center text-xs text-neutral-500">{caption}</figcaption>
+      <figcaption className="text-center text-xs font-semibold text-muted">{caption}</figcaption>
     </figure>
   );
 }
@@ -290,35 +291,37 @@ export function TryOnModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true">
-      <div className={`flex max-h-[95dvh] w-full flex-col overflow-hidden rounded-2xl bg-white shadow-2xl ${step === "result" ? "max-w-5xl" : "max-w-3xl"}`}>
-        <header className="flex items-center justify-between border-b border-neutral-100 px-5 py-3">
+    <div className="scrim fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+      <div className={`flex max-h-[95dvh] w-full flex-col overflow-hidden modal ${step === "result" ? "max-w-5xl" : "max-w-3xl"}`}>
+        <header className="flex items-center justify-between border-b border-line px-5 py-3">
           <div className="flex items-center gap-3">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={card.imageUrl} alt="" className="h-10 w-8 object-contain" />
+            <span className="flex h-11 w-11 shrink-0 rounded-xl bg-surface-2 p-1">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={card.imageUrl} alt="" className="h-full w-full object-contain mix-blend-multiply" />
+            </span>
             <div>
-              <div className="font-semibold">O&apos;zimda ko&apos;rish</div>
-              <div className="text-xs text-neutral-500">{card.name} · {card.priceLabel}</div>
+              <div className="font-display text-lg font-extrabold text-brand">O&apos;zimda ko&apos;rish</div>
+              <div className="text-xs font-semibold text-muted">{card.name} · {card.priceLabel}</div>
             </div>
           </div>
-          <button onClick={close} className="rounded-lg px-3 py-1.5 text-sm text-neutral-500 hover:bg-neutral-100" aria-label="Yopish">✕</button>
+          <button onClick={close} className="icon-btn" aria-label="Yopish">✕</button>
         </header>
 
         <div className="flex-1 overflow-y-auto p-5">
           {step === "consent" && (
             <div className="mx-auto max-w-lg space-y-4">
-              <h2 className="text-xl font-semibold">Suratga tushishdan oldin</h2>
-              <ul className="space-y-2 text-sm text-neutral-700">
+              <h2 className="font-display text-2xl font-extrabold text-brand">Suratga tushishdan oldin</h2>
+              <ul className="space-y-2 text-sm font-medium text-ink">
                 <li>• Suratingiz faqat virtual kiyintirish xizmatiga ({PROVIDER[provider].label}) yuboriladi.</li>
                 <li>• Bizning serverda va bazada suratingiz <b>saqlanmaydi</b>. {PROVIDER[provider].retention}</li>
                 <li>• Natija taxminiy: o&apos;lcham va bichimni aniq ko&apos;rsatmaydi.</li>
                 <li>• Eng yaxshi natija uchun: yorug&apos; joyda, to&apos;g&apos;ri turib, belgacha yoki to&apos;liq ko&apos;rining.</li>
               </ul>
               <div className="flex flex-wrap gap-3 pt-2">
-                <button onClick={startCamera} className="rounded-xl bg-neutral-900 px-5 py-3 text-sm font-medium text-white hover:bg-neutral-700">
+                <button onClick={startCamera} className="btn btn-primary btn-lg">
                   Roziman, kamerani yoqish
                 </button>
-                <button onClick={close} className="rounded-xl px-5 py-3 text-sm text-neutral-600 hover:bg-neutral-100">Bekor qilish</button>
+                <button onClick={close} className="btn btn-ghost btn-lg">Bekor qilish</button>
               </div>
             </div>
           )}
@@ -326,9 +329,9 @@ export function TryOnModal({
           {step === "camera" && (
             <div className="space-y-4">
               {cameraError ? (
-                <div className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">{cameraError}</div>
+                <div className="rounded-2xl bg-warning-soft p-4 text-sm font-semibold text-warning">{cameraError}</div>
               ) : (
-                <div className="relative mx-auto aspect-[3/4] max-h-[60dvh] overflow-hidden rounded-xl bg-neutral-900">
+                <div className="camera-dark relative mx-auto aspect-[3/4] max-h-[60dvh] overflow-hidden rounded-3xl">
                   <video ref={videoRef} autoPlay playsInline muted className="h-full w-full -scale-x-100 object-cover" />
                   {/* Gavda joylashuvi uchun yo'l-yo'riq */}
                   <div className="pointer-events-none absolute inset-x-[22%] inset-y-[8%] rounded-[45%] border-2 border-dashed border-white/50" />
@@ -339,19 +342,19 @@ export function TryOnModal({
               )}
               <div className="flex flex-wrap justify-center gap-3">
                 {!cameraError && (
-                  <button onClick={capture} disabled={countdown !== null} className="rounded-xl bg-neutral-900 px-6 py-3 text-sm font-medium text-white hover:bg-neutral-700 disabled:opacity-50">
+                  <button onClick={capture} disabled={countdown !== null} className="btn btn-primary btn-lg">
                     Suratga olish
                   </button>
                 )}
                 {cameraError && (
                   <button
                     onClick={() => captureRef.current?.click()}
-                    className="rounded-xl bg-neutral-900 px-6 py-3 text-sm font-medium text-white hover:bg-neutral-700"
+                    className="btn btn-primary btn-lg"
                   >
                     Kamera bilan suratga olish
                   </button>
                 )}
-                <button onClick={() => fileRef.current?.click()} className="rounded-xl border border-neutral-300 px-5 py-3 text-sm hover:bg-neutral-50">
+                <button onClick={() => fileRef.current?.click()} className="btn btn-ghost btn-lg">
                   Rasm yuklash
                 </button>
                 <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => onFile(e.target.files?.[0])} />
@@ -370,19 +373,19 @@ export function TryOnModal({
           {step === "preview" && photo && (
             <div className="space-y-4">
               {photoIssue && (
-                <div className="mx-auto max-w-lg rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                <div className="mx-auto max-w-lg rounded-2xl bg-warning-soft px-4 py-3 text-sm font-medium text-warning">
                   <b>Bu surat kiyintirishga mos kelmadi.</b> {photoIssue}
                 </div>
               )}
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={photo} alt="Sizning suratingiz" className="mx-auto max-h-[60dvh] rounded-xl" />
+              <img src={photo} alt="Sizning suratingiz" className="mx-auto max-h-[60dvh] rounded-3xl" />
               <div className="flex flex-wrap justify-center gap-3">
                 {photoIssue ? (
-                  <button onClick={retake} className="rounded-xl bg-neutral-900 px-6 py-3 text-sm font-medium text-white hover:bg-neutral-700">Qayta suratga tushish</button>
+                  <button onClick={retake} className="btn btn-primary btn-lg">Qayta suratga tushish</button>
                 ) : (
                   <>
-                    <button onClick={submit} className="rounded-xl bg-neutral-900 px-6 py-3 text-sm font-medium text-white hover:bg-neutral-700">Kiyintirish</button>
-                    <button onClick={retake} className="rounded-xl border border-neutral-300 px-5 py-3 text-sm hover:bg-neutral-50">Qayta olish</button>
+                    <button onClick={submit} className="btn btn-primary btn-lg"><SparkIcon />Kiyintirish</button>
+                    <button onClick={retake} className="btn btn-ghost btn-lg">Qayta olish</button>
                   </>
                 )}
               </div>
@@ -400,14 +403,14 @@ export function TryOnModal({
                   <Frames frames={frames} />
                   {frames.length === 0 && (
                     <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="h-12 w-12 animate-spin rounded-full border-4 border-neutral-200 border-t-neutral-900" />
+                      <div className="h-12 w-12 animate-spin rounded-full border-4 border-line border-t-accent" />
                     </div>
                   )}
                 </Figure>
               </div>
-              <div className="mx-auto h-1.5 max-w-md overflow-hidden rounded-full bg-neutral-100">
+              <div className="mx-auto h-2 max-w-md overflow-hidden rounded-full bg-brand-soft">
                 <div
-                  className="h-full rounded-full bg-neutral-900 transition-all duration-700"
+                  className="h-full rounded-full bg-accent transition-all duration-700"
                   style={{ width: `${progress ? Math.round((progress.step / progress.total) * 100) : 5}%` }}
                 />
               </div>
@@ -417,8 +420,8 @@ export function TryOnModal({
           {step === "result" && result && (
             <div className="space-y-4">
               {result.demo && (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                  <b>Demo rejim.</b> Virtual kiyintirish xizmati ishlamadi ({result.reason}), shuning uchun taxminiy ko&apos;rinish
+                <div className="rounded-2xl bg-warning-soft px-4 py-3 text-sm font-medium text-warning">
+                  <span className="badge mr-2 bg-warning-dot text-ink">DEMO REJIM</span> Virtual kiyintirish xizmati ishlamadi ({result.reason}), shuning uchun taxminiy ko&apos;rinish
                   ko&apos;rsatilmoqda.
                 </div>
               )}
@@ -428,19 +431,21 @@ export function TryOnModal({
                 <Figure aspect={aspect} caption={result.demo ? "Keyin (demo)" : `Keyin · ${result.seconds} soniyada tayyor bo'ldi`}>
                   <Frames frames={frames.length ? frames : [result.image]} />
                 </Figure>
-                <div className="space-y-2 rounded-xl border border-neutral-200 p-3 text-sm sm:col-span-2 lg:col-span-1">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={card.imageUrl} alt="" className="mx-auto h-28 object-contain" />
-                  <div className="font-medium">{card.name}</div>
-                  <div>{card.priceLabel}</div>
-                  <div className="text-xs text-neutral-500">
+                <div className="panel space-y-2 p-3 text-sm sm:col-span-2 lg:col-span-1">
+                  <span className="mx-auto block h-28 w-28 rounded-xl bg-surface-2 p-2">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={card.imageUrl} alt="" className="h-full w-full object-contain mix-blend-multiply" />
+                  </span>
+                  <div className="font-display font-bold text-brand">{card.name}</div>
+                  <div className="font-bold">{card.priceLabel}</div>
+                  <div className="text-xs font-semibold text-muted">
                     O&apos;lchamlar: {card.sizes.filter((s) => s.inStock).map((s) => s.size).join(", ") || "yo'q"}
                   </div>
                 </div>
               </div>
               <div className="flex flex-wrap justify-center gap-3">
-                <button onClick={retake} className="rounded-xl border border-neutral-300 px-5 py-3 text-sm hover:bg-neutral-50">Qayta suratga tushish</button>
-                <button onClick={close} className="rounded-xl bg-neutral-900 px-6 py-3 text-sm font-medium text-white hover:bg-neutral-700">Boshqa kiyim tanlash</button>
+                <button onClick={retake} className="btn btn-ghost btn-lg">Qayta suratga tushish</button>
+                <button onClick={close} className="btn btn-brand btn-lg">Boshqa kiyim tanlash</button>
               </div>
             </div>
           )}

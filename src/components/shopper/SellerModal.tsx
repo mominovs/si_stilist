@@ -5,31 +5,31 @@ import type { ReserveResponse } from "@/app/api/reserve/route";
 /** Xaridor ekranni sotuvchiga ko'rsatadi: katta kod, tovar va o'lcham. Sotuvchi panelda ham shu kodni ko'radi */
 export function SellerModal({ data, onClose }: { data: ReserveResponse; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" onClick={onClose}>
-      <div className="w-full max-w-md space-y-5 rounded-2xl bg-white p-6 text-center shadow-2xl" onClick={(e) => e.stopPropagation()}>
+    <div className="scrim fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" onClick={onClose}>
+      <div className="modal w-full max-w-md space-y-5 p-6 text-center" onClick={(e) => e.stopPropagation()}>
         <div>
-          <div className="text-sm text-neutral-500">Shu ekranni sotuvchiga ko&apos;rsating</div>
-          <div className="mt-2 font-mono text-6xl font-bold tracking-tight">#{data.code}</div>
+          <div className="eyebrow">Shu ekranni sotuvchiga ko&apos;rsating</div>
+          <div className="mt-2 font-display text-7xl font-extrabold tracking-tight text-brand">#{data.code}</div>
         </div>
-        <div className="space-y-1 rounded-xl bg-neutral-50 p-4">
-          <div className="text-lg font-semibold">{data.name}</div>
-          <div className="text-sm text-neutral-600">
+        <div className="space-y-1 rounded-2xl bg-surface-2 p-4">
+          <div className="font-display text-lg font-bold text-brand">{data.name}</div>
+          <div className="text-sm font-semibold text-muted">
             {data.sku && <span className="font-mono">{data.sku} · </span>}
             {data.color}
           </div>
           <div className="flex items-center justify-center gap-4 pt-2">
-            <span className="rounded-lg bg-neutral-900 px-4 py-2 text-2xl font-semibold text-white">{data.size}</span>
-            <span className="text-xl font-semibold">{data.priceLabel}</span>
+            <span className="rounded-xl bg-brand px-4 py-2 font-display text-2xl font-extrabold text-white">{data.size}</span>
+            <span className="font-display text-xl font-extrabold">{data.priceLabel}</span>
           </div>
         </div>
         {data.ordered ? (
-          <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
+          <p className="rounded-2xl bg-warning-soft p-3 text-sm font-medium text-warning">
             Bu o&apos;lcham hozir omborda yo&apos;q: sotuvchi buyurtma qiladi va kelganda sizga xabar beradi.
           </p>
         ) : (
-          <p className="text-xs text-neutral-500">Sotuvchi do&apos;kon panelida ham shu kodni ko&apos;radi va tovarni olib keladi.</p>
+          <p className="text-xs font-medium text-muted">Sotuvchi do&apos;kon panelida ham shu kodni ko&apos;radi va tovarni olib keladi.</p>
         )}
-        <button onClick={onClose} className="w-full rounded-xl bg-neutral-900 px-5 py-3 text-sm font-medium text-white hover:bg-neutral-700">
+        <button onClick={onClose} className="btn btn-brand btn-lg w-full">
           Yopish
         </button>
       </div>

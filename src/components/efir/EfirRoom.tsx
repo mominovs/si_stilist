@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { EfirMessage, EfirSignal, EfirState, ParticipantView } from "@/lib/efir";
 import type { MirrorCard } from "@/components/mirror/MirrorView";
+import { Logo } from "@/components/brand/Logo";
 
 /**
  * Jonli efir (telefon uchun, video qo'ng'iroqdek): tepada katta qilib sherikning kiyintirilgan videosi, burchakda
@@ -494,39 +495,50 @@ export function EfirRoom({
   if (stage === "join") {
     return (
       <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-5 px-5 py-8">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Jonli efir</h1>
-          <p className="mt-1 text-sm text-neutral-500">Do&apos;stingiz bilan kiyim tanlang: bir-biringizni kiyimda ko&apos;rib gaplashasiz</p>
+        <div className="flex justify-center">
+          <Logo size={44} />
         </div>
-        <ul className="space-y-1.5 text-sm text-neutral-600">
-          <li>• Kamera va mikrofon yoqiladi. Sherigingiz faqat kiyintirilgan tasviringizni ko&apos;radi va ovozingizni eshitadi.</li>
-          <li>• Hech narsa yozib olinmaydi va saqlanmaydi. Efirda ko&apos;pi bilan 2 kishi.</li>
-          <li>• Ikkala telefon bir xonada bo&apos;lsa, ovoz qaytmasligi uchun quloqchin taqing yoki birining ovozini o&apos;chiring.</li>
-        </ul>
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          maxLength={24}
-          placeholder="Ismingiz"
-          className="rounded-xl border border-neutral-300 px-4 py-3 text-base outline-none focus:border-neutral-900"
-        />
-        <button
-          onClick={join}
-          disabled={joining}
-          className="rounded-xl bg-rose-600 px-6 py-3 font-medium text-white hover:bg-rose-500 disabled:opacity-60"
-        >
-          {joining ? "Ulanmoqda..." : "Roziman, efirga kirish"}
-        </button>
-        {joinError && <p className="text-sm text-red-600">{joinError}</p>}
-        <Link href="/oyna" className="text-center text-sm text-neutral-500">← Jonli oyna</Link>
+        <div className="card space-y-5 p-6">
+          <div>
+            <span className="badge badge-danger">
+              <span className="live-dot" /> Jonli efir
+            </span>
+            <h1 className="mt-3 font-display text-3xl font-extrabold text-brand">Do&apos;stingiz bilan kiyim tanlang</h1>
+            <p className="mt-1 text-sm font-medium text-muted">Bir-biringizni yangi kiyimda ko&apos;rib, gaplashib tanlaysiz.</p>
+          </div>
+          <ul className="space-y-2 text-sm font-medium text-ink">
+            <li className="flex gap-2">
+              <span className="text-accent">✓</span>Sherigingiz faqat kiyintirilgan tasviringizni ko&apos;radi va ovozingizni eshitadi.
+            </li>
+            <li className="flex gap-2">
+              <span className="text-accent">✓</span>Hech narsa yozib olinmaydi va saqlanmaydi. Efirda ko&apos;pi bilan 2 kishi.
+            </li>
+            <li className="flex gap-2">
+              <span className="text-accent">✓</span>Ikkalangiz bir xonada bo&apos;lsangiz, quloqchin taqing yoki birining ovozini o&apos;chiring.
+            </li>
+          </ul>
+          <label className="field-label">
+            Ismingiz
+            <input value={name} onChange={(e) => setName(e.target.value)} maxLength={24} placeholder="Masalan: Vali" className="field mt-2" />
+          </label>
+          <button onClick={join} disabled={joining} className="btn btn-primary btn-lg w-full">
+            {joining ? "Ulanmoqda..." : "Roziman, efirga kirish"}
+          </button>
+          {joinError && <p className="text-sm font-semibold text-danger">{joinError}</p>}
+        </div>
+        <Link href="/oyna" className="text-center text-sm font-bold text-muted">
+          ← Jonli oyna
+        </Link>
       </div>
     );
   }
 
+  const live = !!partner && (partner.live || rtc === "connected");
+
   return (
-    <div className="mx-auto flex h-dvh w-full max-w-xl flex-col bg-neutral-950 text-white">
+    <div className="mx-auto flex h-dvh w-full max-w-xl flex-col bg-sand">
       {/* Tepa: sherikning efiri (katta) va burchakda o'zingiz (kichik) */}
-      <section className="relative min-h-0 flex-[1.15] overflow-hidden bg-neutral-900">
+      <section className="camera-dark relative min-h-0 flex-[1.15] overflow-hidden text-white">
         <video
           ref={remoteRef}
           autoPlay
@@ -538,35 +550,43 @@ export function EfirRoom({
           <img src={relaySrc} alt="" className="absolute inset-0 h-full w-full object-contain" />
         )}
         {!partner && (
-          <div className="absolute inset-0 flex flex-col items-start justify-center gap-3 p-5 pr-[34%] text-left">
-            <p className="text-lg font-medium">Do&apos;stingizni taklif qiling</p>
+          <div className="absolute inset-0 flex flex-col items-start justify-center gap-3 p-5 pr-[36%] text-left">
+            <span className="badge bg-white/10 text-white">Sherik kutilmoqda</span>
+            <p className="font-display text-2xl font-extrabold leading-tight text-white">Do&apos;stingizni taklif qiling</p>
             {share ? (
               <>
-                <div className="w-40 rounded-xl bg-white p-2" dangerouslySetInnerHTML={{ __html: share.qr }} />
-                <p className="break-all text-xs text-neutral-400">{share.url}</p>
+                <div className="w-40 rounded-2xl bg-white p-2.5 shadow-[var(--shadow-lift)]" dangerouslySetInnerHTML={{ __html: share.qr }} />
+                <p className="break-all text-xs font-medium text-white/60">{share.url}</p>
                 <button
                   onClick={() => void navigator.clipboard?.writeText(share.url).then(() => setToast("Havola nusxalandi"))}
-                  className="rounded-lg border border-white/30 px-3 py-1.5 text-sm"
+                  className="btn btn-sm bg-white text-brand"
                 >
                   Havolani nusxalash
                 </button>
               </>
             ) : (
-              <p className="text-sm text-neutral-400">Shu sahifa manzilini do&apos;stingizga yuboring</p>
+              <p className="text-sm text-white/70">Shu sahifa manzilini do&apos;stingizga yuboring</p>
             )}
-            <p className="text-xs text-neutral-500">U ham shu Wi-Fi yoki hotspotga ulangan bo&apos;lsin</p>
+            <p className="text-xs text-white/50">U ham shu Wi-Fi yoki hotspotga ulangan bo&apos;lsin</p>
           </div>
         )}
         {partner && !partner.live && rtc !== "connected" && (
-          <div className="absolute inset-0 flex items-center justify-center p-6 text-center text-neutral-400">
+          <div className="absolute inset-0 flex items-center justify-center p-6 text-center font-semibold text-white/70">
             {partner.name} kamerasini yoqmoqda...
           </div>
         )}
         {partner && (
-          <div className="absolute left-3 top-3 flex items-center gap-2 rounded-full bg-black/60 px-3 py-1 text-xs">
-            <span className={`h-2 w-2 rounded-full ${partner.live || rtc === "connected" ? "animate-pulse bg-red-500" : "bg-neutral-500"}`} />
-            {partner.name}
-            {partnerCard && <span className="text-white/70">· {partnerCard.name}</span>}
+          <div className="absolute inset-x-3 top-3 flex items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-2 rounded-full bg-brand/70 py-1 pl-1 pr-3 text-sm font-bold backdrop-blur">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent text-xs">
+                {partner.name.slice(0, 1).toUpperCase()}
+              </span>
+              <span className="truncate">
+                {partner.name}
+                {partnerCard && <span className="font-semibold text-white/75"> · {partnerCard.name}</span>}
+              </span>
+            </div>
+            {live && <span className="badge shrink-0 bg-live text-white">JONLI</span>}
           </div>
         )}
         {needsTap && (
@@ -575,111 +595,144 @@ export function EfirRoom({
               void remoteRef.current?.play();
               setNeedsTap(false);
             }}
-            className="absolute inset-x-6 top-14 rounded-xl bg-white/90 px-4 py-2 text-sm font-medium text-neutral-900"
+            className="btn absolute inset-x-6 top-16 bg-white text-brand"
           >
             Ovozni yoqish uchun bosing
           </button>
         )}
 
+        {/* Sherikdan taklif (efir ustida) */}
+        {suggestion &&
+          (() => {
+            const card = cards.find((c) => c.id === suggestion.productId);
+            if (!card) return null;
+            return (
+              <div className="absolute bottom-3 left-3 right-[calc(28.5%+1.25rem)] space-y-2 rounded-2xl bg-surface p-3 text-ink shadow-[var(--shadow-float)]">
+                <div className="flex items-start gap-2">
+                  <span className="flex h-11 w-11 shrink-0 rounded-xl bg-surface-2 p-1">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={card.imageUrl} alt="" className="h-full w-full object-contain mix-blend-multiply" />
+                  </span>
+                  <span className="min-w-0 flex-1 text-sm font-semibold leading-snug">
+                    <b>{suggestion.name}:</b> shuni kiyib ko&apos;r — {card.name}
+                  </span>
+                  <button onClick={() => setSuggestion(null)} aria-label="Yopish" className="icon-btn h-8 w-8 shrink-0 text-xs">
+                    ✕
+                  </button>
+                </div>
+                <button onClick={() => wear(card.id)} className="btn btn-primary w-full">
+                  Kiyish
+                </button>
+              </div>
+            );
+          })()}
+
         {/* O'zingiz: oyna kabi teskari */}
-        <div className="absolute bottom-3 right-3 h-[38%] overflow-hidden rounded-xl border-2 border-white/80 bg-neutral-800 shadow-lg" style={{ aspectRatio: "3 / 4" }}>
+        <div
+          className="absolute bottom-3 right-3 h-[38%] overflow-hidden rounded-2xl bg-brand-2 shadow-[var(--shadow-lift)] ring-2 ring-white/90"
+          style={{ aspectRatio: "3 / 4" }}
+        >
           <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 h-full w-full -scale-x-100 object-cover" />
           <canvas
             ref={outRef}
             className={`absolute inset-0 h-full w-full -scale-x-100 object-cover ${hasFrame ? "opacity-100" : "opacity-0"}`}
           />
+          <span className="absolute z-10 left-1.5 top-1.5 rounded-full bg-brand/70 px-2 py-0.5 text-[11px] font-bold">Siz</span>
           {!cameraOn && (
             <button
               onClick={() => pid && void startCamera(pid)}
-              className="absolute inset-0 flex items-center justify-center bg-black/70 p-2 text-center text-xs"
+              className="absolute inset-0 flex items-center justify-center bg-brand/80 p-2 text-center text-xs font-bold"
             >
               Kamerani yoqish
             </button>
           )}
         </div>
-        {hint && <div className="absolute inset-x-3 bottom-[calc(38%+1.5rem)] rounded-lg bg-amber-50/95 px-3 py-2 text-center text-xs text-amber-900">{hint}</div>}
       </section>
+      {hint && <div className="bg-warning-soft px-3 py-2 text-center text-xs font-bold text-warning">{hint}</div>}
 
       {/* Boshqaruv qatori */}
-      <div className="flex items-center gap-2 border-y border-white/10 px-3 py-2 text-sm">
-        <button onClick={toggleMute} className={`rounded-full px-3 py-1.5 ${muted ? "bg-red-600" : "bg-white/10"}`}>
-          {muted ? "Mikrofon o'chiq" : "Mikrofon"}
+      <div className="flex items-center gap-3 bg-brand px-3 py-2.5 text-white">
+        <button
+          onClick={toggleMute}
+          className={`btn btn-sm ${muted ? "bg-accent text-white" : "bg-white/10 text-white hover:bg-white/15"}`}
+          aria-pressed={muted}
+        >
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+            <rect x="9" y="3" width="6" height="11" rx="3" />
+            <path d="M5 11a7 7 0 0 0 14 0M12 18v3" strokeLinecap="round" />
+            {muted && <path d="M4 4l16 16" strokeLinecap="round" />}
+          </svg>
+          {muted ? "O'chiq" : "Mikrofon"}
         </button>
-        <span className="text-xs text-white/60">
-          {rtc === "connected"
-            ? "To'g'ridan-to'g'ri ulangan"
-            : partner
-              ? partnerLive && relaySrc
-                ? "Server orqali"
-                : "Ulanmoqda..."
-              : "Sherik kutilmoqda"}
-        </span>
-        <span className="ml-auto text-xs text-white/60">{cameraOn ? `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}` : ""}</span>
-        {!cameraOn && pid && (
-          <button onClick={() => void startCamera(pid)} className="rounded-full bg-rose-600 px-3 py-1.5">
+        <div className="min-w-0 flex-1 text-center">
+          <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-white/75">
+            <span className={`h-2 w-2 rounded-full ${rtc === "connected" ? "bg-success-dot" : partner ? "bg-warning-dot" : "bg-white/40"}`} />
+            {rtc === "connected"
+              ? "To'g'ridan-to'g'ri ulangan"
+              : partner
+                ? partnerLive && relaySrc
+                  ? "Server orqali"
+                  : "Ulanmoqda..."
+                : "Sherik kutilmoqda"}
+          </div>
+          {cameraOn && (
+            <div className="font-display text-lg font-extrabold leading-tight">
+              {Math.floor(left / 60)}:{String(left % 60).padStart(2, "0")}
+            </div>
+          )}
+        </div>
+        {!cameraOn && pid ? (
+          <button onClick={() => void startCamera(pid)} className="btn btn-sm btn-primary">
             Davom etish
           </button>
+        ) : (
+          <Link href="/oyna" aria-label="Efirdan chiqish" className="flex h-11 w-11 items-center justify-center rounded-full bg-accent">
+            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden="true">
+              <path d="M3 13.5c5-4.7 13-4.7 18 0l-2.4 2.6-3.4-1.6v-2.6c-2.1-.7-4.3-.7-6.4 0v2.6l-3.4 1.6z" />
+            </svg>
+          </Link>
         )}
       </div>
 
-      {/* Sherikdan taklif */}
-      {suggestion && (() => {
-        const card = cards.find((c) => c.id === suggestion.productId);
-        if (!card) return null;
-        return (
-          <div className="flex items-center gap-3 bg-rose-600/90 px-3 py-2 text-sm">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={card.imageUrl} alt="" className="h-10 w-10 rounded bg-white object-contain p-0.5" />
-            <span className="min-w-0 flex-1 truncate">
-              <b>{suggestion.name}</b>: shuni kiyib ko&apos;r — {card.name}
-            </span>
-            <button onClick={() => wear(card.id)} className="rounded-lg bg-white px-3 py-1.5 font-medium text-rose-700">
-              Kiyish
-            </button>
-            <button onClick={() => setSuggestion(null)} aria-label="Yopish" className="px-1 text-white/80">
-              ✕
-            </button>
-          </div>
-        );
-      })()}
-
       {/* Past: kiyimlar */}
-      <section className="min-h-0 flex-1 overflow-y-auto bg-neutral-50 p-3 text-neutral-900">
-        <div className="mb-2 flex items-baseline justify-between">
-          <span className="text-sm font-semibold">Siz kiygan: {selected?.name}</span>
-          <span className="text-xs text-neutral-500">{selected?.priceLabel}</span>
+      <section className="min-h-0 flex-1 overflow-y-auto p-3">
+        <div className="mb-3 flex items-baseline justify-between gap-2 px-1">
+          <span className="font-display text-lg font-extrabold text-brand">
+            Siz kiygan: <span className="text-accent">{selected?.name}</span>
+          </span>
+          <span className="whitespace-nowrap text-xs font-bold text-muted">{selected?.priceLabel}</span>
         </div>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-3 gap-2.5">
           {cards.map((c) => (
             <div
               key={c.id}
-              className={`overflow-hidden rounded-xl border bg-white ${c.id === selectedId ? "border-neutral-900 ring-2 ring-neutral-900" : "border-neutral-200"}`}
+              className={`flex flex-col gap-1.5 rounded-2xl p-2 ${
+                c.id === selectedId
+                  ? "bg-accent-soft shadow-[inset_0_0_0_2px_var(--color-accent)]"
+                  : "bg-surface shadow-[inset_0_0_0_1.5px_var(--color-line)]"
+              }`}
             >
-              <button onClick={() => wear(c.id)} className="block w-full p-1.5" title={c.name}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={c.imageUrl} alt="" className="aspect-[4/5] w-full object-contain" />
-                <div className="truncate pt-1 text-left text-[11px] text-neutral-700">{c.name}</div>
+              <button onClick={() => wear(c.id)} className="block w-full" title={c.name}>
+                <span className="block aspect-square w-full rounded-xl bg-surface-2 p-1.5">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={c.imageUrl} alt="" className="h-full w-full object-contain mix-blend-multiply" />
+                </span>
+                <div className="line-clamp-2 min-h-8 pt-1 text-left text-[11px] font-bold leading-tight text-ink">{c.name}</div>
               </button>
-              <div className="grid grid-cols-2 border-t border-neutral-100 text-[11px] font-medium">
-                <button onClick={() => wear(c.id)} className="py-1.5 hover:bg-neutral-100">
-                  Kiyish
-                </button>
-                <button
-                  onClick={() => void suggest(c.id)}
-                  disabled={!partner}
-                  className="border-l border-neutral-100 py-1.5 text-rose-600 hover:bg-rose-50 disabled:text-neutral-300"
-                >
-                  Taklif
-                </button>
-              </div>
+              <button onClick={() => wear(c.id)} className="btn btn-brand btn-sm w-full min-h-8 text-xs">
+                Kiyish
+              </button>
+              <button onClick={() => void suggest(c.id)} disabled={!partner} className="btn btn-soft btn-sm w-full min-h-8 text-xs">
+                Taklif
+              </button>
             </div>
           ))}
         </div>
       </section>
 
       {toast && (
-        <div className="pointer-events-none fixed inset-x-0 bottom-6 flex justify-center">
-          <span className="rounded-full bg-neutral-900/90 px-4 py-2 text-sm text-white">{toast}</span>
+        <div className="pointer-events-none fixed inset-x-0 bottom-6 z-50 flex justify-center">
+          <span className="toast">{toast}</span>
         </div>
       )}
     </div>

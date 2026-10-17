@@ -24,15 +24,12 @@ export function StartEfirButton() {
   }
 
   return (
-    <div className="flex flex-col items-end">
-      <button
-        onClick={start}
-        disabled={busy}
-        className="rounded-xl bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-500 disabled:opacity-60"
-      >
-        {busy ? "Ochilmoqda..." : "● Do'st bilan jonli efir"}
+    <div className="flex w-full flex-col items-stretch">
+      <button onClick={start} disabled={busy} className="btn btn-primary btn-lg w-full">
+        <span className="h-3 w-3 rounded-full bg-white shadow-[0_0_0_4px_rgba(255,255,255,.3)]" />
+        {busy ? "Ochilmoqda..." : "Do'st bilan jonli efir"}
       </button>
-      {error && <span className="mt-1 text-xs text-red-600">{error}</span>}
+      {error && <span className="mt-1 text-center text-xs font-semibold text-danger">{error}</span>}
     </div>
   );
 }

@@ -8,6 +8,8 @@ import { FIT_LABELS, estimateBody, fitSizes, median, type SizeFit } from "@/lib/
 import { SellerModal } from "@/components/shopper/SellerModal";
 import { TryOnModal } from "@/components/shopper/TryOnModal";
 import { FIT_STYLE, SizePanel, type BodyForm } from "./SizePanel";
+import { SparkIcon } from "@/components/brand/Logo";
+import { StartEfirButton } from "@/components/efir/StartEfirButton";
 
 /** Jonli oyna tovari: o'lcham jadvali tovar jinsiga bog'liq */
 export type MirrorCard = ResultCard & { gender: "erkak" | "ayol" | "unisex" };
@@ -456,9 +458,9 @@ export function MirrorView({
   }
 
   return (
-    <div className="grid flex-1 gap-6 lg:grid-cols-[1fr_320px]">
-      <section className="flex flex-col items-center gap-4">
-        <div className="relative w-full max-w-[calc(70dvh*0.75)] overflow-hidden rounded-2xl bg-neutral-900" style={{ aspectRatio: "3 / 4" }}>
+    <div className="grid flex-1 gap-6 lg:grid-cols-[minmax(0,440px)_1fr]">
+      <section className="flex flex-col items-center gap-3">
+        <div className="camera-dark relative w-full max-w-[calc(70dvh*0.75)] overflow-hidden rounded-[28px] shadow-[var(--shadow-lift)]" style={{ aspectRatio: "3 / 4" }}>
           {/* Jonli kamera (oyna kabi teskari) va uning ustida kiyintirilgan kadr */}
           <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 h-full w-full -scale-x-100 object-cover" />
           <canvas
@@ -472,9 +474,9 @@ export function MirrorView({
           />
 
           {phase === "consent" && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-neutral-900/90 p-6 text-center text-white">
-              <h2 className="text-xl font-semibold">Jonli oyna</h2>
-              <ul className="max-w-sm space-y-1.5 text-left text-sm text-neutral-200">
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-brand/90 p-6 text-center text-white">
+              <h2 className="font-display text-2xl font-extrabold text-white">Jonli oyna</h2>
+              <ul className="max-w-sm space-y-1.5 text-left text-sm font-medium text-white/85">
                 <li>• Kamera tasviri faqat shu kompyuterdagi SI serveriga yuboriladi va saqlanmaydi.</li>
                 <li>• Seans {SESSION_SECONDS} soniya, keyin kamera o&apos;zi o&apos;chadi.</li>
                 <li>• Belgacha ko&apos;rining, qo&apos;llaringiz yonda bo&apos;lsin. Jonli ko&apos;rinish taxminiy.</li>
@@ -487,7 +489,7 @@ export function MirrorView({
                   vazningizni o&apos;ngda kiritsangiz, aniqroq bo&apos;ladi.
                 </li>
               </ul>
-              <button onClick={start} className="rounded-xl bg-white px-6 py-3 text-sm font-medium text-neutral-900 hover:bg-neutral-200">
+              <button onClick={start} className="btn btn-primary btn-lg">
                 Roziman, oynani yoqish
               </button>
             </div>
@@ -495,8 +497,8 @@ export function MirrorView({
 
           {phase === "live" && (
             <>
-              <div className="absolute left-3 top-3 flex items-center gap-2 rounded-full bg-black/60 px-3 py-1 text-xs text-white">
-                <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
+              <div className="absolute left-3 top-3 flex items-center gap-2 rounded-full bg-brand/80 px-3 py-1.5 text-xs font-bold text-white backdrop-blur">
+                <span className="live-dot animate-pulse" />
                 {left} s · {fps} kadr/s
                 {latency && (
                   <span className="text-white/70">
@@ -506,39 +508,39 @@ export function MirrorView({
               </div>
               {hasFrame && (
                 <div
-                  className={`absolute right-3 top-3 rounded-full px-3 py-1 text-xs ${pose.view === "old" ? "bg-black/60 text-white" : "bg-amber-400/90 text-amber-950"}`}
+                  className={`absolute right-3 top-3 rounded-full px-3 py-1.5 text-xs ${pose.view === "old" ? "bg-surface/90 font-bold text-brand" : "bg-warning-dot font-bold text-ink"}`}
                 >
                   {VIEW_LABEL[pose.view]}
                 </div>
               )}
               {!hint && hasFrame && pose.armsUp && (
-                <div className="absolute inset-x-4 bottom-4 rounded-xl bg-black/60 px-4 py-2 text-center text-sm text-white">
+                <div className="absolute inset-x-6 bottom-5 rounded-full bg-warning-soft px-4 py-2.5 text-center text-sm font-bold text-warning shadow-[var(--shadow-lift)]">
                   Qo&apos;llaringizni pastroq tushiring: kiyim aniqroq chiqadi
                 </div>
               )}
               {hint && (
-                <div className="absolute inset-x-4 bottom-4 rounded-xl bg-amber-50/95 px-4 py-3 text-center text-sm text-amber-900">{hint}</div>
+                <div className="absolute inset-x-6 bottom-5 rounded-2xl bg-warning-soft px-4 py-3 text-center text-sm font-bold text-warning shadow-[var(--shadow-lift)]">{hint}</div>
               )}
             </>
           )}
 
           {(phase === "ended" || phase === "unavailable") && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-neutral-900/90 p-6 text-center text-white">
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-brand/90 p-6 text-center text-white">
               {phase === "ended" ? (
-                <p className="text-lg">Seans tugadi</p>
+                <p className="font-display text-2xl font-extrabold text-white">Seans tugadi</p>
               ) : (
-                <p className="max-w-sm text-sm text-amber-200">{error}</p>
+                <p className="max-w-sm text-sm font-semibold text-warning-soft">{error}</p>
               )}
               <div className="flex flex-wrap justify-center gap-3">
-                <button onClick={start} className="rounded-xl bg-white px-5 py-3 text-sm font-medium text-neutral-900 hover:bg-neutral-200">
+                <button onClick={start} className="btn btn-primary">
                   {phase === "ended" ? `Yana ${SESSION_SECONDS} soniya` : "Qayta urinish"}
                 </button>
-                <Link href="/" className="rounded-xl border border-white/40 px-5 py-3 text-sm hover:bg-white/10">
+                <Link href="/" className="btn bg-white/10 text-white hover:bg-white/20">
                   Xaridor ekrani
                 </Link>
               </div>
               {phase === "unavailable" && (
-                <p className="max-w-sm text-xs text-neutral-400">
+                <p className="max-w-sm text-xs text-white/60">
                   Suratga tushib kiyintirish (&quot;O&apos;zimda ko&apos;rish&quot;) baribir ishlaydi.
                 </p>
               )}
@@ -546,20 +548,21 @@ export function MirrorView({
           )}
         </div>
 
-        {phase === "live" && (
-          <button
-            onClick={takeQuality}
-            className="rounded-xl bg-neutral-900 px-6 py-3 text-sm font-medium text-white hover:bg-neutral-700"
-          >
-            Sifatli surat (SI, ~30 soniya)
-          </button>
-        )}
+        <div className="flex w-full max-w-[calc(70dvh*0.75)] flex-col gap-3">
+          {phase === "live" && (
+            <button onClick={takeQuality} className="btn btn-ghost btn-lg w-full">
+              <SparkIcon className="h-4 w-4 text-accent" />
+              Sifatli surat (SI, ~30 soniya)
+            </button>
+          )}
+          <StartEfirButton />
+        </div>
       </section>
 
-      <aside className="space-y-3">
-        <div>
-          <div className="font-semibold">{selected.name}</div>
-          <div className="text-sm text-neutral-500">{selected.priceLabel}</div>
+      <aside className="space-y-5">
+        <div className="flex items-baseline justify-between gap-3">
+          <h2 className="font-display text-2xl font-extrabold text-brand">{selected.name}</h2>
+          <div className="whitespace-nowrap font-display text-lg font-extrabold text-ink">{selected.priceLabel}</div>
         </div>
         <SizePanel
           form={form}
@@ -575,19 +578,25 @@ export function MirrorView({
           ordering={ordering}
           orderError={orderError}
         />
-        <div className="grid grid-cols-3 gap-2 lg:grid-cols-2">
+        <div className="flex items-baseline justify-between">
+          <h3 className="font-display text-lg font-extrabold text-brand">Kiyimni tanlang</h3>
+          <span className="text-xs font-semibold text-muted">Bosing — oynada darhol ko&apos;rinadi</span>
+        </div>
+        <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 xl:grid-cols-6">
           {cards.map((c) => (
             <button
               key={c.id}
               onClick={() => choose(c.id)}
               title={c.name}
-              className={`overflow-hidden rounded-xl border bg-white p-1.5 text-left transition ${
-                c.id === selectedId ? "border-neutral-900 ring-2 ring-neutral-900" : "border-neutral-200 hover:border-neutral-400"
+              className={`overflow-hidden rounded-2xl p-2 text-left transition ${
+                c.id === selectedId
+                  ? "bg-accent-soft shadow-[inset_0_0_0_2px_var(--color-accent)]"
+                  : "bg-surface shadow-[inset_0_0_0_1.5px_var(--color-line)] hover:shadow-[inset_0_0_0_1.5px_var(--color-brand)]"
               }`}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={c.imageUrl} alt="" className="aspect-[4/5] w-full object-contain" />
-              <div className="truncate px-1 pt-1 text-xs text-neutral-700">{c.name}</div>
+              <img src={c.imageUrl} alt="" className="aspect-square w-full object-contain mix-blend-multiply" />
+              <div className="truncate px-0.5 pt-1.5 text-center text-xs font-bold text-ink">{c.name}</div>
             </button>
           ))}
         </div>
