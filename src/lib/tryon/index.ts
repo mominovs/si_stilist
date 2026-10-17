@@ -93,15 +93,17 @@ export async function runProviderTryOn(input: {
   photoType: string;
   garment: Buffer;
   category: TryOnCategory;
+  /** Katalog kategoriyasi (faqat lokal provayder ishlatadi: niqob shakli) */
+  kind?: string;
   signal: AbortSignal;
   /** Faqat lokal provayder oraliq ko'rinishlarni bera oladi */
   onPreview?: (p: TryOnPreview) => void;
 }): Promise<string> {
-  const { photo, photoType, garment, category, signal, onPreview } = input;
+  const { photo, photoType, garment, category, kind, signal, onPreview } = input;
   if (config.tryOn.provider === "local") {
     return onPreview
-      ? runLocalTryOnStream({ human: photo, garment, category, signal }, onPreview)
-      : runLocalTryOn({ human: photo, garment, category, signal });
+      ? runLocalTryOnStream({ human: photo, garment, category, kind, signal }, onPreview)
+      : runLocalTryOn({ human: photo, garment, category, kind, signal });
   }
   if (config.tryOn.provider === "gemini") {
     return runGeminiTryOn({ human: photo, humanType: photoType, garment, category, signal });
@@ -141,6 +143,7 @@ export async function tryOn(
       photoType,
       garment: await garmentPng(product.imageUrl),
       category: tryOnCategory(product.category),
+      kind: product.category,
       signal: ctrl.signal,
       onPreview,
     });

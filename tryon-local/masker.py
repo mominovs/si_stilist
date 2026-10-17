@@ -35,6 +35,48 @@ L_HIP, R_HIP, L_KNEE, R_KNEE = 23, 24, 25, 26
 ARMS = ((L_SHOULDER, L_ELBOW), (R_SHOULDER, R_ELBOW), (L_ELBOW, L_WRIST), (R_ELBOW, R_WRIST))
 
 
+# Ustki kiyim etagi: sondan qancha pastgacha (tana uzunligining ulushi). Kurtka va kostyum uzunroq
+TOP_LENGTH = {"futbolka": 0.15, "ko'ylak": 0.18, "sviter": 0.22, "kostyum": 0.32, "kurtka": 0.38}
+# Keng kiyim: eski kiyim siluetidan tashqariga (fonga) shuncha chiqishi mumkin (yelka kengligi ulushida). Tor
+# kiyimda faqat ingichka chiziq: keng bo'shliqni model yorug' hoshiya bilan to'ldirib yuborardi
+LOOSE = {"sviter": 0.08, "kostyum": 0.12, "kurtka": 0.16}
+# Katalog rasmidagi bel kengligi odamda necha yelka kengligiga (MediaPipe yelka nuqtalari orasi) to'g'ri keladi.
+# Do'kon suratlarida tajribada tanlangan: shunda tizzagacha libos tizzagacha, maksi to'pig'igacha chiziladi
+WAIST_SW = 0.65
+
+
+def garment_shape(image: Image.Image, kind: str | None = None) -> dict | None:
+    """
+    Katalog rasmidan (oq fon) libos yoki yubka shakli, bel kengligiga nisbatan: belidan etagigacha uzunligi
+    (length) va etak kengligi (hem). Yubkada bel = yuqori chet, libosda = gavdaning eng tor joyi (tasma va yeng
+    hisobga kirmaydi). Shunga qarab mini, midi, maksi va tor/keng etak chiziladi. Topilmasa None.
+    """
+    try:
+        from mirror import garment_mask
+
+        m = garment_mask(np.asarray(image.convert("RGB"))) > 0
+    except Exception:  # noqa: BLE001 - shakl ixtiyoriy: odatiy uzunlik ishlatiladi
+        return None
+    rows = np.nonzero(m.any(axis=1))[0]
+    if len(rows) < 20:
+        return None
+    y0, y1 = int(rows[0]), int(rows[-1]) + 1
+    h = y1 - y0
+    widths = np.array([np.ptp(np.nonzero(m[y])[0]) + 1 if m[y].any() else 0 for y in range(y0, y1)], np.float32)
+    # Qatorlar bo'yicha silliqlash: tugma, burma kabi mayda narsalar o'lchovni buzmasin
+    k = max(3, h // 40) | 1
+    smooth = np.convolve(np.pad(widths, k // 2, mode="edge"), np.ones(k) / k, mode="valid")
+    if kind == "yubka":
+        waist = int(0.05 * h)
+    else:
+        lo, hi = int(0.22 * h), int(0.55 * h)
+        waist = lo + int(np.argmin(smooth[lo:hi]))
+    ww, hem = float(smooth[waist]), float(np.median(smooth[int(0.93 * h):]))
+    if ww < 5:
+        return None
+    return {"length": (h - waist) / ww, "hem": hem / ww}
+
+
 class PhotoError(Exception):
     """Surat kiyintirish uchun yaroqsiz: xabar xaridorga ko'rsatiladi."""
 
@@ -97,10 +139,12 @@ class ClothMasker:
         return self._segment(mp_image, *rgb.shape[:2])
 
     def analyze(
-        self, image: Image.Image, part: str = "tops"
+        self, image: Image.Image, part: str = "tops", kind: str | None = None, shape: dict | None = None
     ) -> tuple[Image.Image, tuple[int, int, int, int], np.ndarray, float]:
         """
-        part: tops | bottoms | one-pieces.
+        part: tops | bottoms | one-pieces. kind: katalog kategoriyasi (kurtka, libos, yubka...), shape: garment_shape()
+        natijasi. Ular bo'lsa niqob yangi kiyim shakliga moslanadi: uzun kurtka sondan pastgacha, libos va yubka
+        oyoqlar orasidagi fonni ham qamraydi (aks holda yangi kiyim eski kiyim siluetiga "siqilib" qolardi).
         Qaytadi: L rejimdagi niqob (255 = almashtiriladi), odamning chegarasi (x0, y0, x1, y1), fon xaritasi
         va yelka kengligi (piksel, gavda o'lchami sifatida).
         """
@@ -149,37 +193,60 @@ class ClothMasker:
         clothes = np.isin(seg, (CLOTHES, OTHERS))
         skin = seg == BODY_SKIN
         region = np.zeros((h, w), np.uint8)
+        # Fon ham kiradigan hudud: yangi kiyim (yubka, libos etagi) eski kiyimdan kengroq bo'ladigan joy
+        open_area = np.zeros((h, w), np.uint8)
 
-        def poly(points) -> None:
-            cv2.fillPoly(region, [np.round(np.array(points)).astype(np.int32)], 255)
+        def poly(points, out: np.ndarray | None = None) -> None:
+            cv2.fillPoly(region if out is None else out, [np.round(np.array(points)).astype(np.int32)], 255)
+
+        def skirt(top_center: np.ndarray, top_half: float, length: float, hem_half: float) -> None:
+            """Yuqoridan etakka kengayadigan trapetsiya (yubka, libos etagi): fon bilan birga"""
+            hem = top_center + unit * length
+            pts = [top_center + side * top_half, top_center - side * top_half, hem - side * hem_half, hem + side * hem_half]
+            poly(pts)
+            poly(pts, open_area)
 
         def limb(a: int, b: int, radius: float, out: np.ndarray | None = None) -> None:
             cv2.line(region if out is None else out, tuple(int(v) for v in pt(a)), tuple(int(v) for v in pt(b)),
                      255, max(1, int(radius * 2)))
 
+        hip_half = 0.5 * float(np.linalg.norm(lh - rh)) + 0.35 * sw
+        bottom = 0.0
         if part == "bottoms":
             if not (visible(L_HIP, 0.3) or visible(R_HIP, 0.3)) or not (visible(L_KNEE, 0.3) or visible(R_KNEE, 0.3)):
                 raise PhotoError("Shim yoki yubka uchun belingiz va tizzangiz ko'rinishi kerak. To'liq gavda bilan suratga tushing.")
             top = hip_mid - 0.25 * down
             poly([top + side * 0.75 * sw, top - side * 0.75 * sw, rh - side * 0.35 * sw, lh + side * 0.35 * sw])
-            for a, b in ((L_HIP, L_KNEE), (R_HIP, R_KNEE), (L_KNEE, 27), (R_KNEE, 28)):
-                limb(a, b, 0.32 * sw)
+            if kind == "yubka":
+                # Yubka oyoqlar orasini ham yopadi: uzunligi va etagi kiyim rasmidan (bel kengligiga nisbatan)
+                length = float(np.clip((shape or {}).get("length", 1.6) * WAIST_SW, 0.6, 3.2)) * sw
+                hem_half = float(np.clip(0.5 * (shape or {}).get("hem", 1.2) * WAIST_SW, 0.5, 1.5)) * sw
+                skirt(top, hip_half, length, hem_half)
+            else:
+                for a, b in ((L_HIP, L_KNEE), (R_HIP, R_KNEE), (L_KNEE, 27), (R_KNEE, 28)):
+                    limb(a, b, 0.32 * sw)
         else:
             # Tana: yelkadan biroz yuqori (yoqa, bo'yin) va kengroq, sondan biroz pastgacha (etak)
             up = -unit * 0.35 * sw
-            bottom = 0.15 if part == "tops" else 0.0
+            if part == "tops":
+                bottom = TOP_LENGTH.get(kind or "", 0.15)
+            loose = LOOSE.get(kind or "", 0.0) if part == "tops" else 0.0
             poly([
                 ls + side * 0.2 * sw + up, rs - side * 0.2 * sw + up,
-                rh - side * 0.3 * sw + down * bottom, lh + side * 0.3 * sw + down * bottom,
+                rh - side * (0.3 + loose) * sw + down * bottom, lh + side * (0.3 + loose) * sw + down * bottom,
             ])
             # Qo'llar (yeng): yelka -> tirsak -> bilak. Qalin kostyum yengi ham to'liq sig'sin
             for a, b in ARMS:
                 limb(a, b, 0.3 * sw)
             if part == "one-pieces":
-                for a, b in ((L_HIP, L_KNEE), (R_HIP, R_KNEE), (L_KNEE, 27), (R_KNEE, 28)):
-                    limb(a, b, 0.32 * sw)
+                # Libos etagi: beldan etakkacha trapetsiya, oyoqlar orasidagi fon ham (aks holda libos shimdek chiqadi).
+                # Uzunlik va etak kengligi kiyim rasmidan, bel kengligiga nisbatan
+                waist = shoulder_mid + 0.6 * down
+                length = float(np.clip((shape or {}).get("length", 1.8) * WAIST_SW, 0.8, 4.0)) * sw
+                hem_half = float(np.clip(0.5 * (shape or {}).get("hem", 1.4) * WAIST_SW, 0.55, 1.6)) * sw
+                skirt(waist, hip_half, length, hem_half)
 
-        mask = ((clothes | skin) & (region > 0)).astype(np.uint8) * 255
+        mask = ((clothes | skin | (open_area > 0)) & (region > 0)).astype(np.uint8) * 255
         if part != "bottoms":
             # Qo'l o'qi bo'ylab ingichka chiziq sinfidan qat'i nazar niqobga kiradi: to'q yeng ba'zan fon deb
             # aniqlanadi va eski kiyimning yirtiq bo'laklari qolib ketardi
@@ -192,10 +259,12 @@ class ClothMasker:
         if part == "tops":
             # Oyoqlar (shim) ustki kiyimga kirmaydi: o'tirgan odamda tizza tana ichiga tushib qoladi
             legs = np.zeros((h, w), np.uint8)
+            # Uzun kurtka etagi sonni qisman yopadi: oyoq chizig'i etakdan pastdan boshlanadi
+            start_frac = max(0.25, bottom + 0.1)
             for a, b in ((L_HIP, L_KNEE), (R_HIP, R_KNEE)):
                 if visible(b, 0.5):
                     knee, hip = pt(b), pt(a)
-                    start = hip + (knee - hip) * 0.25
+                    start = hip + (knee - hip) * start_frac
                     cv2.line(legs, tuple(int(v) for v in start), tuple(int(v) for v in knee), 255, int(0.7 * sw))
                     cv2.circle(legs, tuple(int(v) for v in knee), int(0.35 * sw), 255, -1)
             mask[legs > 0] = 0
@@ -204,9 +273,11 @@ class ClothMasker:
         raw = mask
         mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((k * 2 + 1, k * 2 + 1), np.uint8))
         mask = cv2.dilate(mask, np.ones((k, k), np.uint8))
-        # Fonga faqat ingichka chiziq kiradi: keng bo'shliqni model yorug' hoshiya bilan to'ldirib yuboradi
-        near = cv2.dilate(raw, np.ones((max(3, k // 2), max(3, k // 2)), np.uint8))
-        mask[(seg == BACKGROUND) & (near == 0)] = 0
+        # Fonga faqat ingichka chiziq kiradi: keng bo'shliqni model yorug' hoshiya bilan to'ldirib yuboradi.
+        # Keng kiyim (kurtka, sviter) uchun chiziq qalinroq, yubka/libos etagi esa butunlay ochiq
+        band = max(3, k // 2, int(2 * LOOSE.get(kind or "", 0.0) * sw)) if part == "tops" else max(3, k // 2)
+        near = cv2.dilate(raw, np.ones((band, band), np.uint8))
+        mask[(seg == BACKGROUND) & (near == 0) & (open_area == 0)] = 0
 
         # Himoya: yuz va soch, kaftlarning esa faqat teri qismi (mato emas, aks holda kiyimda "teshik" qoladi)
         protect = np.isin(seg, (FACE_SKIN, HAIR)).astype(np.uint8) * 255

@@ -18,6 +18,8 @@ export async function runLocalTryOn(input: {
   human: Buffer;
   garment: Buffer;
   category: TryOnCategory;
+  /** Katalog kategoriyasi (kurtka, libos, yubka...): server niqobni kiyim shakliga moslaydi */
+  kind?: string;
   signal: AbortSignal;
 }): Promise<string> {
   let res: Response;
@@ -29,6 +31,7 @@ export async function runLocalTryOn(input: {
         person: input.human.toString("base64"),
         garment: input.garment.toString("base64"),
         category: input.category,
+        kind: input.kind,
       }),
       signal: input.signal,
     });
@@ -50,7 +53,7 @@ export type TryOnPreview = { image: string; step: number; total: number };
  * Yakuniy natija qaytariladi (data URI).
  */
 export async function runLocalTryOnStream(
-  input: { human: Buffer; garment: Buffer; category: TryOnCategory; signal: AbortSignal },
+  input: { human: Buffer; garment: Buffer; category: TryOnCategory; kind?: string; signal: AbortSignal },
   onPreview: (p: TryOnPreview) => void,
 ): Promise<string> {
   let res: Response;
@@ -62,6 +65,7 @@ export async function runLocalTryOnStream(
         person: input.human.toString("base64"),
         garment: input.garment.toString("base64"),
         category: input.category,
+        kind: input.kind,
       }),
       signal: input.signal,
     });

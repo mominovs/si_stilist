@@ -59,11 +59,11 @@ export const config = {
     get apiKey() {
       return (process.env.FAL_KEY || "").trim();
     },
-    /** Shundan uzoq kutilsa demo rejimga o'tiladi (ms). Lokal GPU sekinroq: standart 120 s */
+    /** Shundan uzoq kutilsa demo rejimga o'tiladi (ms). Lokal GPU sekinroq (sifat rejimi 1024x768): standart 180 s */
     get timeoutMs() {
       const v = Number(process.env.TRYON_TIMEOUT_MS);
       if (Number.isFinite(v) && v >= 5000) return v;
-      return this.provider === "local" ? 120_000 : 45_000;
+      return this.provider === "local" ? 180_000 : 45_000;
     },
     /** Bir kunda API orqali kiyintirishlar chegarasi (har biri pullik), keyin demo rejim */
     get dailyLimit() {

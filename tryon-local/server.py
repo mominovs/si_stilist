@@ -10,8 +10,9 @@ Xaridor surati faqat xotirada qayta ishlanadi: diskka yozilmaydi va internetga c
 Model og'irliklari birinchi ishga tushishda Hugging Face'dan yuklanadi (~4-5 GB), keyin keshdan olinadi.
 
 Ishga tushirish:
-    python server.py                      # standart: --preset orta (768x576, 50 qadam), bf16, port 8001
-    python server.py --preset sifat       # 1024x768, 50 qadam (sekinroq, ko'proq GPU xotira)
+    python server.py                      # standart: --preset sifat (1024x768, 50 qadam), bf16, port 8001;
+                                          #   GPU xotirasi yetmasa birinchi so'rovda o'zi "orta" ga tushadi
+    python server.py --preset orta        # 768x576, 50 qadam (tezroq, 6 GB GPU uchun xavfsiz)
     python server.py --preset tez         # 768x576, 20 qadam (tezroq)
     python server.py --height 640 --width 480   # GPU xotirasi yetmasa
     python server.py --mode maskfree      # eski niqobsiz rejim
@@ -78,8 +79,9 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="SI Stilist lokal kiyintirish serveri")
     p.add_argument("--host", default="127.0.0.1")
     p.add_argument("--port", type=int, default=8001)
-    # Tayyor rejimlar (6 GB GPU uchun "orta" xavfsiz). --height/--width/--steps aniq berilsa, ular ustun
-    p.add_argument("--preset", choices=list(PRESETS), default="orta", help="tez | orta | sifat")
+    # Tayyor rejimlar. --height/--width/--steps aniq berilsa, ular ustun
+    # Standart "sifat" (model o'qitilgan 1024x768): GPU xotirasi yetmasa birinchi so'rovda o'zi "orta" ga tushadi
+    p.add_argument("--preset", choices=list(PRESETS), default="sifat", help="tez | orta | sifat")
     p.add_argument("--height", type=int, default=None)
     p.add_argument("--width", type=int, default=None)
     p.add_argument("--steps", type=int, default=None, help="Ko'proq qadam: sifatliroq, lekin sekinroq (20-50)")
@@ -240,6 +242,7 @@ class Engine:
     def _mirror_analyze(self, frame: Image.Image, background_job: bool = False) -> dict:
         """Kiyim niqobi va poza (MediaPipe, CPU). Fonda ishlasa xatoni yutadi, keyingi kadr qayta urinadi"""
         from masker import PhotoError as MaskerPhotoError
+        import cv2
         import numpy as np
         from mirror import body_measure, body_view, prepare_analysis
 
@@ -257,7 +260,11 @@ class Engine:
             view = self.mirror_view
             # Burilganda poza o'rtachalanmaydi (kesim yangi holatga darhol o'tadi)
             prev = self.mirror_cache if self.mirror_cache and self.mirror_cache.get("view") == view else None
-            cache = prepare_analysis(frame.size, mask, background, points, prev=prev, frame=np.asarray(frame))
+            # Yuz va soch: yangi kiyim konturi ularning ustiga hech qachon qo'yilmaydi
+            protect = np.isin(seg, (1, 3)).astype(np.uint8)
+            protect = cv2.dilate(protect, np.ones((5, 5), np.uint8)).astype(bool)
+            cache = prepare_analysis(frame.size, mask, background, points, prev=prev, frame=np.asarray(frame),
+                                     protect=protect)
             cache["t"] = time.time()
             cache["view"] = view
             cache["body"] = {
@@ -313,7 +320,7 @@ class Engine:
             result = compose_frame(
                 frame,
                 {**cache, "garment": garment_id},
-                lambda person, size: self.mirror.run(person, garment_id, size, view),
+                lambda person, size: self.mirror.run(person, garment_id, size, view, with_cover=True),
                 self.mirror_state,
             )
         ok, jpg = cv2.imencode(".jpg", cv2.cvtColor(result, cv2.COLOR_RGB2BGR), [cv2.IMWRITE_JPEG_QUALITY, 85])
@@ -377,6 +384,11 @@ class Engine:
                     skip_safety_check=not self.args.safety,
                     use_tf32=True,
                 )
+            try:
+                # Kodlash/dekodlashda GPU xotirasi cho'qqisini pasaytiradi (natija bir xil): 1024x768 ga yordam beradi
+                self.pipeline.vae.enable_slicing()
+            except Exception:  # noqa: BLE001
+                pass
             self._torch = torch
             self._prepare_image = prepare_image
             self._prepare_mask_image = prepare_mask_image
@@ -396,23 +408,28 @@ class Engine:
     def size(self) -> tuple[int, int]:
         return self.args.width, self.args.height
 
-    def prepare(self, person: Image.Image, category: str) -> Job:
+    def prepare(self, person: Image.Image, category: str, kind: str | None = None,
+                garment: Image.Image | None = None) -> Job:
         """
         mask rejimi: niqob asl suratda yasaladi, keyin odam atrofidan kesib olinib model o'lchamiga keltiriladi
         (uzoqdan olingan suratda ham kiyimga ko'proq piksel tushadi). Natija keyin asl suratga qaytariladi.
         Yaroqsiz surat bo'lsa PhotoError: so'rov GPU navbatiga tushmasdan darhol rad etiladi.
+        kind (katalog kategoriyasi) va kiyim rasmi niqob shaklini belgilaydi: uzun kurtka, libos va yubka etagi
+        eski kiyim siluetidan tashqariga ham chiziladi.
         """
         person = person.convert("RGB")
         if self.masker is None:
             return Job(person=resize_and_crop(person, self.size))
         from masker import PhotoError as MaskerPhotoError
+        from masker import garment_shape
 
         scale = min(1.0, MAX_OUTPUT_SIDE / max(person.size))
         if scale < 1:
             person = person.resize((round(person.width * scale), round(person.height * scale)), Image.LANCZOS)
         try:
             with self.mask_lock:  # MediaPipe obyektlari bir vaqtda bitta oqimdan chaqiriladi
-                mask, body, background, shoulder = self.masker.analyze(person, category)
+                shape = garment_shape(garment, kind) if garment is not None and kind in ("libos", "yubka") else None
+                mask, body, background, shoulder = self.masker.analyze(person, category, kind, shape)
         except MaskerPhotoError as e:
             raise PhotoError(str(e)) from e
 
@@ -524,20 +541,39 @@ class Engine:
 
         with self.lock:
             try:
-                garment = resize_and_padding(garment.convert("RGB"), size)
-                # NSFW filtri faqat asl quvurda bor: yoqilgan bo'lsa oraliq ko'rinishlarsiz ishlaymiz
-                if self.args.safety or not on_preview:
-                    generator = self._torch.Generator(device=self.device).manual_seed(seed)
-                    extra = {"mask": mask} if mask is not None else {}
-                    return self.refine(job, self.compose(job, self.pipeline(
-                        image=person, condition_image=garment, num_inference_steps=steps,
-                        guidance_scale=2.5, height=size[1], width=size[0], generator=generator, **extra,
-                    )[0]))
-                result = self._run_progressive(person, mask, garment, steps, seed, preview_at, preview)
-                return self.refine(job, self.compose(job, result))
+                return self._run_once(job, garment, steps, seed, preview_at, preview, on_preview)
+            except Exception as e:  # noqa: BLE001
+                fallback = PRESETS["orta"]
+                if "out of memory" not in str(e).lower() or self.size[1] <= fallback["height"]:
+                    raise
+                # GPU xotirasi yetmadi: shu va keyingi so'rovlar "orta" o'lchamda (nisbat bir xil, 3:4)
+                print(f"[model] {self.size[1]}x{self.size[0]} ga GPU xotirasi yetmadi, "
+                      f"{fallback['height']}x{fallback['width']} ga o'tildi", flush=True)
+                self._torch.cuda.empty_cache()
+                self.args.height, self.args.width = fallback["height"], fallback["width"]
+                job.person = job.person.resize(self.size, Image.LANCZOS)
+                if job.mask is not None:
+                    job.mask = job.mask.resize(self.size, Image.NEAREST)
+                return self._run_once(job, garment, steps, seed, preview_at, preview, on_preview)
             finally:
                 if self.device == "cuda":
                     self._torch.cuda.empty_cache()
+
+    def _run_once(self, job: Job, garment: Image.Image, steps: int, seed: int, preview_at: set, preview,
+                  on_preview: PreviewFn | None) -> Image.Image:
+        size = self.size
+        person, mask = job.person, job.mask
+        garment = resize_and_padding(garment.convert("RGB"), size)
+        # NSFW filtri faqat asl quvurda bor: yoqilgan bo'lsa oraliq ko'rinishlarsiz ishlaymiz
+        if self.args.safety or not on_preview:
+            generator = self._torch.Generator(device=self.device).manual_seed(seed)
+            extra = {"mask": mask} if mask is not None else {}
+            return self.refine(job, self.compose(job, self.pipeline(
+                image=person, condition_image=garment, num_inference_steps=steps,
+                guidance_scale=2.5, height=size[1], width=size[0], generator=generator, **extra,
+            )[0]))
+        result = self._run_progressive(person, mask, garment, steps, seed, preview_at, preview)
+        return self.refine(job, self.compose(job, result))
 
     def _decode(self, latents, concat_dim: int) -> Image.Image:
         """Birlashtirilgan latentdan (odam | kiyim) odam qismini rasmga aylantiradi."""
@@ -665,6 +701,8 @@ class TryOnRequest(BaseModel):
     person: str
     garment: str
     category: str = "tops"
+    # Katalog kategoriyasi (kurtka, libos, yubka...): niqob kiyim shakliga moslanadi. Eski sayt yubormasa ham ishlaydi
+    kind: str | None = None
     steps: int | None = None
     seed: int = 42
 
@@ -685,7 +723,7 @@ def health():
         "preset": args.preset,
         "mode": args.mode,
         # Server imkoniyatlari: ilova eski serverni aniqlashi uchun
-        "version": 7,
+        "version": 8,
         # Jonli oyna (DM-VTON): off | ready | error
         "mirror": engine.mirror_status,
         "mirror_error": engine.mirror_error,
@@ -712,7 +750,7 @@ def prepare_or_reject(req: "TryOnRequest") -> tuple[Job, Image.Image, int]:
     """Rasmlarni ochadi va suratni tekshiradi. Yaroqsiz surat: 422 va xaridorga tushunarli sabab."""
     person, garment = decode_image(req.person), decode_image(req.garment)
     try:
-        job = engine.prepare(person, req.category)
+        job = engine.prepare(person, req.category, req.kind, garment)
     except PhotoError as e:
         print(f"[tryon] surat rad etildi: {e}", flush=True)
         raise HTTPException(422, str(e)) from e
