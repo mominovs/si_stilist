@@ -195,6 +195,8 @@ export function MirrorView({
   const outRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const sessionRef = useRef<AbortController | null>(null);
+  // Server oynani bir vaqtda bitta seansga beradi: har "Boshlash" yangi identifikator
+  const sessionIdRef = useRef("");
   const selectedRef = useRef(initialId);
   const deadline = useRef(0);
   const overlayRef = useRef<HTMLCanvasElement>(null);
@@ -269,7 +271,7 @@ export function MirrorView({
         try {
           const res = await fetch(`/api/mirror?productId=${selectedRef.current}`, {
             method: "POST",
-            headers: { "Content-Type": "image/jpeg" },
+            headers: { "Content-Type": "image/jpeg", "X-Mirror-Session": sessionIdRef.current },
             body: blob,
             signal: request.signal,
           });
@@ -322,7 +324,7 @@ export function MirrorView({
               // Kadrda odam yo'q yoki juda yaqin: jonli kamera ko'rsatiladi va sabab yoziladi
               setHasFrame(false);
               setHint(data.error ?? "Kameraga belgacha ko'rining");
-            } else if (res.status === 503 || res.status === 500) {
+            } else if (res.status === 503 || res.status === 500 || res.status === 409) {
               stopCamera();
               setError(data.error ?? "Jonli oyna ishlamayapti");
               setPhase("unavailable");
@@ -367,6 +369,10 @@ export function MirrorView({
     }
     const session = new AbortController();
     sessionRef.current = session;
+    sessionIdRef.current =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 960 } },

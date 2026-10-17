@@ -5,6 +5,23 @@ import { mirrorFrame } from "@/lib/tryon/mirror";
 
 const MAX_FRAME_BYTES = 1024 * 1024;
 
+// Jonli oyna bitta GPU'da bir vaqtda bitta xaridorga: ikki kishi kadr yuborsa ikkalasi ham sekin, ikkalasi ham
+// yomon ko'radi. Faol seans shuncha vaqt kadr yubormasa (yopilgan, tugagan) oyna boshqaga bo'shaydi
+const SESSION_IDLE_MS = 4000;
+let activeSession: { id: string; at: number } | null = null;
+
+/**
+ * true: shu seans oynani ishlatishi mumkin (bo'sh yoki o'ziniki); false: boshqa xaridor ishlatmoqda.
+ * Cheklov o'chirilmaydi: lokal server niqob va poza keshini (mirror_cache) kadrlar orasida qayta ishlatadi, ikki
+ * odamning kadrlari aralashsa birining niqobi ikkinchisining kadriga tushadi
+ */
+function claimMirror(id: string): boolean {
+  const now = Date.now();
+  if (activeSession && activeSession.id !== id && now - activeSession.at < SESSION_IDLE_MS) return false;
+  activeSession = { id, at: now };
+  return true;
+}
+
 // Har kadrda bazaga murojaat qilinmasin (kadrlar sekundiga o'nlab keladi): tovar 1 daqiqa xotirada turadi
 const productCache = new Map<number, { at: number; product: Awaited<ReturnType<typeof queryProduct>> }>();
 
@@ -28,6 +45,13 @@ export async function POST(request: Request) {
   // Kadrlar ketma-ket keladi (~10-25/s): cheklov faqat suiiste'molga qarshi
   if (!rateLimit(`mirror:${clientKey(request)}`, 2400).ok) {
     return Response.json({ error: "Juda tez-tez" }, { status: 429 });
+  }
+  const session = (request.headers.get("x-mirror-session") ?? "").slice(0, 64) || clientKey(request);
+  if (!claimMirror(session)) {
+    return Response.json(
+      { error: "Jonli oyna hozir band: boshqa xaridor ishlatmoqda. Bir daqiqadan keyin qayta urinib ko'ring." },
+      { status: 409 },
+    );
   }
   const productId = Number(new URL(request.url).searchParams.get("productId"));
   if (!Number.isInteger(productId) || productId <= 0) return Response.json({ error: "Tovar ko'rsatilmagan" }, { status: 400 });

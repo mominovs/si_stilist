@@ -10,9 +10,9 @@ Xaridor surati faqat xotirada qayta ishlanadi: diskka yozilmaydi va internetga c
 Model og'irliklari birinchi ishga tushishda Hugging Face'dan yuklanadi (~4-5 GB), keyin keshdan olinadi.
 
 Ishga tushirish:
-    python server.py                      # standart: --preset sifat (1024x768, 50 qadam), bf16, port 8001;
-                                          #   GPU xotirasi yetmasa birinchi so'rovda o'zi "orta" ga tushadi
-    python server.py --preset orta        # 768x576, 50 qadam (tezroq, 6 GB GPU uchun xavfsiz)
+    python server.py                      # standart: --preset orta (768x576, 50 qadam), bf16, port 8001
+    python server.py --preset sifat       # 1024x768, 50 qadam: 8 GB+ GPU uchun (6 GB da Windows xotirani umumiy
+                                          #   xotiraga chiqaradi: 2 barobar sekin, jonli oyna ham sekinlashadi)
     python server.py --preset tez         # 768x576, 20 qadam (tezroq)
     python server.py --height 640 --width 480   # GPU xotirasi yetmasa
     python server.py --mode maskfree      # eski niqobsiz rejim
@@ -59,6 +59,10 @@ PRESETS = {
     "sifat": {"height": 1024, "width": 768, "steps": 50},
 }
 
+# Bir vaqtda ishlanayotgan + kutayotgan kiyintirishlar chegarasi (bitta GPU, har biri ~40 s). Ko'p bo'lsa navbat
+# saytdagi kutish vaqtidan (180 s) oshib ketadi: yangi so'rovga darhol "band" deyiladi. TRYON_MAX_QUEUE=1: faqat bitta
+MAX_QUEUE = max(1, int(os.environ.get("TRYON_MAX_QUEUE") or 3))
+
 # Oraliq ko'rinishlar shu ulushlarda yuboriladi (50 qadamda: 12, 25, 38), oxirida yakuniy natija
 PREVIEW_FRACTIONS = (0.25, 0.5, 0.75)
 
@@ -80,8 +84,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--host", default="127.0.0.1")
     p.add_argument("--port", type=int, default=8001)
     # Tayyor rejimlar. --height/--width/--steps aniq berilsa, ular ustun
-    # Standart "sifat" (model o'qitilgan 1024x768): GPU xotirasi yetmasa birinchi so'rovda o'zi "orta" ga tushadi
-    p.add_argument("--preset", choices=list(PRESETS), default="sifat", help="tez | orta | sifat")
+    # 6 GB GPU uchun "orta". "sifat" (1024x768) 8 GB+ da: 6 GB da OOM bermasdan sekinlashadi (Windows umumiy xotirasi)
+    # TRYON_PRESET muhit o'zgaruvchisi (run-local.bat / run-all.bat da) standartni almashtiradi
+    p.add_argument("--preset", choices=list(PRESETS), default=os.environ.get("TRYON_PRESET") or "orta",
+                   help="tez | orta | sifat")
     p.add_argument("--height", type=int, default=None)
     p.add_argument("--width", type=int, default=None)
     p.add_argument("--steps", type=int, default=None, help="Ko'proq qadam: sifatliroq, lekin sekinroq (20-50)")
@@ -196,6 +202,8 @@ class Engine:
         self.mirror_status = "off"
         self.mirror_error: str | None = None
         self.mirror_lock = threading.Lock()
+        self.queue = 0
+        self.queue_lock = threading.Lock()
         self.mirror_cache: dict | None = None
         self.mirror_busy = False
         # Ko'rinish (old/yon/orqa) oxirgi 3 tahlilda bir xil bo'lsagina almashadi: chegarada kiyim sakramaydi
@@ -208,6 +216,18 @@ class Engine:
         self._prepare_mask_image = None
         self._compute_vae_encodings = None
         self._randn_tensor = None
+
+    def enter_queue(self) -> None:
+        """Kiyintirish navbatiga kirish; navbat to'la bo'lsa 429 (xaridorga tushunarli xabar)"""
+        with self.queue_lock:
+            if self.queue >= MAX_QUEUE:
+                raise HTTPException(429, f"Kiyintirish hozir band: navbatda {self.queue} kishi. "
+                                         "Bir daqiqadan keyin qayta urinib ko'ring.")
+            self.queue += 1
+
+    def leave_queue(self) -> None:
+        with self.queue_lock:
+            self.queue = max(0, self.queue - 1)
 
     def _load_masker(self) -> None:
         try:
@@ -767,12 +787,15 @@ def describe_failure(e: Exception) -> tuple[int, str]:
 def tryon(req: TryOnRequest):
     ensure_ready()
     job, garment, steps = prepare_or_reject(req)
+    engine.enter_queue()
     t0 = time.time()
     try:
         result = engine.run(job, garment, steps, req.seed)
     except Exception as e:  # noqa: BLE001
         status, detail = describe_failure(e)
         raise HTTPException(status, detail) from e
+    finally:
+        engine.leave_queue()
     print(f"[tryon] {req.category}, {steps} qadam, {time.time() - t0:.1f} s", flush=True)
     return {"image": to_b64(result), "seconds": round(time.time() - t0, 1)}
 
@@ -785,6 +808,7 @@ def tryon_stream(req: TryOnRequest):
     """
     ensure_ready()
     job, garment, steps = prepare_or_reject(req)
+    engine.enter_queue()  # navbat to'la bo'lsa oqim boshlanmasdan 429
     events: queue.Queue = queue.Queue()
 
     def work() -> None:
@@ -801,6 +825,7 @@ def tryon_stream(req: TryOnRequest):
             status, detail = describe_failure(e)
             events.put({"type": "error", "status": status, "detail": detail})
         finally:
+            engine.leave_queue()
             events.put(None)
 
     threading.Thread(target=work, daemon=True).start()

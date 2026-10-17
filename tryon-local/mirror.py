@@ -616,7 +616,12 @@ def cover_masks(
     sx0, sy0, sx1, sy1 = rect
     sigma = max(1.5, frame_w / 250)
     # Hisob faqat kesim ichida (u tashqarisida model natijasi yo'q): butun kadrda xiralashdan ~2x tez
-    full = np.clip((cover - 0.35) / 0.3, 0.0, 1.0) * reach[sy0:sy1, sx0:sx1]
+    # Kontur chetida egilgan kiyim fon bilan aralashadi (och hoshiya): faqat ishonchli ichki qism olinadi va
+    # biroz toraytiriladi, chegara eski kiyim niqobi bilan silliq qo'shiladi
+    core = (cover > 0.6).astype(np.uint8)
+    k = max(3, int(round(frame_w / 160)) | 1)
+    core = cv2.erode(core, np.ones((k, k), np.uint8)).astype(np.float32)
+    full = core * reach[sy0:sy1, sx0:sx1]
     m = m_old.copy()
     m[sy0:sy1, sx0:sx1, 0] = np.maximum(m_old[sy0:sy1, sx0:sx1, 0], cv2.GaussianBlur(full, (0, 0), sigma))
     # Model chizgan oq fon: hamma kanal 225 dan yuqori (numpy min/max dan ~50x tez)

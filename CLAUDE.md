@@ -329,9 +329,14 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
   katalog rasmidan beldan etakkacha uzunlik va etak kengligini bel kengligiga nisbatan o'lchaydi (libosda bel =
   22-55% oralig'idagi eng tor joy), odamda `WAIST_SW = 0.65` yelka (do'kon suratlarida kalibrlangan: tizzagacha libos
   tizzagacha, maksi to'piqqacha); etak trapetsiyasi oyoqlar orasidagi fonni ham qamraydi (`open_area`)
-- Server standart `--preset sifat` (1024x768): OOM bo'lsa `run()` shu so'rovni va keyingilarini `orta` da bajaradi
-  (job kesimi qayta o'lchanadi, nisbat bir xil). `vae.enable_slicing()`. Sayt lokal kutish vaqti 180 s.
-  `/health` version 8
+- Server standart `--preset orta` (`TRYON_PRESET` muhit o'zgaruvchisi, run-local.bat). `sifat` 6 GB GPU'da sinovda
+  82 s va jonli oyna kadri ~350 ms (Windows umumiy xotiraga chiqaradi, OOM bermaydi). Haqiqiy OOM bo'lsa `run()`
+  `orta` ga o'tadi. `vae.enable_slicing()`. Sayt lokal kutish vaqti 180 s. `/health` version 8
+- Ko'p xaridor: kiyintirish navbati `MAX_QUEUE` (`TRYON_MAX_QUEUE`, standart 3: ishlanayotgan + kutayotgan),
+  ortig'iga 429 -> sayt `{mode: "photo", message}` ("band, keyinroq"). Jonli oyna bir vaqtda bitta seans
+  (`/api/mirror` `claimMirror`, `X-Mirror-Session`, 4 s kadr kelmasa bo'shaydi, boshqasiga 409): server niqob/poza
+  keshini kadrlar orasida bo'lishadi, ikki odam aralashsa niqob boshqa odamning kadriga tushardi. Kontur:
+  `cover > 0.6` va eroziya (chetdagi och hoshiya olinmaydi)
 - Jonli oyna: `MirrorEngine.run(..., with_cover=True)` model egib qo'ygan kiyim konturini (warped_edge) ham qaytaradi;
   `compose_frame` -> `cover_masks`: kompozitsiya niqobi = eski kiyim niqobi + yangi kiyim konturi (odamdan
   `COVER_REACH` 0.18 yelka ichida, yuz/sochdan tashqari: `prepare_analysis` `reach`, `protect`); eski kiyim bor,

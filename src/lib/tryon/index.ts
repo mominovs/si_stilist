@@ -151,6 +151,8 @@ export async function tryOn(
     return { mode: "api", image };
   } catch (e) {
     if (e instanceof LocalTryOnError && e.status === 422) return { mode: "photo", message: e.message };
+    // Navbat to'la (bir vaqtda ko'p xaridor): demo natija emas, "band, keyinroq" xabari
+    if (e instanceof LocalTryOnError && e.status === 429) return { mode: "photo", message: e.message };
     const reason = ctrl.signal.aborted ? "xizmat juda sekin javob berdi" : describeError(e);
     console.warn(`[tryon] demo rejimga o'tildi (${reason}):`, e instanceof Error ? e.message : e);
     return demo(product, reason);
