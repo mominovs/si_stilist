@@ -321,3 +321,20 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
 - Mahsulot suratlari `public/products/<sku>.jpg` (oq fon, ~1200 px): progressive JPEG q88, jami ~8 MB (asli 87 MB edi,
   telefon hotspot orqali har kartochkada 2-3 MB yuklardi). Yangi surat qo'shilsa ham shunday siqing
 - `MIRROR_SESSION_SECONDS` (30..600, standart 60) `/oyna` sahifasidan `MirrorView sessionSeconds` ga
+
+## Texnik eslatmalar (kiyim to'liq kiyilgandek)
+- Rasmli rejim niqobi kiyim turiga moslanadi: sayt `kind` (katalog kategoriyasi) yuboradi (`local.ts`, `index.ts`),
+  `masker.analyze(image, part, kind, shape)`. `TOP_LENGTH` (etak: futbolka 0.15 ... kurtka 0.38 tana uzunligi),
+  `LOOSE` (sviter/kostyum/kurtka siluetdan fonga chiqishi, yelka ulushida). Libos va yubka: `garment_shape(image, kind)`
+  katalog rasmidan beldan etakkacha uzunlik va etak kengligini bel kengligiga nisbatan o'lchaydi (libosda bel =
+  22-55% oralig'idagi eng tor joy), odamda `WAIST_SW = 0.65` yelka (do'kon suratlarida kalibrlangan: tizzagacha libos
+  tizzagacha, maksi to'piqqacha); etak trapetsiyasi oyoqlar orasidagi fonni ham qamraydi (`open_area`)
+- Server standart `--preset sifat` (1024x768): OOM bo'lsa `run()` shu so'rovni va keyingilarini `orta` da bajaradi
+  (job kesimi qayta o'lchanadi, nisbat bir xil). `vae.enable_slicing()`. Sayt lokal kutish vaqti 180 s.
+  `/health` version 8
+- Jonli oyna: `MirrorEngine.run(..., with_cover=True)` model egib qo'ygan kiyim konturini (warped_edge) ham qaytaradi;
+  `compose_frame` -> `cover_masks`: kompozitsiya niqobi = eski kiyim niqobi + yangi kiyim konturi (odamdan
+  `COVER_REACH` 0.18 yelka ichida, yuz/sochdan tashqari: `prepare_analysis` `reach`, `protect`); eski kiyim bor,
+  yangisi yo'q va model oq chizgan joy faqat fon yaqinidagi chekkada (`edge`) asl fon bilan to'ldiriladi
+  (`background_fill`). `reach`/`edge` ham optik oqim bilan suriladi. Qo'shimcha xarajat ~2 ms/kadr
+  (oq aniqlash `cv2.inRange`)

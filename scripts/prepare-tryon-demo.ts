@@ -33,7 +33,8 @@ async function main() {
         photoType: type,
         garment: await garmentPng(imagePathFor(p.sku)),
         category: tryOnCategory(p.category),
-        signal: AbortSignal.timeout(120_000),
+        kind: p.category,
+        signal: AbortSignal.timeout(180_000),
       });
       const res = await fetch(url);
       await writeFile(path.join(outDir, `${p.sku.toLowerCase()}.jpg`), Buffer.from(await res.arrayBuffer()));

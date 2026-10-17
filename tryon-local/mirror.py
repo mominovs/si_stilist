@@ -53,6 +53,9 @@ TRACK_W = 160
 SHADE_STRENGTH = 0.7
 SHADE_RANGE = (0.75, 1.2)
 SHADE_SIGMA = 0.12
+# Yangi kiyim eski kiyimdan kengroq/uzunroq bo'lsa (kurtka futbolka ustidan) model chizgan kiyim konturi bo'yicha
+# eski kiyim siluetidan tashqariga ham qo'yiladi, lekin odamdan shuncha uzoqlashmaydi (yelka kengligi ulushida)
+COVER_REACH = 0.18
 
 
 def correlation(first, second, intStride: int = 1):
@@ -331,10 +334,12 @@ class MirrorEngine:
             self.garments.pop(next(iter(self.garments)))
 
     def run(
-        self, person: np.ndarray, garment_id: str, out_size: tuple[int, int] | None = None, view: str = "old"
-    ) -> np.ndarray:
+        self, person: np.ndarray, garment_id: str, out_size: tuple[int, int] | None = None, view: str = "old",
+        with_cover: bool = False,
+    ):
         """
-        person: 256x192x3 uint8 (oq fonda) -> natija out_size (w, h) da, uint8.
+        person: 256x192x3 uint8 (oq fonda) -> natija out_size (w, h) da, uint8. with_cover: (natija, yangi kiyim
+        konturi 0..1 shu o'lchamda) qaytadi: kompozitsiya yangi kiyimni eski kiyim siluetidan tashqarida ham qo'yadi.
         out_size kattaroq bo'lsa: egish xaritasi (last_flow, normallashgan [-1, 1] koordinatalar) kattalashtirilib
         kiyimning tiniq nusxasiga qo'llanadi; model chizgan qism (teri, soya) va aralashtirish niqobi esa silliq
         kattalashtiriladi. Model hisobi o'zgarmaydi, qo'shimcha xarajat bitta grid_sample.
@@ -364,7 +369,10 @@ class MirrorEngine:
         arr = ((tryon[0].permute(1, 2, 0).float().cpu().numpy() + 1) * 127.5).clip(0, 255).astype(np.uint8)
         if out_size and (arr.shape[1], arr.shape[0]) != tuple(out_size):
             arr = cv2.resize(arr, tuple(out_size), interpolation=cv2.INTER_CUBIC)
-        return arr
+        if not with_cover:
+            return arr
+        cover = warped_edge[0, 0].float().cpu().numpy()
+        return arr, cv2.resize(cover, (arr.shape[1], arr.shape[0]), interpolation=cv2.INTER_LINEAR)
 
 
 def prepare_analysis(
@@ -374,6 +382,7 @@ def prepare_analysis(
     points: np.ndarray,
     prev: dict | None = None,
     frame: np.ndarray | None = None,
+    protect: np.ndarray | None = None,
 ) -> dict:
     """
     Niqob va pozadan kadr uchun kerakli hamma narsa (niqob yangilanganda bir marta hisoblanadi, kadrlar qayta
@@ -393,6 +402,16 @@ def prepare_analysis(
     inside[sy0:sy1, sx0:sx1] = 1
     soft = cv2.GaussianBlur(m * inside, (0, 0), max(1.5, w / 250))[..., None]
     out = {"size": frame_size, "points": points, "box": box, "bg": background, "soft": soft}
+    # Yangi kiyim qo'yilishi mumkin bo'lgan hudud: odamdan COVER_REACH*yelka ichida, yuz va sochdan tashqari
+    shoulder = float(np.linalg.norm(points[L_SHOULDER] - points[R_SHOULDER]))
+    r = max(1, int(COVER_REACH * shoulder))
+    reach = cv2.dilate((~background).astype(np.uint8), cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * r + 1, 2 * r + 1)))
+    if protect is not None:
+        reach[protect] = 0
+    out["reach"] = reach.astype(bool)
+    # Fon yaqinidagi chekka: faqat shu yerda ochilib qolgan joy fon bilan to'ldiriladi (gavda o'rtasida emas)
+    out["edge"] = cv2.dilate(background.astype(np.uint8),
+                             cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * r + 1, 2 * r + 1))).astype(bool)
     if frame is not None:
         # Keyingi kadrlarda niqobni tanaga ergashtirish uchun (track_analysis)
         out["small"] = small_gray(frame)
@@ -443,11 +462,16 @@ def track_analysis(analysis: dict, rgb: np.ndarray) -> tuple[dict, float]:
     mx, my = gx + full[..., 0], gy + full[..., 1]
     soft = cv2.remap(analysis["soft"][..., 0], mx, my, cv2.INTER_LINEAR, borderValue=0)[..., None]
     bg = cv2.remap(analysis["bg"].astype(np.uint8), mx, my, cv2.INTER_NEAREST, borderValue=1).astype(bool)
+    moved = {"soft": soft, "bg": bg}
+    for key in ("reach", "edge"):
+        if key in analysis:
+            moved[key] = cv2.remap(analysis[key].astype(np.uint8), mx, my, cv2.INTER_NEAREST,
+                                   borderValue=0).astype(bool)
     # Kesim butun gavda siljishi bo'yicha suriladi (ref dagi p nuqta joriy kadrda p - flow da)
     dx, dy = -float(np.median(fx)) * scale, -float(np.median(fy)) * scale
     x0, y0, x1, y1 = analysis["box"]
     box = (int(round(x0 + dx)), int(round(y0 + dy)), int(round(x1 + dx)), int(round(y1 + dy)))
-    return {**analysis, "soft": soft, "bg": bg, "box": box}, motion
+    return {**analysis, **moved, "box": box}, motion
 
 
 def body_view(
@@ -543,12 +567,20 @@ def compose_frame(frame: Image.Image, analysis: dict, infer, state: dict | None 
     # Natija kesim o'lchamida (ko'pi bilan HR_SIZE), kattaroq bo'lsa oxirida oddiy kattalashtiriladi
     bw, bh = x1 - x0, y1 - y0
     scale = min(1.0, HR_SIZE[0] / bw)
-    up = infer(person, (max(SIZE[0], int(bw * scale)), max(SIZE[1], int(bh * scale))))
+    res = infer(person, (max(SIZE[0], int(bw * scale)), max(SIZE[1], int(bh * scale))))
+    up, cover = res if isinstance(res, tuple) else (res, None)
     if up.shape[:2] != (bh, bw):
         up = cv2.resize(up, (bw, bh), interpolation=cv2.INTER_CUBIC)
+        if cover is not None:
+            cover = cv2.resize(cover, (bw, bh), interpolation=cv2.INTER_LINEAR)
     sx0, sy0, sx1, sy1 = max(0, x0), max(0, y0), min(w, x1), min(h, y1)
     region = up[sy0 - y0:sy1 - y0, sx0 - x0:sx1 - x0].astype(np.float32)
-    m = analysis["soft"]
+    m_old = analysis["soft"]
+    m, exposed = m_old, None
+    if cover is not None and "reach" in analysis:
+        m, exposed = cover_masks(m_old, cover[sy0 - y0:sy1 - y0, sx0 - x0:sx1 - x0], (sx0, sy0, sx1, sy1),
+                                 analysis["reach"], up[sy0 - y0:sy1 - y0, sx0 - x0:sx1 - x0], w,
+                                 analysis.get("edge"))
     pts = analysis["points"]
     shoulder_px = float(np.linalg.norm(pts[L_SHOULDER] - pts[R_SHOULDER]))
     region *= shading_map(rgb[sy0:sy1, sx0:sx1], m[sy0:sy1, sx0:sx1, 0], shoulder_px)[..., None]
@@ -562,7 +594,59 @@ def compose_frame(frame: Image.Image, analysis: dict, infer, state: dict | None 
         state["region"], state["key"] = region, key
     layer = rgb.copy()
     layer[sy0:sy1, sx0:sx1] = region.clip(0, 255).astype(np.uint8)
-    return (layer * m + rgb * (1 - m)).astype(np.uint8)
+    out = layer * m + rgb * (1 - m)
+    if exposed is not None:
+        # Yangi kiyim eskisidan tor: ochilib qolgan joyni model oq fon qilib chizadi, u atrofdagi asl fon bilan
+        # to'ldiriladi (oq hoshiya ko'rinmaydi)
+        fill = background_fill(rgb, analysis["bg"])
+        out = out * (1 - exposed) + fill * exposed
+    return out.clip(0, 255).astype(np.uint8)
+
+
+def cover_masks(
+    m_old: np.ndarray, cover: np.ndarray, rect: tuple[int, int, int, int], reach: np.ndarray, model: np.ndarray,
+    frame_w: int, edge: np.ndarray | None = None,
+) -> tuple[np.ndarray, np.ndarray | None]:
+    """
+    Kompozitsiya niqobi = eski kiyim niqobi + yangi kiyim konturi (model egib qo'ygan kiyim), ikkinchisi faqat odam
+    yaqinida va yuz/sochdan tashqarida. Ikkinchi qiymat: eski kiyim bor, yangisi yo'q va model u yerni oq fon
+    qilib chizgan joy (to'ldiriladi, faqat fon yaqinidagi chekkada) yoki None.
+    """
+    h, w = m_old.shape[:2]
+    sx0, sy0, sx1, sy1 = rect
+    sigma = max(1.5, frame_w / 250)
+    # Hisob faqat kesim ichida (u tashqarisida model natijasi yo'q): butun kadrda xiralashdan ~2x tez
+    full = np.clip((cover - 0.35) / 0.3, 0.0, 1.0) * reach[sy0:sy1, sx0:sx1]
+    m = m_old.copy()
+    m[sy0:sy1, sx0:sx1, 0] = np.maximum(m_old[sy0:sy1, sx0:sx1, 0], cv2.GaussianBlur(full, (0, 0), sigma))
+    # Model chizgan oq fon: hamma kanal 225 dan yuqori (numpy min/max dan ~50x tez)
+    white = cv2.inRange(np.ascontiguousarray(model), (226, 226, 226), (255, 255, 255)) > 0
+    gap = (m_old[sy0:sy1, sx0:sx1, 0] > 0.5) & (full < 0.2) & white
+    if edge is not None:
+        gap &= edge[sy0:sy1, sx0:sx1]
+    if gap.sum() < 0.0005 * h * w:
+        return m, None
+    gap = cv2.morphologyEx(gap.astype(np.uint8), cv2.MORPH_OPEN, np.ones((3, 3), np.uint8)).astype(np.float32)
+    out = np.zeros((h, w, 1), np.float32)
+    out[sy0:sy1, sx0:sx1, 0] = cv2.GaussianBlur(gap, (0, 0), sigma)
+    return m, out
+
+
+def background_fill(rgb: np.ndarray, background: np.ndarray) -> np.ndarray:
+    """Har piksel eng yaqin asl fon pikseli rangini oladi (kichik o'lchamda, silliqlangan). float32 HxWx3"""
+    h, w = rgb.shape[:2]
+    scale = min(1.0, 160 / max(h, w))
+    sw_, sh_ = max(1, round(w * scale)), max(1, round(h * scale))
+    small = cv2.resize(rgb, (sw_, sh_), interpolation=cv2.INTER_AREA)
+    small_bg = cv2.resize(background.astype(np.uint8), (sw_, sh_), interpolation=cv2.INTER_NEAREST) > 0
+    if not small_bg.any():
+        return rgb.astype(np.float32)
+    _, labels = cv2.distanceTransformWithLabels((~small_bg).astype(np.uint8), cv2.DIST_L2, 5,
+                                                labelType=cv2.DIST_LABEL_PIXEL)
+    coords = np.argwhere(small_bg)
+    nearest = coords[np.clip(labels - 1, 0, len(coords) - 1)]
+    filled = cv2.GaussianBlur(small[nearest[..., 0], nearest[..., 1]], (0, 0), 1.5)
+    return cv2.resize(filled, (w, h), interpolation=cv2.INTER_LINEAR).astype(np.float32)
 
 
 class MockMirror:
@@ -582,14 +666,20 @@ class MockMirror:
         self.garments[garment_id] = {"old": prep(image), "yon": plain, "orqa": prep(back) if back is not None else plain}
 
     def run(
-        self, person: np.ndarray, garment_id: str, out_size: tuple[int, int] | None = None, view: str = "old"
-    ) -> np.ndarray:
+        self, person: np.ndarray, garment_id: str, out_size: tuple[int, int] | None = None, view: str = "old",
+        with_cover: bool = False,
+    ):
         out = person.copy()
         g = cv2.resize(self.garments[garment_id][view], (120, 160))
         sel = g.min(axis=2) < 250
         region = out[70:230, 36:156]
         region[sel] = g[sel]
-        return cv2.resize(out, tuple(out_size), interpolation=cv2.INTER_CUBIC) if out_size else out
+        cover = np.zeros(out.shape[:2], np.float32)
+        cover[70:230, 36:156][sel] = 1.0
+        if out_size:
+            out = cv2.resize(out, tuple(out_size), interpolation=cv2.INTER_CUBIC)
+            cover = cv2.resize(cover, tuple(out_size), interpolation=cv2.INTER_LINEAR)
+        return (out, cover) if with_cover else out
 
 
 if __name__ == "__main__":

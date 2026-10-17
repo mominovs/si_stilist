@@ -118,25 +118,28 @@ Parametrlar: `--view old|orqa|yon|hammasi`, `--toza`, `--steps`, `--batch` (stan
 | Parametr | Standart | Izoh |
 | --- | --- | --- |
 | `--mode` | mask | `mask`: faqat kiyim qismi o'zgaradi (tavsiya). `maskfree`: eski niqobsiz model |
-| `--preset` | orta | `tez` (768x576, 20 qadam), `orta` (768x576, 50), `sifat` (1024x768, 50). Masalan: `start.bat --preset sifat` |
+| `--preset` | sifat | `sifat` (1024x768, 50 qadam; GPU xotirasi yetmasa birinchi so'rovda o'zi `orta` ga tushadi), `orta` (768x576, 50), `tez` (768x576, 20). Tezroq kerak bo'lsa: `start.bat --preset orta` |
 | `--height --width` | presetdan | GPU xotirasi yetmasa: `start.bat --height 640 --width 480`. 8 GB+ bo'lsa: 1024 768 |
 | `--steps` | presetdan | Kamroq: tezroq (20), ko'proq: sifatliroq (40-50) |
 | `--no-mirror` | o'chiq | Jonli oyna (DM-VTON) yuklanmasin |
 | `--safety` | o'chiq | NSFW filtri (+~1 GB GPU xotira) |
 | `--port` | 8001 | O'zgartirsangiz, `.env` da `TRYON_LOCAL_URL` ni ham yangilang |
 
-Kutish vaqti ilovada 120 s (`TRYON_TIMEOUT_MS`). Server ishlamasa yoki xato bersa, ilova "Demo rejim" ga o'tadi.
+Kutish vaqti ilovada 180 s (`TRYON_TIMEOUT_MS`). Server ishlamasa yoki xato bersa, ilova "Demo rejim" ga o'tadi.
 
 Natija bitta generatsiyada shakllanib boradi: 25%, 50%, 75% qadamlarda oraliq ko'rinish (`/tryon/stream`)
 yuboriladi va saytda xiradan aniqqa silliq almashadi. RTX 3060 Laptop (6 GB) da 40 qadam ~30 s, `orta` (50 qadam)
-taxminan 38 s. `sifat` rejimi 2 barobardan ko'proq
-piksel ishlaydi, shuning uchun sekinroq va GPU xotirasi yetmasligi mumkin; yetmasa `orta` ga qayting.
+taxminan 38 s. `sifat` (standart) 1.8 barobar ko'p piksel ishlaydi: sekinroq (taxminan 1.5-2 barobar), lekin
+tafsilotlar aniqroq. GPU xotirasi yetmasa server terminalda xabar beradi va o'zi `orta` ga o'tadi.
 
 ## Sifatni oshirish (ta'siri bo'yicha)
 
 1. **Haqiqiy kiyim suratlari.** SVG siluetlar bilan model rang va bichimni taxmin qiladi (masalan, polo o'rniga
    yoqali ko'ylak, to'q ko'k o'rniga ko'k). Oq fondagi haqiqiy surat: `public/products/<sku>.jpg` + `npm run images:apply`.
-2. **`--preset sifat`** (1024x768): model shu o'lchamda o'qitilgan, tafsilotlar aniqroq.
+2. **`--preset sifat`** (1024x768, standart): model shu o'lchamda o'qitilgan, tafsilotlar aniqroq.
+   Niqob kiyim turiga moslanadi (sayt `kind` yuboradi): kurtka va kostyum uzunroq va kengroq, libos va yubka
+   etagi uzunligi va kengligi kiyim rasmidan o'lchanadi, oyoqlar orasidagi fon ham qamraladi. Shuning uchun yangi
+   kiyim eski kiyim siluetiga "siqilib" qolmaydi.
 3. **Yaxshi surat:** old tomondan, yorug', oddiy fon, qo'llar yon tomonda, belgacha yoki to'liq gavda.
 
 ## Muammolar
