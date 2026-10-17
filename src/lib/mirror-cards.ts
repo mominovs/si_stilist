@@ -29,9 +29,9 @@ export async function mirrorCards(): Promise<MirrorCard[]> {
   }));
 }
 
-// Real vaqt seansi chegarasi (CLAUDE.md: pullik API'da har soniya pul, standart 60 s). Lokal model bepul bo'lgani
-// uchun .env da MIRROR_SESSION_SECONDS bilan uzaytirsa bo'ladi (30..600)
-export function sessionSeconds(): number {
-  const n = Number(process.env.MIRROR_SESSION_SECONDS);
-  return Number.isFinite(n) && n >= 30 ? Math.min(600, Math.round(n)) : 60;
+// Jonli oyna vaqt bilan cheklanmagan (lokal model bepul): kadrda shuncha soniya odam ko'rinmasa yopiladi.
+// .env da MIRROR_IDLE_SECONDS (15..600, standart 60)
+export function idleSeconds(): number {
+  const n = Number(process.env.MIRROR_IDLE_SECONDS);
+  return Number.isFinite(n) && n >= 15 ? Math.min(600, Math.round(n)) : 60;
 }

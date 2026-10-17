@@ -6,6 +6,7 @@
  *
  * Hammasi faqat jarayon xotirasida (globalThis): bazaga ham, diskka ham yozilmaydi. Har ishtirokchining faqat
  * OXIRGI kadri turadi; xona 30 daqiqa harakatsizlikdan keyin o'chadi. Xona kodi = maxfiy havola.
+ * Ikkala efirda ham kadrda odam ko'rinmasa (kiyintirilgan kadr kelmasa) EFIR_IDLE_MS dan keyin efir yopiladi.
  */
 
 export const MAX_PARTICIPANTS = 2;
@@ -16,6 +17,10 @@ export const MAX_SIGNAL = 20_000;
 const MAX_PENDING_SIGNALS = 100;
 const MAX_MESSAGES = 200;
 const ROOM_IDLE_MS = 30 * 60_000;
+// Ikkala ishtirokchining ham kadrida shuncha vaqt odam bo'lmasa efir yopiladi (kamera behuda yonib turmasin)
+export const EFIR_IDLE_MS = 10 * 60_000;
+// Yopilgan xona shuncha vaqt "yopildi" deb javob beradi (sahifalar sababni ko'rsatsin), keyin o'chadi
+const CLOSED_KEEP_MS = 5 * 60_000;
 // Shuncha vaqt holat so'ramagan ishtirokchi "chiqib ketgan" hisoblanadi va o'rni bo'shaydi
 const PARTICIPANT_IDLE_MS = 20_000;
 // Kadr shundan eski bo'lsa "jonli emas" (kamerani o'chirgan)
@@ -31,6 +36,9 @@ type Room = {
   code: string;
   created: number;
   touched: number;
+  // Oxirgi marta kimdir kadrda ko'ringan vaqt (kiyintirilgan kadr kelgan); boshida yaratilgan vaqt
+  presence: number;
+  closedAt: number | null;
   participants: Map<string, Participant>;
   frames: Map<string, Frame>;
   messages: EfirMessage[];
@@ -40,7 +48,15 @@ type Room = {
 };
 
 export type ParticipantView = { pid: string; name: string; live: boolean; productId: number | null };
-export type EfirState = { code: string; participants: ParticipantView[]; messages: EfirMessage[]; signals: EfirSignal[] };
+export type EfirState = {
+  code: string;
+  participants: ParticipantView[];
+  messages: EfirMessage[];
+  signals: EfirSignal[];
+  /** Ikkala efirda ham odam ko'rinmasa shuncha ms dan keyin efir yopiladi (kimdir ko'rinsa qaytadan hisoblanadi) */
+  closesInMs: number;
+  closed: boolean;
+};
 
 const store = globalThis as unknown as { __efirRooms?: Map<string, Room> };
 const rooms = (store.__efirRooms ??= new Map());
@@ -51,13 +67,20 @@ function randomString(length: number): string {
 }
 
 function sweep(now: number) {
-  for (const [code, room] of rooms) if (now - room.touched > ROOM_IDLE_MS) rooms.delete(code);
+  for (const [code, room] of rooms) {
+    if (now - room.touched > ROOM_IDLE_MS || (room.closedAt !== null && now - room.closedAt > CLOSED_KEEP_MS)) rooms.delete(code);
+  }
 }
 
 function liveRoom(code: string, now: number): Room | null {
   sweep(now);
   const room = rooms.get(code);
   if (!room) return null;
+  if (room.closedAt === null && now - room.presence > EFIR_IDLE_MS) {
+    room.closedAt = now;
+    room.frames.clear();
+    room.signals.clear();
+  }
   for (const [pid, p] of room.participants) {
     if (now - p.seen > PARTICIPANT_IDLE_MS) {
       room.participants.delete(pid);
@@ -78,6 +101,8 @@ export function createRoom(now = Date.now()): string {
     code,
     created: now,
     touched: now,
+    presence: now,
+    closedAt: null,
     participants: new Map(),
     frames: new Map(),
     messages: [],
@@ -95,7 +120,7 @@ export type JoinResult = { ok: true; pid: string } | { ok: false; error: "topilm
 /** Xonaga kirish. pid berilsa va hali xonada bo'lsa o'sha qaytadi (sahifa yangilansa o'rni saqlanadi) */
 export function joinRoom(code: string, name: string, pid: string | null, now = Date.now()): JoinResult {
   const room = liveRoom(code, now);
-  if (!room) return { ok: false, error: "topilmadi" };
+  if (!room || room.closedAt !== null) return { ok: false, error: "topilmadi" };
   if (pid && room.participants.has(pid)) {
     const p = room.participants.get(pid)!;
     p.name = cleanName(name);
@@ -126,6 +151,8 @@ export function roomState(code: string, pid: string, since: number, now = Date.n
     }),
     messages: room.messages.filter((m) => m.id > since),
     signals: takeSignals(room, pid),
+    closesInMs: Math.max(0, EFIR_IDLE_MS - (now - room.presence)),
+    closed: room.closedAt !== null,
   };
 }
 
@@ -138,7 +165,7 @@ function takeSignals(room: Room, pid: string): EfirSignal[] {
 /** WebRTC signali sherikka (to). Ikkalasi ham xonada bo'lishi shart */
 export function postSignal(code: string, pid: string, to: string, data: string, now = Date.now()): boolean {
   const room = liveRoom(code, now);
-  if (!room || !room.participants.has(pid) || !room.participants.has(to) || pid === to) return false;
+  if (!room || room.closedAt !== null || !room.participants.has(pid) || !room.participants.has(to) || pid === to) return false;
   if (!data || data.length > MAX_SIGNAL) return false;
   const queue = room.signals.get(to) ?? [];
   queue.push({ from: pid, data });
@@ -159,7 +186,7 @@ export function postMessage(
   const room = liveRoom(code, now);
   const me = room?.participants.get(pid);
   const clean = text.replace(/[\u0000-\u0008\u000b-\u001f]/g, "").trim().slice(0, MAX_TEXT);
-  if (!room || !me || (!clean && productId === null)) return null;
+  if (!room || !me || room.closedAt !== null || (!clean && productId === null)) return null;
   const message = { id: room.nextMessage++, pid, name: me.name, text: clean, productId, at: now };
   room.messages.push(message);
   if (room.messages.length > MAX_MESSAGES) room.messages.splice(0, room.messages.length - MAX_MESSAGES);
@@ -168,15 +195,19 @@ export function postMessage(
   return message;
 }
 
-/** Ishtirokchining kiyintirilgan kadri (faqat oxirgisi saqlanadi). Ishtirokchi bo'lmasa false */
+/**
+ * Ishtirokchining kiyintirilgan kadri (faqat oxirgisi saqlanadi). Kadr faqat odam ko'ringanda keladi (aks holda
+ * jonli oyna 422 beradi), shuning uchun u "kadrda odam bor" belgisi ham. Ishtirokchi bo'lmasa false
+ */
 export function publishFrame(code: string, pid: string, image: Uint8Array, productId: number | null, now = Date.now()): boolean {
   const room = liveRoom(code, now);
   const me = room?.participants.get(pid);
-  if (!room || !me) return false;
+  if (!room || !me || room.closedAt !== null) return false;
   const prev = room.frames.get(pid);
   room.frames.set(pid, { seq: (prev?.seq ?? 0) + 1, image, at: now, productId });
   me.seen = now;
   room.touched = now;
+  room.presence = now;
   return true;
 }
 

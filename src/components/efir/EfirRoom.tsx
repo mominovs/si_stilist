@@ -13,8 +13,9 @@ import { Logo } from "@/components/brand/Logo";
  * kiyintirilgan kadrlari server orqali (/api/efir/[code]/frame).
  */
 
-// Efir seansi: lokal model bepul, suhbat uzunroq bo'ladi (keyin "Davom etish")
-const EFIR_SECONDS = 600;
+// Efir vaqt bilan cheklanmagan: ikkala efirda ham odam ko'rinmasa server uni 10 daqiqadan keyin yopadi.
+// Shuncha qolganda ogohlantiriladi
+const CLOSE_WARN_MS = 2 * 60_000;
 // Ikki kishi bitta GPU'ni bo'lishadi: kadr kichikroq va bittadan yo'lda
 const FRAME_SIDE = 480;
 const FRAME_TIMEOUT_MS = 10_000;
@@ -69,7 +70,8 @@ export function EfirRoom({
   const [hasFrame, setHasFrame] = useState(false);
   const [hint, setHint] = useState<string | null>(null);
   const [muted, setMuted] = useState(false);
-  const [left, setLeft] = useState(EFIR_SECONDS);
+  const [closesInMs, setClosesInMs] = useState<number | null>(null);
+  const [closed, setClosed] = useState(false);
   const [rtc, setRtc] = useState<"off" | "connecting" | "connected">("off");
   const [relaySrc, setRelaySrc] = useState<string | null>(null);
   const [suggestion, setSuggestion] = useState<EfirMessage | null>(null);
@@ -83,7 +85,6 @@ export function EfirRoom({
   const loopRef = useRef<AbortController | null>(null);
   const sessionIdRef = useRef("");
   const selectedRef = useRef(selectedId);
-  const deadline = useRef(0);
   const sinceRef = useRef(0);
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const pcPartner = useRef<string | null>(null);
@@ -131,13 +132,8 @@ export function EfirRoom({
 
   const loop = useCallback(
     async (signal: AbortSignal, room: string, me: string) => {
-      deadline.current = Date.now() + EFIR_SECONDS * 1000;
       while (!signal.aborted) {
         const v = videoRef.current;
-        if (Date.now() > deadline.current) {
-          stopCamera();
-          return;
-        }
         if (!v || v.readyState < 2) {
           await new Promise((r) => setTimeout(r, 100));
           continue;
@@ -197,7 +193,7 @@ export function EfirRoom({
         }
       }
     },
-    [stopCamera],
+    [],
   );
 
   async function startCamera(me: string) {
@@ -218,8 +214,6 @@ export function EfirRoom({
       streamRef.current = stream;
       stream.getAudioTracks().forEach((t) => (t.enabled = !muted));
       if (videoRef.current) videoRef.current.srcObject = stream;
-      deadline.current = 0; // loop boshlanganda belgilanadi
-      setLeft(EFIR_SECONDS);
       sessionIdRef.current = randomId();
       const ctrl = new AbortController();
       loopRef.current = ctrl;
@@ -229,13 +223,6 @@ export function EfirRoom({
       setHint("Kamera yoki mikrofonga ruxsat berilmadi.");
     }
   }
-
-  // Qolgan vaqt
-  useEffect(() => {
-    if (!cameraOn) return;
-    const t = setInterval(() => setLeft(Math.max(0, Math.ceil((deadline.current - Date.now()) / 1000))), 500);
-    return () => clearInterval(t);
-  }, [cameraOn]);
 
   // ---------- WebRTC: ovoz va kiyintirilgan video sherikka ----------
 
@@ -369,6 +356,14 @@ export function EfirRoom({
         }
         const state = (await res.json()) as EfirState;
         if (stopped) return;
+        if (state.closed) {
+          // Ikkala efirda ham uzoq vaqt odam ko'rinmadi: kamera va ulanish yopiladi, holat so'rash to'xtaydi
+          setClosed(true);
+          stopCamera();
+          closePeer();
+          return;
+        }
+        setClosesInMs(state.closesInMs);
         setParticipants(state.participants);
         for (const m of state.messages) {
           sinceRef.current = Math.max(sinceRef.current, m.id);
@@ -384,7 +379,7 @@ export function EfirRoom({
     return () => {
       stopped = true;
     };
-  }, [pid, code, handleSignal]);
+  }, [pid, code, handleSignal, stopCamera, closePeer]);
 
   // Zaxira: WebRTC ulanmagan bo'lsa sherikning kiyintirilgan kadrlari server orqali
   const partnerLive = !!partner?.live;
@@ -516,6 +511,9 @@ export function EfirRoom({
             <li className="flex gap-2">
               <span className="text-accent">✓</span>Ikkalangiz bir xonada bo&apos;lsangiz, quloqchin taqing yoki birining ovozini o&apos;chiring.
             </li>
+            <li className="flex gap-2">
+              <span className="text-accent">✓</span>Vaqt cheklanmagan. 10 daqiqa ikkalangiz ham kadrda ko&apos;rinmasangiz, efir o&apos;zi yopiladi.
+            </li>
           </ul>
           <label className="field-label">
             Ismingiz
@@ -627,6 +625,18 @@ export function EfirRoom({
             );
           })()}
 
+        {closed && (
+          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-brand/95 p-6 text-center">
+            <p className="font-display text-2xl font-extrabold text-white">Efir yopildi</p>
+            <p className="max-w-xs text-sm font-medium text-white/75">
+              10 daqiqa davomida ikkala efirda ham hech kim kadrda ko&apos;rinmadi. Kamera o&apos;chirildi.
+            </p>
+            <Link href="/oyna" className="btn btn-primary">
+              Yangi efir boshlash
+            </Link>
+          </div>
+        )}
+
         {/* O'zingiz: oyna kabi teskari */}
         <div
           className="absolute bottom-3 right-3 h-[38%] overflow-hidden rounded-2xl bg-brand-2 shadow-[var(--shadow-lift)] ring-2 ring-white/90"
@@ -649,6 +659,11 @@ export function EfirRoom({
         </div>
       </section>
       {hint && <div className="bg-warning-soft px-3 py-2 text-center text-xs font-bold text-warning">{hint}</div>}
+      {!closed && closesInMs !== null && closesInMs < CLOSE_WARN_MS && (
+        <div className="bg-danger-soft px-3 py-2 text-center text-xs font-bold text-danger">
+          Ikkalangiz ham kadrda ko&apos;rinmayapsiz: efir {Math.max(1, Math.ceil(closesInMs / 60_000))} daqiqadan keyin yopiladi
+        </div>
+      )}
 
       {/* Boshqaruv qatori */}
       <div className="flex items-center gap-3 bg-brand px-3 py-2.5 text-white">
@@ -664,34 +679,20 @@ export function EfirRoom({
           </svg>
           {muted ? "O'chiq" : "Mikrofon"}
         </button>
+        {/* Ulanish holati faqat hali ulanmaganda: ulangach bu qator bo'sh (video va ovoz o'zi gapiradi) */}
         <div className="min-w-0 flex-1 text-center">
-          <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-white/75">
-            <span className={`h-2 w-2 rounded-full ${rtc === "connected" ? "bg-success-dot" : partner ? "bg-warning-dot" : "bg-white/40"}`} />
-            {rtc === "connected"
-              ? "To'g'ridan-to'g'ri ulangan"
-              : partner
-                ? partnerLive && relaySrc
-                  ? "Server orqali"
-                  : "Ulanmoqda..."
-                : "Sherik kutilmoqda"}
-          </div>
-          {cameraOn && (
-            <div className="font-display text-lg font-extrabold leading-tight">
-              {Math.floor(left / 60)}:{String(left % 60).padStart(2, "0")}
+          {rtc !== "connected" && !closed && (
+            <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-white/75">
+              <span className={`h-2 w-2 rounded-full ${partner ? "bg-warning-dot" : "bg-white/40"}`} />
+              {partner ? (partnerLive && relaySrc ? "Server orqali" : "Ulanmoqda...") : "Sherik kutilmoqda"}
             </div>
           )}
         </div>
-        {!cameraOn && pid ? (
-          <button onClick={() => void startCamera(pid)} className="btn btn-sm btn-primary">
-            Davom etish
-          </button>
-        ) : (
-          <Link href="/oyna" aria-label="Efirdan chiqish" className="flex h-11 w-11 items-center justify-center rounded-full bg-accent">
-            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden="true">
-              <path d="M3 13.5c5-4.7 13-4.7 18 0l-2.4 2.6-3.4-1.6v-2.6c-2.1-.7-4.3-.7-6.4 0v2.6l-3.4 1.6z" />
-            </svg>
-          </Link>
-        )}
+        <Link href="/oyna" aria-label="Efirdan chiqish" className="flex h-11 w-11 items-center justify-center rounded-full bg-accent">
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden="true">
+            <path d="M3 13.5c5-4.7 13-4.7 18 0l-2.4 2.6-3.4-1.6v-2.6c-2.1-.7-4.3-.7-6.4 0v2.6l-3.4 1.6z" />
+          </svg>
+        </Link>
       </div>
 
       {/* Past: kiyimlar */}

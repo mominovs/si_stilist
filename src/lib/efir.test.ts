@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
-import { createRoom, joinRoom, latestFrame, postMessage, postSignal, publishFrame, resetRooms, roomState, validCode } from "./efir";
+import { EFIR_IDLE_MS, createRoom, joinRoom, latestFrame, postMessage, postSignal, publishFrame, resetRooms, roomState, validCode } from "./efir";
 
 beforeEach(() => resetRooms());
 
@@ -72,4 +72,35 @@ test("WebRTC signallari: faqat xonadagilar orasida, bir marta yetkaziladi", () =
   assert.deepEqual(roomState(code, b, 0, 2)!.signals, [{ from: a, data: '{"type":"offer"}' }]);
   assert.deepEqual(roomState(code, b, 0, 3)!.signals, [], "ikkinchi marta bo'sh");
   assert.deepEqual(roomState(code, a, 0, 3)!.signals, []);
+});
+
+test("ikkala efirda ham odam ko'rinmasa 10 daqiqadan keyin efir yopiladi", () => {
+  const code = createRoom(0);
+  const a = joined(code, "Ali");
+  const b = joined(code, "Vali");
+  const img = new Uint8Array([1]);
+  // Holat so'rab turishadi, lekin kadr (odam) yo'q: vaqt yaratilgandan hisoblanadi
+  const t1 = EFIR_IDLE_MS - 10_000;
+  for (let t = 10_000; t <= t1; t += 10_000) {
+    roomState(code, a, 0, t);
+    roomState(code, b, 0, t);
+  }
+  assert.equal(roomState(code, a, 0, t1)!.closed, false);
+  // Bittasida odam paydo bo'ldi: hisob qaytadan
+  assert.ok(publishFrame(code, b, img, null, t1));
+  const t2 = t1 + EFIR_IDLE_MS - 5000;
+  for (let t = t1 + 10_000; t <= t2; t += 10_000) {
+    roomState(code, a, 0, t);
+    roomState(code, b, 0, t);
+  }
+  const s = roomState(code, a, 0, t2)!;
+  assert.equal(s.closed, false);
+  assert.equal(s.closesInMs, 5000);
+  const t3 = t1 + EFIR_IDLE_MS + 1000;
+  roomState(code, b, 0, t3);
+  assert.equal(roomState(code, a, 0, t3)!.closed, true);
+  // Yopilgan efirga kirib, kadr yoki taklif yuborib bo'lmaydi
+  assert.equal(publishFrame(code, a, img, null, t3), false);
+  assert.equal(postMessage(code, a, "", 1, t3), null);
+  assert.deepEqual(joinRoom(code, "Soli", null, t3), { ok: false, error: "topilmadi" });
 });

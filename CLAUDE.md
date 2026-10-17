@@ -320,7 +320,9 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
   ogohlantirib avtomatik tartibga qaytadi (virtual adapterlar oxirida). Hotspotni run-local.bat dan oldin yoqish kerak
 - Mahsulot suratlari `public/products/<sku>.jpg` (oq fon, ~1200 px): progressive JPEG q88, jami ~8 MB (asli 87 MB edi,
   telefon hotspot orqali har kartochkada 2-3 MB yuklardi). Yangi surat qo'shilsa ham shunday siqing
-- `MIRROR_SESSION_SECONDS` (30..600, standart 60) `/oyna` sahifasidan `MirrorView sessionSeconds` ga
+- Jonli oyna vaqt bilan cheklanmagan (foydalanuvchi qarori, lokal model bepul): kadrda `MIRROR_IDLE_SECONDS` (15..600,
+  standart 60) davomida odam ko'rinmasa (kiyintirilgan kadr kelmasa: 422) yopiladi; 15 s dan keyin qolgan vaqt
+  ko'rsatiladi. `/oyna` -> `MirrorView idleSeconds`. Eski `MIRROR_SESSION_SECONDS` endi ishlatilmaydi
 
 ## Texnik eslatmalar (kiyim to'liq kiyilgandek)
 - Rasmli rejim niqobi kiyim turiga moslanadi: sayt `kind` (katalog kategoriyasi) yuboradi (`local.ts`, `index.ts`),
@@ -353,8 +355,12 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
   havola), har ishtirokchining faqat oxirgi kadri (3 s dan eski = jonli emas). API: `POST /api/efir` (yangi xona),
   `GET/POST /api/efir/[code]` (holat; join | chat (faqat kiyim taklifi uchun ishlatiladi) | signal)
 - `/oyna` da "Do'st bilan jonli efir" tugmasi (`StartEfirButton`). Xonada yolg'iz bo'lsa QR va havola
-  (`shopperUrl`: localhost'dan ochilsa ham telefon uchun https://IP:3443). Efir seansi 600 s, kadr 480 px, bittadan
+  (`shopperUrl`: localhost'dan ochilsa ham telefon uchun https://IP:3443). Kadr 480 px, bittadan
   yo'lda (GPU ikki kishi orasida bo'linadi). Tovarlar `src/lib/mirror-cards.ts` (/oyna bilan umumiy)
+- Efir vaqt bilan cheklanmagan: ikkala efirda ham odam ko'rinmasa `EFIR_IDLE_MS` (10 daqiqa) dan keyin server xonani
+  yopadi (`Room.presence` faqat `publishFrame` da yangilanadi, ya'ni kadrda odam bo'lganda; `closedAt`, holatda
+  `closed`/`closesInMs`). Oxirgi 2 daqiqada ogohlantirish, yopilganda kamera va WebRTC o'chadi, "Efir yopildi".
+  Boshqaruv qatorida ulanish holati faqat ulanmaganda ("To'g'ridan-to'g'ri ulangan" va taymer yo'q)
 - Sinov: ikki Chromium (soxta kamera/mikrofon) bilan: WebRTC ulandi, ikki tomonda video va ovoz, taklif va
   "Kiyish", uchinchi kishi 409; WebRTC o'chirilganda server orqali zaxira ishladi
 - Jonli oyna: `MirrorEngine.run(..., with_cover=True)` model egib qo'ygan kiyim konturini (warped_edge) ham qaytaradi;

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { connection } from "next/server";
 import { config } from "@/lib/config";
-import { mirrorCards, sessionSeconds } from "@/lib/mirror-cards";
+import { mirrorCards, idleSeconds } from "@/lib/mirror-cards";
 import { MirrorView } from "@/components/mirror/MirrorView";
 import { SiteHeader } from "@/components/brand/SiteHeader";
 
@@ -24,7 +24,7 @@ export default async function MirrorPage({ searchParams }: PageProps<"/oyna">) {
             cards={cards}
             initialId={cards.some((c) => c.id === wanted) ? wanted : cards[0].id}
             provider={config.tryOn.provider}
-            sessionSeconds={sessionSeconds()}
+            idleSeconds={idleSeconds()}
           />
         )}
       </div>

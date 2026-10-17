@@ -25,7 +25,7 @@ const FRAME_TIMEOUT_MS = 15_000;
 
 /**
  * Sayt internet orqali (ngrok) ochilganda har kadr tunneldan ikki marta o'tadi va tekin tarif trafigi tez tugaydi
- * (640 px, ~20 kadr/s: 60 s seans ~100 MB). Shunda kadr kichikroq, sifati pastroq va soniyasiga ko'pi bilan 8 ta.
+ * (640 px, ~20 kadr/s: bir daqiqa ~100 MB). Shunda kadr kichikroq, sifati pastroq va soniyasiga ko'pi bilan 8 ta.
  * Shu kompyuter yoki bir Wi-Fi (xususiy IP) dan ochilganda cheklov yo'q.
  */
 function frameBudget(): { side: number; quality: number; inFlight: number; minGapMs: number } {
@@ -157,15 +157,14 @@ export function MirrorView({
   cards,
   initialId,
   provider,
-  sessionSeconds,
+  idleSeconds,
 }: {
   cards: MirrorCard[];
   initialId: number;
   provider: "local" | "gemini" | "fal";
-  /** Seans uzunligi (MIRROR_SESSION_SECONDS, standart 60): keyin kamera avtomatik o'chadi */
-  sessionSeconds: number;
+  /** Kadrda shuncha soniya odam ko'rinmasa oyna o'zi yopiladi (MIRROR_IDLE_SECONDS, standart 60). Vaqt cheklanmagan */
+  idleSeconds: number;
 }) {
-  const SESSION_SECONDS = sessionSeconds;
   const [phase, setPhase] = useState<Phase>("consent");
   const [selectedId, setSelectedId] = useState(initialId);
   const [hint, setHint] = useState<string | null>(null);
@@ -173,7 +172,9 @@ export function MirrorView({
   const [fps, setFps] = useState(0);
   // Kechikish: kadr olingandan ekranga chiqquncha (ms) va shundan serverdagi ish vaqti
   const [latency, setLatency] = useState<{ total: number; server: number | null } | null>(null);
-  const [left, setLeft] = useState(SESSION_SECONDS);
+  // Kadrda odam ko'rinmay qolsa: oyna yopilishiga qolgan soniya (odam bor bo'lsa null)
+  const [closingIn, setClosingIn] = useState<number | null>(null);
+  const [endReason, setEndReason] = useState<"idle" | "stopped">("stopped");
   const [hasFrame, setHasFrame] = useState(false);
   const [quality, setQuality] = useState<{ src: string; aspect: number } | null>(null);
   // O'lcham: bo'y/vazn ixtiyoriy, faqat shu brauzer xotirasida (serverga yuborilmaydi)
@@ -200,7 +201,8 @@ export function MirrorView({
   // Server oynani bir vaqtda bitta seansga beradi: har "Boshlash" yangi identifikator
   const sessionIdRef = useRef("");
   const selectedRef = useRef(initialId);
-  const deadline = useRef(0);
+  // Oxirgi marta odam ko'ringan (kiyintirilgan kadr kelgan) vaqt
+  const lastPerson = useRef(0);
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const ratios = useRef<number[]>([]);
   const lastBodyT = useRef(0);
@@ -253,11 +255,6 @@ export function MirrorView({
     const worker = async () => {
       while (!signal.aborted) {
         const v = videoRef.current;
-        if (Date.now() > deadline.current) {
-          stopCamera();
-          setPhase("ended");
-          return;
-        }
         if (!v || !v.videoWidth) {
           await new Promise((r) => setTimeout(r, 100));
           continue;
@@ -282,6 +279,7 @@ export function MirrorView({
             const out = outRef.current;
             if (out && !signal.aborted && !request.signal.aborted && my > drawn) {
               drawn = my;
+              lastPerson.current = Date.now();
               if (out.width !== bmp.width || out.height !== bmp.height) {
                 out.width = bmp.width;
                 out.height = bmp.height;
@@ -387,7 +385,7 @@ export function MirrorView({
       }
       streamRef.current = stream;
       if (videoRef.current) videoRef.current.srcObject = stream;
-      deadline.current = Date.now() + SESSION_SECONDS * 1000;
+      lastPerson.current = Date.now();
       // Yangi seans: kamera o'lchovi qaytadan (boshqa xaridor bo'lishi mumkin)
       ratios.current = [];
       lastBodyT.current = 0;
@@ -395,7 +393,7 @@ export function MirrorView({
       setRatio(null);
       setSamples(0);
       setCameraBlocked(false);
-      setLeft(SESSION_SECONDS);
+      setClosingIn(null);
       setPhase("live");
       void loop(session.signal);
     } catch {
@@ -406,21 +404,24 @@ export function MirrorView({
     }
   }
 
-  // Seans kadr javobini kutayotganida ham tugaydi: kamera va pending so'rovlar to'xtatiladi.
+  // Kadrda idleSeconds davomida odam ko'rinmasa (kiyintirilgan kadr kelmasa: 422 yoki javob yo'q) oyna yopiladi.
+  // 15 soniyadan keyin ekranda qolgan vaqt ko'rsatiladi. Odam bor ekan, oyna vaqt bilan cheklanmaydi
   useEffect(() => {
     if (phase !== "live") return;
     const signal = sessionRef.current?.signal;
     const t = setInterval(() => {
       if (signal?.aborted) return;
-      const remaining = Math.max(0, Math.ceil((deadline.current - Date.now()) / 1000));
-      setLeft(remaining);
+      const absent = (Date.now() - lastPerson.current) / 1000;
+      const remaining = Math.max(0, Math.ceil(idleSeconds - absent));
+      setClosingIn(absent >= 15 ? remaining : null);
       if (remaining === 0) {
         stopCamera();
+        setEndReason("idle");
         setPhase("ended");
       }
     }, 250);
     return () => clearInterval(t);
-  }, [phase, stopCamera]);
+  }, [phase, stopCamera, idleSeconds]);
 
   function choose(id: number) {
     setSelectedId(id);
@@ -454,6 +455,7 @@ export function MirrorView({
     const canvas = frameCanvas(v, FULL_SIDE);
     setQuality({ src: canvas.toDataURL("image/jpeg", 0.9), aspect: canvas.width / canvas.height });
     stopCamera(); // GPU asosiy modelga bo'shatiladi
+    setEndReason("stopped");
     setPhase("ended");
   }
 
@@ -478,7 +480,7 @@ export function MirrorView({
               <h2 className="font-display text-2xl font-extrabold text-white">Jonli oyna</h2>
               <ul className="max-w-sm space-y-1.5 text-left text-sm font-medium text-white/85">
                 <li>• Kamera tasviri faqat shu kompyuterdagi SI serveriga yuboriladi va saqlanmaydi.</li>
-                <li>• Seans {SESSION_SECONDS} soniya, keyin kamera o&apos;zi o&apos;chadi.</li>
+                <li>• Vaqt cheklanmagan: kadrda {idleSeconds} soniya hech kim ko&apos;rinmasa, kamera o&apos;zi o&apos;chadi.</li>
                 <li>• Belgacha ko&apos;rining, qo&apos;llaringiz yonda bo&apos;lsin. Jonli ko&apos;rinish taxminiy.</li>
                 <li>
                   • Sekin aylanib ko&apos;ring: yon va orqa tomon ham ko&apos;rinadi (taxminiy, kiyimning orqa surati bo&apos;lsa
@@ -499,7 +501,7 @@ export function MirrorView({
             <>
               <div className="absolute left-3 top-3 flex items-center gap-2 rounded-full bg-brand/80 px-3 py-1.5 text-xs font-bold text-white backdrop-blur">
                 <span className="live-dot animate-pulse" />
-                {left} s · {fps} kadr/s
+                {fps} kadr/s
                 {latency && (
                   <span className="text-white/70">
                     · {latency.total} ms{latency.server !== null ? ` (server ${latency.server})` : ""}
@@ -518,8 +520,13 @@ export function MirrorView({
                   Qo&apos;llaringizni pastroq tushiring: kiyim aniqroq chiqadi
                 </div>
               )}
-              {hint && (
-                <div className="absolute inset-x-6 bottom-5 rounded-2xl bg-warning-soft px-4 py-3 text-center text-sm font-bold text-warning shadow-[var(--shadow-lift)]">{hint}</div>
+              {(hint || closingIn !== null) && (
+                <div className="absolute inset-x-6 bottom-5 rounded-2xl bg-warning-soft px-4 py-3 text-center text-sm font-bold text-warning shadow-[var(--shadow-lift)]">
+                  {hint}
+                  {closingIn !== null && (
+                    <span className="block text-danger">Kadrda hech kim yo&apos;q: oyna {closingIn} s dan keyin yopiladi</span>
+                  )}
+                </div>
               )}
             </>
           )}
@@ -527,13 +534,20 @@ export function MirrorView({
           {(phase === "ended" || phase === "unavailable") && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-brand/90 p-6 text-center text-white">
               {phase === "ended" ? (
-                <p className="font-display text-2xl font-extrabold text-white">Seans tugadi</p>
+                <>
+                  <p className="font-display text-2xl font-extrabold text-white">{endReason === "idle" ? "Oyna yopildi" : "Oyna to'xtatildi"}</p>
+                  {endReason === "idle" && (
+                    <p className="max-w-sm text-sm font-medium text-white/75">
+                      {idleSeconds} soniya davomida kadrda hech kim ko&apos;rinmadi. Kamera o&apos;chirildi.
+                    </p>
+                  )}
+                </>
               ) : (
                 <p className="max-w-sm text-sm font-semibold text-warning-soft">{error}</p>
               )}
               <div className="flex flex-wrap justify-center gap-3">
                 <button onClick={start} className="btn btn-primary">
-                  {phase === "ended" ? `Yana ${SESSION_SECONDS} soniya` : "Qayta urinish"}
+                  {phase === "ended" ? "Qayta yoqish" : "Qayta urinish"}
                 </button>
                 <Link href="/" className="btn bg-white/10 text-white hover:bg-white/20">
                   Xaridor ekrani

@@ -52,7 +52,7 @@ Tashqi SI xizmatlariga internet kerak. Internet bo'lmasa, matnli qidiruv kalit s
    "Telefondan sinash" tugmasida (`https://<IP>:3443`). Wi-Fi QR kodi saytni o'zi ochmaydi.
    Telefon "Ulanish xavfsiz emas" deydi (sertifikat shu kompyuterda yaratilgan, `certificates/lan/`): **Qo'shimcha ->
    Baribir o'tish**, keyin kameraga ruxsat. Windows birinchi marta tarmoq ruxsatini so'rasa: **Allow**.
-4. Jonli oyna seansi standart 60 soniya; lokal model bepul, `.env` da `MIRROR_SESSION_SECONDS=180` bilan uzaytiring.
+4. Jonli oyna vaqt bilan cheklanmagan: kadrda 60 soniya hech kim ko'rinmasa o'zi yopiladi (`.env` da `MIRROR_IDLE_SECONDS`). Jonli efir ikkalasida ham 10 daqiqa odam ko'rinmasa yopiladi.
 
 Eng ishonchli variant (sertifikat ogohlantirishisiz): telefonni noutbuk kamerasi qilish (DroidCam, Iriun yoki
 Windows 11 "Phone Link" kamera) va oynani noutbukning o'zida `http://localhost:3000/oyna` da ochish.
