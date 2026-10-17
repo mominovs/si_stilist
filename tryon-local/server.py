@@ -32,7 +32,7 @@ import queue
 import sys
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
@@ -61,7 +61,7 @@ PRESETS = {
 
 # Bir vaqtda ishlanayotgan + kutayotgan kiyintirishlar chegarasi (bitta GPU, har biri ~40 s). Ko'p bo'lsa navbat
 # saytdagi kutish vaqtidan (180 s) oshib ketadi: yangi so'rovga darhol "band" deyiladi. TRYON_MAX_QUEUE=1: faqat bitta
-MAX_QUEUE = max(1, int(os.environ.get("TRYON_MAX_QUEUE") or 3))
+MAX_QUEUE = max(1, int(os.environ.get("TRYON_MAX_QUEUE") or 2))
 
 # Oraliq ko'rinishlar shu ulushlarda yuboriladi (50 qadamda: 12, 25, 38), oxirida yakuniy natija
 PREVIEW_FRACTIONS = (0.25, 0.5, 0.75)
@@ -108,6 +108,19 @@ def parse_args() -> argparse.Namespace:
     a.base_model = a.base_model or MODES[a.mode]["base"]
     a.weights = a.weights or MODES[a.mode]["weights"]
     return a
+
+
+@dataclass
+class MirrorSession:
+    """Bitta jonli oyna seansining kadrlar orasidagi holati"""
+
+    cache: dict | None = None  # niqob, poza, kesim (fonda yangilanadi)
+    busy: bool = False  # fonda tahlil ketyapti
+    # Ko'rinish (old/yon/orqa) oxirgi 3 tahlilda bir xil bo'lsagina almashadi: chegarada kiyim sakramaydi
+    views: list = field(default_factory=list)
+    view: str = "old"
+    state: dict = field(default_factory=dict)  # turg'un turganda natijani silliqlash
+    seen: float = 0.0
 
 
 @dataclass
@@ -204,13 +217,10 @@ class Engine:
         self.mirror_lock = threading.Lock()
         self.queue = 0
         self.queue_lock = threading.Lock()
-        self.mirror_cache: dict | None = None
-        self.mirror_busy = False
-        # Ko'rinish (old/yon/orqa) oxirgi 3 tahlilda bir xil bo'lsagina almashadi: chegarada kiyim sakramaydi
-        self.mirror_views: list[str] = []
-        self.mirror_view = "old"
-        # Kadrlar orasidagi holat (turg'un turganda natijani silliqlash)
-        self.mirror_state: dict = {}
+        # Har oyna seansi (xaridor) uchun alohida holat: niqob/poza keshi, ko'rinish tarixi, silliqlash. Ikki kishi
+        # bir vaqtda ishlatganda birining niqobi ikkinchisining kadriga tushmaydi
+        self.mirror_sessions: dict[str, MirrorSession] = {}
+        self.sessions_lock = threading.Lock()
         self._torch = None
         self._prepare_image = None
         self._prepare_mask_image = None
@@ -259,7 +269,19 @@ class Engine:
             self.mirror_status, self.mirror_error = "error", str(e)
             print(f"[oyna] jonli oyna ishlamaydi: {e}", flush=True)
 
-    def _mirror_analyze(self, frame: Image.Image, background_job: bool = False) -> dict:
+    def mirror_session(self, sid: str) -> "MirrorSession":
+        now = time.time()
+        with self.sessions_lock:
+            # Uzoq kadr kelmagan seanslar tashlanadi (yopilgan sahifalar)
+            for key in [k for k, v in self.mirror_sessions.items() if now - v.seen > 60]:
+                del self.mirror_sessions[key]
+            sess = self.mirror_sessions.get(sid)
+            if sess is None:
+                sess = self.mirror_sessions[sid] = MirrorSession()
+            sess.seen = now
+            return sess
+
+    def _mirror_analyze(self, frame: Image.Image, sess: "MirrorSession", background_job: bool = False) -> dict:
         """Kiyim niqobi va poza (MediaPipe, CPU). Fonda ishlasa xatoni yutadi, keyingi kadr qayta urinadi"""
         from masker import PhotoError as MaskerPhotoError
         import cv2
@@ -274,12 +296,12 @@ class Engine:
                 z = self.masker.last_z.copy()
                 seg = self.masker.last_seg
             pose = body_view(points, z, visibility, seg, frame.size)
-            self.mirror_views = (self.mirror_views + [pose["view"]])[-3:]
-            if len(self.mirror_views) == 3 and len(set(self.mirror_views)) == 1:
-                self.mirror_view = self.mirror_views[0]
-            view = self.mirror_view
+            sess.views = (sess.views + [pose["view"]])[-3:]
+            if len(sess.views) == 3 and len(set(sess.views)) == 1:
+                sess.view = sess.views[0]
+            view = sess.view
             # Burilganda poza o'rtachalanmaydi (kesim yangi holatga darhol o'tadi)
-            prev = self.mirror_cache if self.mirror_cache and self.mirror_cache.get("view") == view else None
+            prev = sess.cache if sess.cache and sess.cache.get("view") == view else None
             # Yuz va soch: yangi kiyim konturi ularning ustiga hech qachon qo'yilmaydi
             protect = np.isin(seg, (1, 3)).astype(np.uint8)
             protect = cv2.dilate(protect, np.ones((5, 5), np.uint8)).astype(bool)
@@ -293,19 +315,19 @@ class Engine:
                 "view": view,
                 "arms_up": pose["arms_up"],
             }
-            self.mirror_cache = cache
+            sess.cache = cache
             return cache
         except MaskerPhotoError as e:
-            self.mirror_cache = None
-            self.mirror_views, self.mirror_view = [], "old"
+            sess.cache = None
+            sess.views, sess.view = [], "old"
             if background_job:
                 return {}
             raise HTTPException(422, str(e)) from e
         finally:
             if background_job:
-                self.mirror_busy = False
+                sess.busy = False
 
-    def mirror_frame(self, data: bytes, garment_id: str) -> tuple[bytes, float, dict]:
+    def mirror_frame(self, data: bytes, garment_id: str, sid: str = "") -> tuple[bytes, float, dict]:
         """
         Bitta kamera kadri -> (kiyintirilgan kadr JPEG, model va kompozitsiya vaqti ms, gavda o'lchovi).
         Niqob fonda yangilanadi, kadr uni kutmaydi
@@ -324,15 +346,16 @@ class Engine:
         if max(frame.size) > 720:
             frame.thumbnail((720, 720))
 
-        cache = self.mirror_cache
+        sess = self.mirror_session(sid)
+        cache = sess.cache
         now = time.time()
         if not cache or cache["size"] != frame.size or now - cache["t"] > 1.0:
             # Niqob yo'q yoki eskirgan: shu kadrning o'zi bilan kutib hisoblanadi
-            cache = self._mirror_analyze(frame)
-        elif now - cache["t"] > 0.12 and not self.mirror_busy:
+            cache = self._mirror_analyze(frame, sess)
+        elif now - cache["t"] > 0.12 and not sess.busy:
             # Niqob fonda yangilanadi, bu kadr esa oxirgi tayyor niqob bilan darhol chiqariladi
-            self.mirror_busy = True
-            threading.Thread(target=self._mirror_analyze, args=(frame.copy(), True), daemon=True).start()
+            sess.busy = True
+            threading.Thread(target=self._mirror_analyze, args=(frame.copy(), sess, True), daemon=True).start()
 
         t0 = time.time()
         with self.mirror_lock:
@@ -341,7 +364,7 @@ class Engine:
                 frame,
                 {**cache, "garment": garment_id},
                 lambda person, size: self.mirror.run(person, garment_id, size, view, with_cover=True),
-                self.mirror_state,
+                sess.state,
             )
         ok, jpg = cv2.imencode(".jpg", cv2.cvtColor(result, cv2.COLOR_RGB2BGR), [cv2.IMWRITE_JPEG_QUALITY, 85])
         if not ok:
@@ -857,7 +880,7 @@ def mirror_garment(req: GarmentRequest):
 
 
 @app.post("/mirror")
-async def mirror(request: Request, id: str):
+async def mirror(request: Request, id: str, s: str = ""):
     """
     Jonli oyna kadri: so'rov tanasi JPEG, javob JPEG. Kadr diskka yozilmaydi.
     422: kadrda odam yo'q / juda yaqin (sabab detail'da), 404: kiyim yuborilmagan (avval /mirror/garment).
@@ -865,7 +888,8 @@ async def mirror(request: Request, id: str):
     data = await request.body()
     if not data or len(data) > 2 * 1024 * 1024:
         raise HTTPException(413, "Kadr 2 MB dan katta")
-    image, ms, body = await run_in_threadpool(engine.mirror_frame, data, id[:64])
+    # s: oyna seansi (sayt har "Boshlash" da yangisini beradi): har xaridorning niqob keshi alohida
+    image, ms, body = await run_in_threadpool(engine.mirror_frame, data, id[:64], s[:64])
     # X-Mirror-Ms: serverdagi ish vaqti (sayt kechikishni tarmoq va server qismiga ajratib ko'rsatadi).
     # X-Mirror-Body: yelka/son nuqtalari va gavda nisbati (o'lcham tavsiyasi va belgilar uchun)
     headers = {"Cache-Control": "no-store", "X-Mirror-Ms": f"{ms:.0f}", "X-Mirror-Body": json.dumps(body, separators=(",", ":"))}

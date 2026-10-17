@@ -332,11 +332,31 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
 - Server standart `--preset orta` (`TRYON_PRESET` muhit o'zgaruvchisi, run-local.bat). `sifat` 6 GB GPU'da sinovda
   82 s va jonli oyna kadri ~350 ms (Windows umumiy xotiraga chiqaradi, OOM bermaydi). Haqiqiy OOM bo'lsa `run()`
   `orta` ga o'tadi. `vae.enable_slicing()`. Sayt lokal kutish vaqti 180 s. `/health` version 8
-- Ko'p xaridor: kiyintirish navbati `MAX_QUEUE` (`TRYON_MAX_QUEUE`, standart 3: ishlanayotgan + kutayotgan),
-  ortig'iga 429 -> sayt `{mode: "photo", message}` ("band, keyinroq"). Jonli oyna bir vaqtda bitta seans
-  (`/api/mirror` `claimMirror`, `X-Mirror-Session`, 4 s kadr kelmasa bo'shaydi, boshqasiga 409): server niqob/poza
-  keshini kadrlar orasida bo'lishadi, ikki odam aralashsa niqob boshqa odamning kadriga tushardi. Kontur:
-  `cover > 0.6` va eroziya (chetdagi och hoshiya olinmaydi)
+- Ko'p xaridor: kiyintirish navbati `MAX_QUEUE` (`TRYON_MAX_QUEUE`, standart 2: ishlanayotgan + kutayotgan),
+  ortig'iga 429 -> sayt `{mode: "photo", message}` ("band, keyinroq"). Jonli oyna bir vaqtda ko'pi bilan 2 seans
+  (`/api/mirror` `claimMirror`, `X-Mirror-Session`, 4 s kadr kelmasa bo'shaydi, uchinchisiga 409). Lokal server har
+  seans holatini alohida saqlaydi (`MirrorSession`: niqob/poza keshi, ko'rinish tarixi, silliqlash; `/mirror?s=`,
+  60 s kadr kelmasa tashlanadi). Kontur: `cover > 0.6` va eroziya (chetdagi och hoshiya olinmaydi)
+
+## Texnik eslatmalar (jonli efir)
+- `/efir/[code]` (`EfirRoom`, telefon uchun): ikki do'st video qo'ng'iroqdek. Tepada sherikning kiyintirilgan videosi
+  (katta), burchakda o'zi (oyna kabi teskari), pastda kiyimlar: har birida "Kiyish" (o'zi) va "Taklif" (sherik
+  ekranida kiyim rasmi va "Kiyish" tugmasi bilan). Matnli chat yo'q: gaplashish ovoz bilan
+- Ovoz va video WebRTC, telefondan telefonga: yuboriladi `outRef` canvas `captureStream(15)` (kiyintirilgan tasvir,
+  kamera xom tasviri emas) + mikrofon. Taklifchi = pid'i kichigi, javob 8 s kelmasa qayta taklif; kamera qayta
+  yoqilsa "bye" va yangi ulanish. Signallar server orqali (`postSignal`, holat so'rovida olinadi, har 1 s).
+  STUN google (internetda); lokal tarmoqda host nomzodlar yetadi, TURN yo'q
+- Zaxira: WebRTC ulanmasa (yoki brauzerda yo'q) sherikning oxirgi kiyintirilgan kadri server orqali:
+  `/api/mirror` `X-Efir-Room/X-Efir-Pid` bo'lsa `publishFrame`, ko'ruvchi `/api/efir/[code]/frame?after=seq` (150 ms)
+- Xona holati `src/lib/efir.ts` (faqat xotirada, globalThis; testlar `efir.test.ts`): ko'pi bilan 2 ishtirokchi,
+  20 s holat so'ramagan chiqqan hisoblanadi, xona 30 daqiqa harakatsizlikdan keyin o'chadi, kod 6 belgi (maxfiy
+  havola), har ishtirokchining faqat oxirgi kadri (3 s dan eski = jonli emas). API: `POST /api/efir` (yangi xona),
+  `GET/POST /api/efir/[code]` (holat; join | chat (faqat kiyim taklifi uchun ishlatiladi) | signal)
+- `/oyna` da "Do'st bilan jonli efir" tugmasi (`StartEfirButton`). Xonada yolg'iz bo'lsa QR va havola
+  (`shopperUrl`: localhost'dan ochilsa ham telefon uchun https://IP:3443). Efir seansi 600 s, kadr 480 px, bittadan
+  yo'lda (GPU ikki kishi orasida bo'linadi). Tovarlar `src/lib/mirror-cards.ts` (/oyna bilan umumiy)
+- Sinov: ikki Chromium (soxta kamera/mikrofon) bilan: WebRTC ulandi, ikki tomonda video va ovoz, taklif va
+  "Kiyish", uchinchi kishi 409; WebRTC o'chirilganda server orqali zaxira ishladi
 - Jonli oyna: `MirrorEngine.run(..., with_cover=True)` model egib qo'ygan kiyim konturini (warped_edge) ham qaytaradi;
   `compose_frame` -> `cover_masks`: kompozitsiya niqobi = eski kiyim niqobi + yangi kiyim konturi (odamdan
   `COVER_REACH` 0.18 yelka ichida, yuz/sochdan tashqari: `prepare_analysis` `reach`, `protect`); eski kiyim bor,

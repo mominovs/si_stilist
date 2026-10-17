@@ -12,7 +12,7 @@ set LAN_HTTPS_PORT=3443
 rem Kiyintirish sifati: orta (768x576, ~40 s, 6 GB GPU uchun) yoki sifat (1024x768, ~2 barobar sekin)
 if not defined TRYON_PRESET set TRYON_PRESET=orta
 rem Bir vaqtda kiyintirish navbati (ishlanayotgan + kutayotgan). 1 = faqat bitta xaridor
-if not defined TRYON_MAX_QUEUE set TRYON_MAX_QUEUE=3
+if not defined TRYON_MAX_QUEUE set TRYON_MAX_QUEUE=2
 if not defined LAN_IP (
   for /f "usebackq delims=" %%i in (`powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%ROOT%scripts\select-lan-ip.ps1"`) do set "LAN_IP=%%i"
 )

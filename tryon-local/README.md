@@ -131,8 +131,8 @@ Natija bitta generatsiyada shakllanib boradi: 25%, 50%, 75% qadamlarda oraliq ko
 yuboriladi va saytda xiradan aniqqa silliq almashadi. RTX 3060 Laptop (6 GB) da 40 qadam ~30 s, `orta` (50 qadam)
 taxminan 38 s. `sifat` 1.8 barobar ko'p piksel ishlaydi. 6 GB GPU'da Windows xotirani umumiy (RAM) xotiraga
 chiqaradi: xato bermaydi, lekin ~2 barobar sekin (sinovda 82 s) va jonli oyna ham sekinlashadi (kadr ~350 ms).
-Haqiqiy OOM bo'lsa server o'zi `orta` ga o'tadi. Bir vaqtda navbat `TRYON_MAX_QUEUE` (standart 3, ortig'iga 429
-"band" xabari).
+Haqiqiy OOM bo'lsa server o'zi `orta` ga o'tadi. Bir vaqtda navbat `TRYON_MAX_QUEUE` (standart 2, ortig'iga 429
+"band" xabari). Jonli oyna bir vaqtda 2 seansga (`?s=` har seansning niqob keshi alohida).
 
 ## Sifatni oshirish (ta'siri bo'yicha)
 

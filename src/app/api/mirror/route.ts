@@ -1,24 +1,24 @@
 import { supportsMirror } from "@/lib/catalog";
 import { prisma } from "@/lib/db";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
+import { publishFrame, validCode } from "@/lib/efir";
 import { mirrorFrame } from "@/lib/tryon/mirror";
 
 const MAX_FRAME_BYTES = 1024 * 1024;
 
-// Jonli oyna bitta GPU'da bir vaqtda bitta xaridorga: ikki kishi kadr yuborsa ikkalasi ham sekin, ikkalasi ham
-// yomon ko'radi. Faol seans shuncha vaqt kadr yubormasa (yopilgan, tugagan) oyna boshqaga bo'shaydi
+// Jonli oyna bitta GPU'da bir vaqtda ko'pi bilan 2 xaridorga (jonli efir: ikki do'st). Ko'proq bo'lsa hammaning
+// kadr tezligi tushib ketadi. Seans shuncha vaqt kadr yubormasa (yopilgan, tugagan) o'rni bo'shaydi.
+// Lokal server har seansning niqob keshini alohida saqlaydi (?s=), kadrlar aralashmaydi
+const MAX_SESSIONS = 2;
 const SESSION_IDLE_MS = 4000;
-let activeSession: { id: string; at: number } | null = null;
+const activeSessions = new Map<string, number>();
 
-/**
- * true: shu seans oynani ishlatishi mumkin (bo'sh yoki o'ziniki); false: boshqa xaridor ishlatmoqda.
- * Cheklov o'chirilmaydi: lokal server niqob va poza keshini (mirror_cache) kadrlar orasida qayta ishlatadi, ikki
- * odamning kadrlari aralashsa birining niqobi ikkinchisining kadriga tushadi
- */
+/** true: shu seans oynani ishlatishi mumkin; false: allaqachon 2 kishi ishlatmoqda */
 function claimMirror(id: string): boolean {
   const now = Date.now();
-  if (activeSession && activeSession.id !== id && now - activeSession.at < SESSION_IDLE_MS) return false;
-  activeSession = { id, at: now };
+  for (const [sid, at] of activeSessions) if (now - at >= SESSION_IDLE_MS) activeSessions.delete(sid);
+  if (!activeSessions.has(id) && activeSessions.size >= MAX_SESSIONS) return false;
+  activeSessions.set(id, now);
   return true;
 }
 
@@ -49,7 +49,7 @@ export async function POST(request: Request) {
   const session = (request.headers.get("x-mirror-session") ?? "").slice(0, 64) || clientKey(request);
   if (!claimMirror(session)) {
     return Response.json(
-      { error: "Jonli oyna hozir band: boshqa xaridor ishlatmoqda. Bir daqiqadan keyin qayta urinib ko'ring." },
+      { error: "Jonli oyna hozir band: 2 kishi ishlatmoqda. Bir daqiqadan keyin qayta urinib ko'ring." },
       { status: 409 },
     );
   }
@@ -67,8 +67,12 @@ export async function POST(request: Request) {
     return Response.json({ error: "Jonli oyna faqat ustki kiyim uchun" }, { status: 400 });
   }
 
-  const result = await mirrorFrame(product, frame);
+  const result = await mirrorFrame(product, frame, session);
   if (!result.ok) return Response.json({ error: result.error }, { status: result.status });
+  // Jonli efirda: kiyintirilgan kadr xonadagi sherikka ham ko'rinadi (faqat oxirgi kadr, xotirada)
+  const room = request.headers.get("x-efir-room") ?? "";
+  const pid = request.headers.get("x-efir-pid") ?? "";
+  if (room && pid && validCode(room)) publishFrame(room, pid, new Uint8Array(result.image), product.id);
   return new Response(result.image, {
     headers: {
       "Content-Type": "image/jpeg",

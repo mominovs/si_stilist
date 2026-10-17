@@ -36,14 +36,16 @@ async function detail(res: Response): Promise<string> {
   return data.detail ?? `lokal server xatosi (${res.status})`;
 }
 
-export async function mirrorFrame(product: MirrorProduct, frame: Uint8Array): Promise<MirrorResult> {
+/** session: oyna seansi (har xaridorning niqob keshi lokal serverda alohida) */
+export async function mirrorFrame(product: MirrorProduct, frame: Uint8Array, session = ""): Promise<MirrorResult> {
   try {
     for (let attempt = 0; attempt < 2; attempt++) {
       if (!uploaded.has(garmentId(product))) {
         const failed = await uploadGarment(product);
         if (failed) return failed;
       }
-      const res = await fetch(`${config.tryOn.localUrl}/mirror?id=${encodeURIComponent(garmentId(product))}`, {
+      const query = `id=${encodeURIComponent(garmentId(product))}&s=${encodeURIComponent(session)}`;
+      const res = await fetch(`${config.tryOn.localUrl}/mirror?${query}`, {
         method: "POST",
         headers: { "Content-Type": "image/jpeg" },
         body: frame as unknown as BodyInit,
