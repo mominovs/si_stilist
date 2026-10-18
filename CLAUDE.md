@@ -308,6 +308,11 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
   `models/catvton_ft/mix-48k-1024/attention/model.safetensors`, faqat tekshiruvda yaxshilansa; odam < 3 bo'lsa
   `catvton_ft_sinov` (avtomatik yuklanmaydi). Server niqobli rejimda shu fayl bo'lsa `--weights` = shu papka,
   `/health` `photo_model`. Bu muhitda kichik tasodifiy UNet/VAE bilan CPU'da sinalgan (davom ettirish ham)
+- Kechasi o'qitish `tryon-local/kechasi.bat <soat>`: stop -> prep -> `train_photo --daqiqa 70% --height 768 --width 576`
+  (exit 3 = CUDA OOM -> 512x384 da qayta) -> `train_mirror --view hammasi --daqiqa 30%`, log `runs/kechasi.log`.
+  `--daqiqa`: vaqt bo'yicha (train_mirror'da ko'rinishlarga teng bo'linadi), train_photo LR 100 qadam isinish + kosinus
+  (10% gacha), oyna aksi bilan ikki barobar (`--aks-yoq`), Windows `SetThreadExecutionState` (uyquga ketmasin).
+  Kiyim fayli `<nom>_old.*` bo'lishi shart (`_` siz fayllar, masalan libos/shim, prep'da e'tiborga olinmaydi)
 
 ## Texnik eslatmalar (internetga ochish)
 - `run-all.bat`: avval oldingi nusxalarni yopadi (oyna nomlari bo'yicha taskkill /T, ngrok.exe, 3000-portni egallagan PID, `tryon-local/stop.bat`), keyin `scripts/public-check.mjs` (ADMIN_PASSWORD yo'q, `demo123` yoki < 8 belgi bo'lsa to'xtaydi;

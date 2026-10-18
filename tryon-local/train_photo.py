@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import random
 import sys
 import time
@@ -48,6 +49,14 @@ GARMENT_SUFFIX = {"old": "old", "orqa": "orqa"}
 CROP_MARGIN = 0.05
 # Tekshiruv yo'qotishi: shu vaqt qadamlari va bir xil shovqin bilan (natijalar solishtirilsin)
 VAL_TIMESTEPS = (100, 300, 500, 700, 900)
+
+
+def keep_awake() -> None:
+    """Windows: o'qitish davomida kompyuter uyquga ketmasin (jarayon tugashi bilan o'zi bekor bo'ladi)"""
+    if sys.platform == "win32":
+        import ctypes
+
+        ctypes.windll.kernel32.SetThreadExecutionState(0x80000000 | 0x00000001)  # ES_CONTINUOUS | ES_SYSTEM_REQUIRED
 
 
 def attention_file(folder: Path) -> Path:
@@ -169,7 +178,11 @@ def main() -> int:
     p.add_argument("--toza", action="store_true", help="Saqlangan o'qitilgan modeldan emas, asl CatVTON'dan boshlash")
     p.add_argument("--every", type=int, default=250, help="Necha qadamda tekshiruv va namuna rasm")
     p.add_argument("--sample-steps", type=int, default=20, help="Namuna rasmdagi diffuziya qadamlari")
+    p.add_argument("--daqiqa", type=float, default=0,
+                   help="Vaqt bo'yicha o'qitish (kechasi): shuncha daqiqa, --steps hisobga olinmaydi")
+    p.add_argument("--aks-yoq", action="store_true", help="Oyna aksi bilan ko'paytirmaslik (kiyimda yozuv/logo bo'lsa)")
     args = p.parse_args()
+    keep_awake()
 
     pairs_file = Path(args.dataset) / "_tayyor" / "pairs.json"
     if not pairs_file.exists():
@@ -181,7 +194,13 @@ def main() -> int:
     pairs = json.loads(pairs_file.read_text(encoding="utf-8"))
     if args.faqat_yaxshi:
         pairs = [q for q in pairs if q["grade"] == "yaxshi"]
-    return train(pairs, args, build_models)
+    try:
+        return train(pairs, args, build_models)
+    except RuntimeError as e:  # torch.cuda.OutOfMemoryError ham RuntimeError
+        if "out of memory" not in str(e).lower():
+            raise
+        print("XATO: GPU xotirasi yetmadi. Kichikroq o'lcham bilan qayta ishga tushiring: --height 512 --width 384")
+        return 3
 
 
 def train(pairs: list[dict], args, build) -> int:
@@ -209,6 +228,12 @@ def train(pairs: list[dict], args, build) -> int:
     if not train_set:
         print("XATO: tekshiruvdan tashqari o'qitish misoli qolmadi")
         return 1
+    if not getattr(args, "aks_yoq", False):
+        # Oyna aksi (odam, niqob va kiyim birga): ma'lumot ikki barobar. Tekshiruv odamiga qo'shilmaydi
+        train_set += [dict(e, key=e["key"] + "/aks", person=np.ascontiguousarray(e["person"][:, ::-1]),
+                           mask=np.ascontiguousarray(e["mask"][:, ::-1]), garment=np.ascontiguousarray(e["garment"][:, ::-1]))
+                      for e in train_set]
+        examples = train_set + val_set
     print(f"{len(train_set)} o'qitish, {len(val_set)} tekshiruv misoli ({len(people)} odam"
           f"{', tekshiruv: ' + val_person if val_person else ''}), {size[0]}x{size[1]}, qurilma {device}")
 
@@ -340,8 +365,22 @@ def train(pairs: list[dict], args, build) -> int:
     if val_set:
         print(f"Boshlang'ich model, tekshiruv yo'qotishi: {start_val:.5f} (kichikroq = yaxshiroq)")
     preview(runs / "qadam_00000.jpg")
+    # Vaqt bo'yicha (kechasi) yoki qadam bo'yicha. LR: 100 qadam isinish, keyin kosinus bilan 10% gacha pasayadi
+    budget = getattr(args, "daqiqa", 0) * 60
+    warmup = 100
+
+    def lr_at(step: int, elapsed: float) -> float:
+        frac = min(1.0, elapsed / budget if budget else step / args.steps)
+        return args.lr * min(1.0, step / warmup) * (0.1 + 0.45 * (1 + math.cos(math.pi * frac)))
+
     t0 = time.time()
-    for step in range(1, args.steps + 1):
+    step = 0
+    while True:
+        step += 1
+        elapsed = time.time() - t0
+        last = elapsed >= budget if budget else step >= args.steps
+        for group in opt.param_groups:
+            group["lr"] = lr_at(step, elapsed)
         opt.zero_grad(set_to_none=True)
         running = 0.0
         for _ in range(args.accum):
@@ -354,16 +393,20 @@ def train(pairs: list[dict], args, build) -> int:
         torch.nn.utils.clip_grad_norm_(params, 1.0)
         opt.step()
         if step % 20 == 0:
-            print(f"qadam {step}/{args.steps}  yo'qotish {running:.5f}  ({(time.time() - t0) / step:.2f} s/qadam)", flush=True)
-        if step % args.every == 0 or step == args.steps:
+            left = f"{max(0, budget - elapsed) / 60:.0f} daqiqa qoldi" if budget else f"{step}/{args.steps}"
+            print(f"qadam {step} ({left})  yo'qotish {running:.5f}  lr {lr_at(step, elapsed):.1e}  "
+                  f"({(time.time() - t0) / step:.2f} s/qadam)", flush=True)
+        if step % args.every == 0 or last:
             preview(runs / f"qadam_{step:05d}.jpg")
             v = evaluate()
             if val_set and v < best:
                 best = v
                 save(FT_DIR)
-                print(f"  tekshiruv {v:.5f}: yaxshilandi, saqlandi -> models/catvton_ft")
+                print(f"  tekshiruv {v:.5f}: yaxshilandi, saqlandi -> models/catvton_ft", flush=True)
             elif val_set:
-                print(f"  tekshiruv {v:.5f} (eng yaxshisi {best:.5f})")
+                print(f"  tekshiruv {v:.5f} (eng yaxshisi {best:.5f})", flush=True)
+        if last:
+            break
     if not val_set:
         save(TRIAL_DIR)
         print("Tekshiruv odami yo'q (kamida 3 odam kerak): natija models/catvton_ft_sinov ga saqlandi, server uni o'zi "

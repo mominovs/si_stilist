@@ -188,7 +188,13 @@ def main() -> int:
     p.add_argument("--no-vgg", action="store_true", help="Perseptual yo'qotishsiz (VGG yuklanmasa avtomatik)")
     p.add_argument("--faqat-yaxshi", action="store_true", help="Faqat 'yaxshi' baholangan juftliklar ('o'rtacha'siz)")
     p.add_argument("--every", type=int, default=200, help="Necha qadamda tekshiruv va namuna rasm")
+    p.add_argument("--daqiqa", type=float, default=0,
+                   help="Vaqt bo'yicha o'qitish (kechasi): jami shuncha daqiqa ko'rinishlarga teng bo'linadi, --steps hisobga olinmaydi")
     args = p.parse_args()
+    if sys.platform == "win32":
+        import ctypes
+
+        ctypes.windll.kernel32.SetThreadExecutionState(0x80000000 | 0x00000001)  # o'qitish davomida uyquga ketmasin
 
     pairs_file = Path(args.dataset) / "_tayyor" / "pairs.json"
     if not pairs_file.exists():
@@ -202,6 +208,7 @@ def main() -> int:
         print("XATO: yaroqli juftlik yo'q")
         return 1
     code = 0
+    args.view_budget = args.daqiqa * 60 / len(views)
     for view in views:
         pairs = [q for q in all_pairs if q["view"] == view]
         if not pairs:
@@ -310,16 +317,21 @@ def train_view(view: str, pairs: list[dict], args) -> None:
         print(f"Boshlang'ich model, tekshiruv L1: {start_val:.4f} (kichikroq = yaxshiroq)")
     warp.train(), gen.train()
     t0 = time.time()
-    for step in range(1, args.steps + 1):
+    budget = getattr(args, "view_budget", 0)
+    step = 0
+    while True:
+        step += 1
+        last = time.time() - t0 >= budget if budget else step >= args.steps
         batch = to_tensors(random.sample(train, min(args.batch, len(train))), device, flip=True)
         total, l1, tryon = losses(batch)
         opt.zero_grad(set_to_none=True)
         total.backward()
         opt.step()
         if step % 20 == 0:
-            print(f"qadam {step}/{args.steps}  yo'qotish {float(total):.4f}  L1 {float(l1):.4f}  "
+            left = f"{max(0, budget - (time.time() - t0)) / 60:.0f} daqiqa qoldi" if budget else f"/{args.steps}"
+            print(f"qadam {step} {left}  yo'qotish {float(total):.4f}  L1 {float(l1):.4f}  "
                   f"({(time.time() - t0) / step:.2f} s/qadam)", flush=True)
-        if step % args.every == 0 or step == args.steps:
+        if step % args.every == 0 or last:
             preview(runs / f"qadam_{step:05d}.jpg", batch, tryon.detach())
             v = evaluate()
             if val and v < best:
@@ -328,6 +340,8 @@ def train_view(view: str, pairs: list[dict], args) -> None:
                 print(f"  tekshiruv L1 {v:.4f}: yaxshilandi, saqlandi -> models/dmvton/{view}_*.pt")
             elif val:
                 print(f"  tekshiruv L1 {v:.4f} (eng yaxshisi {best:.4f})")
+        if last:
+            break
     if not val and view == "old":
         # Old tomon modeli asl (yaxshi ishlayotgan) modelni almashtiradi: tekshiruvsiz saqlanmaydi
         print("Old tomon uchun kamida 3 odam kerak (biri tekshiruvga): model saqlanmadi")

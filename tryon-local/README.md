@@ -171,6 +171,16 @@ notijorat (CC BY-NC-SA 4.0): o'qitilgan nusxa ham shunday.
 
 Tartib: `prep.bat` -> `train_photo.bat` -> `train.bat --view hammasi` (jonli oyna, old tomon uchun ham kamida 3 odam).
 
+## Kechasi o'qitish (bitta buyruq)
+
+`kechasi.bat 8` (soat, standart 8): serverni to'xtatadi, `prep` qiladi, keyin vaqtning 70% ida rasmli rejimni
+(768x576, xotira yetmasa o'zi 512x384 ga o'tadi), 30% ida jonli oynani (ma'lumoti bor har ko'rinish) o'qitadi.
+O'qitish vaqt bo'yicha: LR avval isinadi, keyin kosinus bilan pasayadi; rasmli rejimda har misol oyna aksi bilan
+ikki barobar (`--aks-yoq` o'chiradi). O'qitish davomida Windows uyquga ketmaydi (zaryadga ulang, qopqoqni yopmang).
+Hammasi `runs\kechasi.log` ga yoziladi. Ertalab: log oxiri ("yaxshilandi, saqlandi" qatorlari), `runs\photo\` va
+`runs\old\` dagi oxirgi rasmlar, keyin `start.bat`. Modellar faqat tekshiruv odamida yaxshilansa almashadi.
+Alohida ham: `train_photo.bat --daqiqa 300`, `train.bat --view hammasi --daqiqa 120`.
+
 ## Sozlamalar
 
 | Parametr | Standart | Izoh |
