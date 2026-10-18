@@ -300,6 +300,14 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
   orqa: orqa surati + naqshsiz aralash, tekshiruv birinchisida; yon: naqshsiz). Saqlangan `<view>_*.pt` dan davom
   etadi (`--toza`), faqat tekshiruvda yaxshilansa saqlaydi; old tekshiruvsiz (3 odamdan kam) hech qachon saqlanmaydi.
   `MirrorEngine` `old_*.pt` ni ham yuklaydi (asl o'rniga), `trained` ro'yxati `/health` `mirror_models` da
+- Rasmli rejimni o'qitish `train_photo.py` (`train_photo.bat`): o'sha `dataset/_tayyor/pairs.json` (old va orqa), misol =
+  maqsad surat, kirish va maqsad niqoblari birlashmasi bilan bo'yalgan, kiyim rasmi; odam atrofidan 3:4 kesim. CatVTON
+  `get_trainable_module(unet, "attention")` (attn1) fp32 + UNet bf16 autocast, gradient checkpointing, latentlar
+  oldindan (VAE CPU'da), AdamW8bit (bitsandbytes bo'lsa), 10% kiyimsiz (CFG), yo'qotish faqat odam yarmida, niqob x3.
+  Saqlash `safetensors.save_model` (attn ro'yxatida takror nomlar) + `metadata={"format": "pt"}` (accelerate talabi):
+  `models/catvton_ft/mix-48k-1024/attention/model.safetensors`, faqat tekshiruvda yaxshilansa; odam < 3 bo'lsa
+  `catvton_ft_sinov` (avtomatik yuklanmaydi). Server niqobli rejimda shu fayl bo'lsa `--weights` = shu papka,
+  `/health` `photo_model`. Bu muhitda kichik tasodifiy UNet/VAE bilan CPU'da sinalgan (davom ettirish ham)
 
 ## Texnik eslatmalar (internetga ochish)
 - `run-all.bat`: avval oldingi nusxalarni yopadi (oyna nomlari bo'yicha taskkill /T, ngrok.exe, 3000-portni egallagan PID, `tryon-local/stop.bat`), keyin `scripts/public-check.mjs` (ADMIN_PASSWORD yo'q, `demo123` yoki < 8 belgi bo'lsa to'xtaydi;

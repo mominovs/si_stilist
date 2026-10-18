@@ -48,6 +48,8 @@ CATVTON_DIR = HERE / "CatVTON"
 # Jonli oyna (DM-VTON) model kodi: mualliflar demosi (setup.bat klonlaydi)
 KISEKLOSET_DIR = HERE / "KiseKloset"
 MODELS_DIR = HERE / "models"
+# Rasmli rejimning o'z suratlar bilan o'qitilgan nusxasi (train_photo.py); o'chirilsa asl CatVTON qaytadi
+FT_DIR = MODELS_DIR / "catvton_ft"
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
 # Natija asl surat o'lchamida qaytariladi (yuz va fon tiniq qoladi), lekin bundan katta bo'lmaydi
 MAX_OUTPUT_SIDE = 1600
@@ -106,6 +108,9 @@ def parse_args() -> argparse.Namespace:
     a.width = a.width or preset["width"]
     a.steps = a.steps or preset["steps"]
     a.base_model = a.base_model or MODES[a.mode]["base"]
+    # train_photo.py bilan o'qitilgan nusxa bo'lsa (niqobli rejim), asl og'irliklar o'rniga u yuklanadi
+    if not a.weights and a.mode == "mask" and (FT_DIR / "mix-48k-1024" / "attention" / "model.safetensors").exists():
+        a.weights = str(FT_DIR)
     a.weights = a.weights or MODES[a.mode]["weights"]
     return a
 
@@ -772,6 +777,8 @@ def health():
         "mirror_error": engine.mirror_error,
         # Qaysi ko'rinishlarning o'z modeli bor (train_mirror.py bilan o'qitilgan)
         "mirror_models": list(getattr(engine.mirror, "trained", [])) if engine.mirror else [],
+        # Rasmli rejim: asl CatVTON yoki train_photo.py bilan o'qitilgan nusxa
+        "photo_model": "o'qitilgan" if args.weights == str(FT_DIR) else "asl",
         "stream": True,
     }
 

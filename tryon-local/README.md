@@ -113,6 +113,64 @@ kerak emas). Odam suratlari: `dataset/old/o01/...`, `dataset/yon/o01/...` (yon: 
 Parametrlar: `--view old|orqa|yon|hammasi`, `--toza`, `--steps`, `--batch` (standart 4), `--lr` (2e-5), `--faqat-yaxshi`,
 `--val o03` (tekshiruv odami), `--no-vgg`.
 
+## O'qitish uchun ma'lumot yig'ish (ikkala rejim uchun bitta to'plam)
+
+Bitta `dataset` papkasi bilan ham jonli oyna (`train.bat`), ham rasmli rejim (`train_photo.bat`) o'qitiladi. Eng katta
+ta'sir ma'lumot sifatidan: kam, lekin toza rasm ko'p, lekin buzuq rasmdan yaxshi.
+
+**Hajm.** Kamida 3 odam (biri tekshiruvga ajratiladi), yaxshisi 6-10 odam: yigit va qiz, har xil gavda, har xil
+fon. Har odamga 5-8 kiyim. Bir odamning asosiy surati + 6 kiyim = 7 rasm = 36 juftlik.
+
+**Kiyimlar.** Demoda ko'rsatiladigan do'kon kiyimlarining o'zi: shu kiyimlar eng yaxshi chiqadi. Ustki kiyimlar
+(futbolka, ko'ylak, sviter, kurtka, kostyum): to'plamni tayyorlash hozircha faqat ustki kiyim niqobini yasaydi
+(libos va yubka uchun emas). Katalog rasmini nusxalang: `public\products\<sku>.jpg` ->
+`dataset\kiyimlar\<sku>_old.jpg` (orqa surati bo'lsa `<sku>_orqa.jpg`). Fayl nomida `_` faqat oxirida bo'lsin.
+
+**Odam suratlari.** Har odam uchun bitta haqiqiy surat (`asosiy.jpg`): telefon yoki demo kamerasida, belgacha yoki
+to'liq, qo'llar yonda, yorug' joy. Imkoni bo'lsa demo o'tkaziladigan joyda va kamerada oling: model aynan shu
+sharoitni o'rganadi. Keyin rasm generatorida (ChatGPT) har kiyim uchun tahrir: `asosiy.jpg` va kiyim rasmini birga
+yuklab, quyidagi prompt. Natijani kiyim nomi bilan saqlang: `dataset\old\o01\<sku>.jpg`.
+
+```text
+Edit the first photo: replace only the upper-body garment the person is wearing with the clothing item shown in
+the second image. Keep everything else exactly identical: the same person, face, hair, pose, hands, trousers,
+background, lighting, camera angle and framing. The new garment must match the second image exactly in color,
+pattern, collar, sleeves, buttons and any print, and fit naturally on this body with realistic folds and shadows.
+Do not crop, zoom, mirror or move the camera. Output the same size and aspect ratio as the first photo.
+```
+
+Orqa tomon uchun: odamning orqasidan olingan `asosiy.jpg`, kiyimning orqa surati va promptda "upper-body garment"
+dan keyin "(the person is seen from the back)" qo'shing; natija `dataset\orqa\o01\<sku>.jpg`.
+
+**Tekshirish.** `prep.bat` -> `dataset\hisobot.jpg`: qizil ramkali rasmni (yuz, soch, shim yoki fon o'zgargan,
+poza siljigan) o'chiring yoki qayta yarating, keyin `prep.bat` ni qayta ishga tushiring. `kiyimlar_hisobot.jpg` da har
+kiyim to'liq ko'rinishini tekshiring.
+
+## Rasmli rejimni qo'shimcha o'qitish (CatVTON)
+
+`train_photo.py` kiyimlarni o'z suratlaringizda "to'liq kiyilgandek" chizishni o'rgatadi: CatVTON'ning o'qitiladigan
+qismi (self-attention, ~50 mln parametr) o'zgaradi, qolgan model muzlatilgan. 6 GB GPU uchun moslangan (bf16,
+gradient checkpointing, latentlar oldindan hisoblanadi).
+
+1. Ma'lumot (yuqoridagi bo'lim) va `prep.bat`.
+2. `stop.bat` (GPU bo'shasin), keyin `train_photo.bat --steps 1500`. Terminalda har 20 qadamda yo'qotish va
+   qadam vaqti chiqadi.
+3. Har 250 qadamda `runs\photo\qadam_*.jpg`: har qator "kiyim joyi bo'yalgan surat | kiyim | natija | asl". Avval
+   `qadam_00000.jpg` (o'qitishdan oldingi model) bilan solishtiring.
+4. Kamida 3 odam bo'lsa model faqat tekshiruv odamida yaxshilansa `models\catvton_ft` ga saqlanadi. Odam kam bo'lsa
+   natija `models\catvton_ft_sinov` ga yoziladi va server uni o'zi yuklamaydi: rasmlar yoqsa papkani `catvton_ft`
+   deb qayta nomlang.
+5. `start.bat`: server `models\catvton_ft` ni o'zi topadi (`/health` da `"photo_model": "o'qitilgan"`). Yoqmasa,
+   papkani o'chiring: asl model qaytadi. Keyingi o'qitish saqlangan nusxadan davom etadi (`--toza`: asldan).
+
+Parametrlar: `--steps` (1500), `--lr` (1e-5), `--height 768 --width 576` (sifatliroq; xotira yetmasa standart
+512x384), `--batch` (1) va `--accum` (4), `--val o05` (tekshiruv odami), `--faqat-yaxshi`, `--every`, `--toza`.
+
+Diqqat: odam kam bo'lsa model shu odamlarning yuzini "yodlab" qoladi; tekshiruv odami shuni ushlaydi. CatVTON litsenziyasi
+notijorat (CC BY-NC-SA 4.0): o'qitilgan nusxa ham shunday.
+
+Tartib: `prep.bat` -> `train_photo.bat` -> `train.bat --view hammasi` (jonli oyna, old tomon uchun ham kamida 3 odam).
+
 ## Sozlamalar
 
 | Parametr | Standart | Izoh |
