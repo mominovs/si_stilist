@@ -181,6 +181,24 @@ Hammasi `runs\kechasi.log` ga yoziladi. Ertalab: log oxiri ("yaxshilandi, saqlan
 `runs\old\` dagi oxirgi rasmlar, keyin `start.bat`. Modellar faqat tekshiruv odamida yaxshilansa almashadi.
 Alohida ham: `train_photo.bat --daqiqa 300`, `train.bat --view hammasi --daqiqa 120`.
 
+## FLUX 3 Image Klein sinovi (ixtiyoriy)
+
+Black Forest Labs'ning yangi (2026-yil oktyabr) ochiq modeli: 5,5 mlrd parametrli transformer, Qwen3-VL 4B matn
+kodlovchi, bir nechta namuna rasm bilan tahrirlaydi ("birinchi rasmdagi odamga ikkinchi rasmdagi kiyimni kiydir").
+Rasmiy minimal talab 8 GB GPU (INT8). Bu sinov 6 GB GPU uchun sozlangan va **sayt hamda serverga tegmaydi**:
+
+1. Bir marta: `setup_flux.bat` (alohida `.venv-flux`: torch 2.7, diffusers dev). Model yopiq bo'lsa, oxirida
+   chiqqan ko'rsatma bo'yicha Hugging Face'da litsenziyani qabul qilib, `hf auth login` qiling.
+2. `start.bat` bilan server ishlab turgan bo'lsin (CatVTON natijalari ham olinadi), keyin `flux_sinov.bat`.
+   Skript avval CatVTON natijalarini oladi, serverni to'xtatadi, keyin FLUX 3 ni ishga tushiradi.
+3. `runs\flux3\taqqoslash.jpg`: har qatorda odam, kiyim, CatVTON, FLUX 3 va Gemini namunasi; `natija.txt`: har
+   rasm vaqti va GPU xotirasi.
+
+Sozlash: `--qadam 8` (tezroq; model 4-16 qadamga o'qitilgan, standart 12), `--mp 0.35` (kichikroq, tezroq),
+`--odamlar o01,o10 --har-odam 4`, `--rasm surat.jpg --kiyim-fayl dataset\kiyimlar\ft-01_old.jpg` (o'z suratingiz),
+`--offload` (xotira yetmasa), `--te gpu4bit` (kompyuterda 16 GB RAM bo'lmasa: matn kodlovchi GPU'da 4 bit).
+Matn kodlovchi faqat birinchi marta ishlaydi, natijasi `models\flux3_kesh` da. Prompt upsampler (9B) ishlatilmaydi.
+
 ## Sozlamalar
 
 | Parametr | Standart | Izoh |

@@ -313,6 +313,14 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
   `--daqiqa`: vaqt bo'yicha (train_mirror'da ko'rinishlarga teng bo'linadi), train_photo LR 100 qadam isinish + kosinus
   (10% gacha), oyna aksi bilan ikki barobar (`--aks-yoq`), Windows `SetThreadExecutionState` (uyquga ketmasin).
   Kiyim fayli `<nom>_old.*` bo'lishi shart (`_` siz fayllar, masalan libos/shim, prep'da e'tiborga olinmaydi)
+- FLUX 3 Image Klein sinovi (`tryon-local/flux_sinov.py`, `setup_flux.bat`, `flux_sinov.bat`): alohida `.venv-flux`
+  (diffusers dev b800f82 torch>=2.6 va huggingface_hub>=1.32 talab qiladi, asosiy `.venv` bilan mos emas). Step-distilled
+  `black-forest-labs/flux-3-image-klein`, `Flux3DistilledAutoBlocks` dan `prompt_upsampler` va `text_encoder` olib
+  tashlanadi, `prompt_embeds` beriladi (`Flux3TextEncoderStep._get_qwen3_vl_prompt_embeds`, CPU bf16 yoki `--te gpu4bit`,
+  kesh `models/flux3_kesh`). Transformer `variants/nvfp4` single-file + `BFLQuantizationConfig` (Ampere'da har qatlam
+  bf16 ga ochiladi), VAE fp32 + tiling, hammasi GPU'da yoki `--offload` (ComponentsManager, transformer qo'lda `add`).
+  Ko'rsatma qolipi `instruction(kind)` (upsampler "i2i" uslubi). Server/sayt FLUX'ni ishlatmaydi: faqat solishtirish
+  (CatVTON server orqali, keyin stop.bat). Bu muhitda kichik tasodifiy Flux3/VAE bilan CPU'da sinalgan
 
 ## Texnik eslatmalar (internetga ochish)
 - `run-all.bat`: avval oldingi nusxalarni yopadi (oyna nomlari bo'yicha taskkill /T, ngrok.exe, 3000-portni egallagan PID, `tryon-local/stop.bat`), keyin `scripts/public-check.mjs` (ADMIN_PASSWORD yo'q, `demo123` yoki < 8 belgi bo'lsa to'xtaydi;
