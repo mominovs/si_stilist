@@ -58,6 +58,10 @@ function parseBody(raw: string | null): BodyInfo | null {
 
 const num = (s: string) => (s.trim() ? Number(s.replace(",", ".")) : null);
 
+// Yelka/ko'krak strelkalari kadrda chizilsinmi. Hozircha yo'q (foydalanuvchi qarori: kiyimni ko'rishga xalaqit
+// beradi): o'lchov fonda davom etadi, tavsiya faqat o'lcham panelida ko'rinadi
+const SHOW_FIT_MARKS = false;
+
 /**
  * Tanlangan o'lcham bahosi gavdada: yelka va ko'krak chizig'i yonlarida strelkalar. Tor: ichkariga (siqadi),
  * keng: tashqariga (osilib turadi), mos: yashil chiziqcha. Kadr oynadek teskari ko'rsatiladi, belgilar ham shunga mos.
@@ -66,7 +70,7 @@ function drawFit(canvas: HTMLCanvasElement, pts: [number, number][] | null, fit:
   const ctx = canvas.getContext("2d")!;
   const { width: w, height: h } = canvas;
   ctx.clearRect(0, 0, w, h);
-  if (!pts || !fit) return;
+  if (!SHOW_FIT_MARKS || !pts || !fit) return;
   const [ls, rs, lh, rh] = pts.map(([x, y]) => [w - x * w, y * h]);
   const sy = (ls[1] + rs[1]) / 2;
   const hy = (lh[1] + rh[1]) / 2;

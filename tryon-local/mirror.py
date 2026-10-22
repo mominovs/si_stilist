@@ -366,7 +366,9 @@ class MirrorEngine:
                 tryon = warped_hr * comp_hr + up(rendered) * (1 - comp_hr)
             else:
                 tryon = warped_cloth * comp + rendered * (1 - comp)
-        arr = ((tryon[0].permute(1, 2, 0).float().cpu().numpy() + 1) * 127.5).clip(0, 255).astype(np.uint8)
+            # uint8 ga GPU'da o'tkaziladi: protsessorga 4x kam ma'lumot ko'chadi (576x768 kadrda sezilarli)
+            tryon = ((tryon[0].permute(1, 2, 0).float() + 1) * 127.5).clamp(0, 255).to(self.torch.uint8)
+        arr = tryon.cpu().numpy()
         if out_size and (arr.shape[1], arr.shape[0]) != tuple(out_size):
             arr = cv2.resize(arr, tuple(out_size), interpolation=cv2.INTER_CUBIC)
         if not with_cover:
@@ -520,9 +522,18 @@ def shading_map(rgb: np.ndarray, mask: np.ndarray, shoulder_px: float) -> np.nda
     if total < 50:
         return np.ones_like(lum)
     sigma = max(3.0, SHADE_SIGMA * shoulder_px)
-    local = cv2.GaussianBlur(lum * mask, (0, 0), sigma) / (cv2.GaussianBlur(mask, (0, 0), sigma) + 1e-3)
+    # Xarita juda silliq (sigma ~ 0.12 yelka): kichik o'lchamda xiralashtirib kattalashtirish natijani deyarli
+    # o'zgartirmaydi, lekin keng xiralashdan ~10x tez (jonli oyna kadridagi eng qimmat qism edi)
+    h, w = lum.shape
+    f = max(1.0, sigma / 3.0)
+    sw_, sh_ = max(1, round(w / f)), max(1, round(h / f))
+    lm = cv2.resize(lum * mask, (sw_, sh_), interpolation=cv2.INTER_AREA)
+    ms = cv2.resize(mask, (sw_, sh_), interpolation=cv2.INTER_AREA)
+    local = cv2.GaussianBlur(lm, (0, 0), sigma / f) / (cv2.GaussianBlur(ms, (0, 0), sigma / f) + 1e-3)
     mean = float((lum * mask).sum()) / total
     shade = np.clip(local / max(mean, 1.0), *SHADE_RANGE) ** SHADE_STRENGTH
+    if (sw_, sh_) != (w, h):
+        shade = cv2.resize(shade, (w, h), interpolation=cv2.INTER_LINEAR)
     return np.where(mask > 0.02, shade, 1.0).astype(np.float32)
 
 
@@ -592,15 +603,20 @@ def compose_frame(frame: Image.Image, analysis: dict, infer, state: dict | None 
             keep = 0.5 * float(np.clip((2.0 - motion) / 1.5, 0.0, 1.0))
             region = region * (1 - keep) + prev * keep
         state["region"], state["key"] = region, key
-    layer = rgb.copy()
-    layer[sy0:sy1, sx0:sx1] = region.clip(0, 255).astype(np.uint8)
-    out = layer * m + rgb * (1 - m)
+    # Aralashtirish faqat kesim ichida: tashqarisida natija yo'q (kadr o'zgarmaydi), butun kadr bo'yicha float
+    # hisobi esa sezilarli vaqt olardi
+    src = rgb[sy0:sy1, sx0:sx1].astype(np.float32)
+    mr = m[sy0:sy1, sx0:sx1]
+    part = region.clip(0, 255).astype(np.uint8).astype(np.float32) * mr + src * (1 - mr)
     if exposed is not None:
         # Yangi kiyim eskisidan tor: ochilib qolgan joyni model oq fon qilib chizadi, u atrofdagi asl fon bilan
         # to'ldiriladi (oq hoshiya ko'rinmaydi)
-        fill = background_fill(rgb, analysis["bg"])
-        out = out * (1 - exposed) + fill * exposed
-    return out.clip(0, 255).astype(np.uint8)
+        fill = background_fill(rgb, analysis["bg"])[sy0:sy1, sx0:sx1]
+        ex = exposed[sy0:sy1, sx0:sx1]
+        part = part * (1 - ex) + fill * ex
+    out = rgb.copy()
+    out[sy0:sy1, sx0:sx1] = part.clip(0, 255).astype(np.uint8)
+    return out
 
 
 def cover_masks(

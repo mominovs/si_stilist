@@ -390,6 +390,10 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
   yangisi yo'q va model oq chizgan joy faqat fon yaqinidagi chekkada (`edge`) asl fon bilan to'ldiriladi
   (`background_fill`). `reach`/`edge` ham optik oqim bilan suriladi. Qo'shimcha xarajat ~2 ms/kadr
   (oq aniqlash `cv2.inRange`)
+- Oyna tezligi: `shading_map` kichik o'lchamda xiralashtiradi (sigma/3 marta kichraytirib, natija deyarli bir xil),
+  `compose_frame` aralashtirishni faqat kesim ichida qiladi, `MirrorEngine.run` natijani GPU'da uint8 ga o'tkazadi.
+  Protsessor qismi ~40 ms dan ~18 ms ga tushdi (natija farqi <= 1). O'lcham strelkalari kadrda ko'rsatilmaydi
+  (`MirrorView` `SHOW_FIT_MARKS = false`, foydalanuvchi qarori): o'lchov fonda, tavsiya faqat panelda
 
 ## Texnik eslatmalar (dizayn)
 - Brend tizimi Claude Design'dan ("vizual identitet va UI"): to'q olxo'ri `brand` #2B1638, marjon-qizil `accent` #C23B44
