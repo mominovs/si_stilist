@@ -9,6 +9,8 @@ rem   Internet bo'lmasa Windows hotspotni yoqmasligi mumkin: unda telefon hotspo
 cd /d %~dp0
 set ROOT=%~dp0
 set LAN_HTTPS_PORT=3443
+rem Taqdimot: admin va panel parolsiz ochiladi (faqat lokal tarmoq). O'chirish: avval terminalda set OPEN_ACCESS=0
+if not defined OPEN_ACCESS set OPEN_ACCESS=1
 rem Kiyintirish sifati: orta (768x576, ~40 s, 6 GB GPU uchun) yoki sifat (1024x768, ~2 barobar sekin)
 if not defined TRYON_PRESET set TRYON_PRESET=orta
 rem Bir vaqtda kiyintirish navbati (ishlanayotgan + kutayotgan). 1 = faqat bitta xaridor

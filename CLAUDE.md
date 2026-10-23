@@ -407,7 +407,9 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
   oldin). `runSearch(..., city)`: shahar qattiq filtr; `/api/search` `city` (bazadagi shaharlar bilan tekshiriladi).
   `toCard` (search.ts) xaridor ekrani, oyna va efir uchun umumiy kartochka (`store` maydoni bilan)
 - Admin: tovar formasida do'kon tanlash, ro'yxatda do'kon nomi; CSV `store` ustuni (slug, ixtiyoriy, eksportda ham)
-- Hali yo'q (3-bosqich): rollar va do'kon kabineti, do'kon/platforma panellari, "Sotib olish" bosishlarini yozish
+- Hali yo'q (3-bosqich): rollar va do'kon kabineti, do'kon/platforma panellari, "Sotib olish" bosishlarini yozish.
+  Taqdimotgacha loginlar yo'q (foydalanuvchi qarori): `OPEN_ACCESS=1` bo'lsa `checkAdminAuth` doim "ok" (admin, panel,
+  amallar parolsiz). `run-local.bat` uni yoqadi (`if not defined`), internetga ochiq `run-all.bat` yoqmaydi
 
 ## Texnik eslatmalar (dizayn)
 - Brend tizimi Claude Design'dan ("vizual identitet va UI"): to'q olxo'ri `brand` #2B1638, marjon-qizil `accent` #C23B44

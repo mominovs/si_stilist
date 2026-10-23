@@ -13,6 +13,9 @@ function safeEqual(a: string, b: string): boolean {
 }
 
 export function checkAdminAuth(authorization: string | null): AuthResult {
+  // Taqdimot rejimi (foydalanuvchi qarori): hamma sahifa parolsiz. run-local.bat yoqadi, internetga ochiq
+  // run-all.bat yoqmaydi. Do'kon loginlari keyinroq qo'shiladi
+  if (process.env.OPEN_ACCESS === "1") return "ok";
   const password = process.env.ADMIN_PASSWORD;
   if (!password) {
     // Dev rejimida parolsiz ham ochiladi, production'da esa yopiq
