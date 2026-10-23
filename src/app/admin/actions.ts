@@ -34,6 +34,7 @@ function readProductForm(formData: FormData) {
     price: String(formData.get("price") ?? "").replace(/\s/g, ""),
     imageUrl: String(formData.get("imageUrl") ?? ""),
     description: String(formData.get("description") ?? ""),
+    storeId: String(formData.get("storeId") ?? ""),
     variants,
   };
 }
@@ -50,6 +51,7 @@ function productData(p: ProductInput) {
     price: p.price,
     imageUrl: p.imageUrl,
     description: p.description ?? null,
+    storeId: p.storeId ?? null,
   };
 }
 
@@ -148,11 +150,18 @@ export async function importCsvAction(_prev: ImportState, formData: FormData): P
 
   // Xato qatorlar o'tkazib yuboriladi, to'g'rilari import qilinadi.
   // SKU bo'yicha mavjud tovar yangilanadi, SKU bo'lmasa yangi tovar qo'shiladi.
+  // "store" ustuni do'kon slug'i (masalan, koton); bo'sh bo'lsa tovar do'konsiz qoladi
+  const stores = new Map((await prisma.store.findMany({ select: { id: true, slug: true } })).map((s) => [s.slug, s.id]));
   for (const r of rows) {
     if (!r.ok) {
       rowErrors.push({ row: r.row, errors: r.errors });
       continue;
     }
+    if (r.store && !stores.has(r.store)) {
+      rowErrors.push({ row: r.row, errors: [`store: "${r.store}" do'koni topilmadi`] });
+      continue;
+    }
+    r.data.storeId = r.store ? stores.get(r.store) : null;
     const existing = r.data.sku
       ? await prisma.product.findUnique({ where: { sku: r.data.sku }, select: { id: true } })
       : null;

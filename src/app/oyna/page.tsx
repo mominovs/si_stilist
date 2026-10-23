@@ -4,6 +4,7 @@ import { config } from "@/lib/config";
 import { mirrorCards, idleSeconds } from "@/lib/mirror-cards";
 import { MirrorView } from "@/components/mirror/MirrorView";
 import { SiteHeader } from "@/components/brand/SiteHeader";
+import { SampleStoresNote } from "@/components/brand/SampleStoresNote";
 
 export const metadata: Metadata = { title: "Jonli oyna · SI Stilist" };
 
@@ -27,6 +28,7 @@ export default async function MirrorPage({ searchParams }: PageProps<"/oyna">) {
             idleSeconds={idleSeconds()}
           />
         )}
+        {cards.some((c) => c.store) && <SampleStoresNote />}
       </div>
     </>
   );

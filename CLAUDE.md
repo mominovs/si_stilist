@@ -395,6 +395,20 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
   Protsessor qismi ~40 ms dan ~18 ms ga tushdi (natija farqi <= 1). O'lcham strelkalari kadrda ko'rsatilmaydi
   (`MirrorView` `SHOW_FIT_MARKS = false`, foydalanuvchi qarori): o'lchov fonda, tavsiya faqat panelda
 
+## Texnik eslatmalar (platforma: ko'p do'kon)
+- Reja: Claude Docs "SI Stilist platformasi: reja". Xaridor bir joyda hamma do'konlar kiyimini qidiradi va kiyib ko'radi,
+  "Sotib olish" keyinchalik do'kon sayti/Telegram/telefoniga olib boradi (hozircha faqat tugma, foydalanuvchi qarori)
+- `Store` (slug, name, city, address/phone/website/telegram, color), `Product.storeId` (ixtiyoriy, SetNull),
+  `Request.city`. Migratsiya `20261023120000_stores` (qo'lda yozilgan) 5 namuna do'konni yaratadi va mavjud
+  tovarlarni SKU bo'yicha taqsimlaydi; seed ham xuddi shunday (`prisma/seed-data/stores.ts`, `storeSlugForSku`)
+- Namuna do'konlar: haqiqiy nomlar (foydalanuvchi qarori), shuning uchun `SampleStoresNote` ("Namuna ... hamkorlik
+  emas") xaridor ekrani va /oyna pastida. Logotip yo'q: `StoreTag` bosh harf do'kon rangida
+- `matchProducts(products, q, limit, diversify?)`: natijalar imkon qadar turli do'konlardan (aniq moslar baribir
+  oldin). `runSearch(..., city)`: shahar qattiq filtr; `/api/search` `city` (bazadagi shaharlar bilan tekshiriladi).
+  `toCard` (search.ts) xaridor ekrani, oyna va efir uchun umumiy kartochka (`store` maydoni bilan)
+- Admin: tovar formasida do'kon tanlash, ro'yxatda do'kon nomi; CSV `store` ustuni (slug, ixtiyoriy, eksportda ham)
+- Hali yo'q (3-bosqich): rollar va do'kon kabineti, do'kon/platforma panellari, "Sotib olish" bosishlarini yozish
+
 ## Texnik eslatmalar (dizayn)
 - Brend tizimi Claude Design'dan ("vizual identitet va UI"): to'q olxo'ri `brand` #2B1638, marjon-qizil `accent` #C23B44
   (asosiy harakat tugmalari), qum fon `sand` #F7F1EA, `surface`/`surface-2`, `line`, `ink`, `muted`, holatlar

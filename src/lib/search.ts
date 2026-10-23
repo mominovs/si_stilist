@@ -30,7 +30,47 @@ export type ResultCard = {
   isExact: boolean;
   reason: string | null;
   sizes: { size: string; inStock: boolean }[];
+  /** Platforma: tovar qaysi do'konniki (eski tovarlarda bo'lmasligi mumkin) */
+  store: CardStore | null;
 };
+
+export type CardStore = { name: string; city: string; color: string };
+
+type CardProduct = {
+  id: number;
+  name: string;
+  category: string;
+  color: string;
+  price: number;
+  imageUrl: string;
+  variants: { size: string; stock: number }[];
+  store: { name: string; city: string; color: string } | null;
+};
+
+/** Kartochka ma'lumoti (xaridor ekrani, jonli oyna, efir uchun umumiy) */
+export function toCard(p: CardProduct, tier: PriceTier, isExact = true, reason: string | null = null): ResultCard {
+  return {
+    id: p.id,
+    name: p.name,
+    category: p.category,
+    color: p.color,
+    colorHex: colorHex(p.color),
+    price: p.price,
+    priceLabel: formatPrice(p.price),
+    tier,
+    imageUrl: p.imageUrl,
+    isExact,
+    reason,
+    sizes: p.variants.map((v) => ({ size: v.size, inStock: v.stock > 0 })),
+    store: p.store ? { name: p.store.name, city: p.store.city, color: p.store.color } : null,
+  };
+}
+
+/** Do'konlar bor shaharlar (filtr uchun), alifbo tartibida */
+export async function loadCities(): Promise<string[]> {
+  const rows = await prisma.store.findMany({ distinct: ["city"], select: { city: true }, orderBy: { city: "asc" } });
+  return rows.map((r) => r.city);
+}
 
 export type SearchResponse = {
   requestId: number;
@@ -43,7 +83,13 @@ export type SearchResponse = {
   results: ResultCard[];
 };
 
-function replyMessage(status: MatchStatus, parsed: ParsedQuery | null, count: number, mode: ParseMode): string {
+function replyMessage(
+  status: MatchStatus,
+  parsed: ParsedQuery | null,
+  count: number,
+  mode: ParseMode,
+  city: string | null,
+): string {
   if (mode === "rad") {
     return "Men faqat kiyim tanlashda yordam bera olaman. Masalan: \"bayramga ko'k ko'ylak\" deb yozing.";
   }
@@ -51,7 +97,8 @@ function replyMessage(status: MatchStatus, parsed: ParsedQuery | null, count: nu
   if (status === "qoniqtirildi") return `Sizga mos ${count} ta variant topdim.`;
   if (status === "qisman") return "Aynan shunday tovar hozir yo'q, lekin o'xshashlari bor.";
   const what = parsed.kategoriya ? `"${parsed.kategoriya}"` : "bunday tovar";
-  return `Afsuski, ${what} hozir omborda yo'q. So'rovingizni do'konga yetkazdik.`;
+  const where = city ? `${city}dagi do'konlarda` : "do'konlarda";
+  return `Afsuski, ${what} hozir ${where} yo'q. So'rovingizni do'konlarga yetkazdik.`;
 }
 
 /** Moslashtiradi, so'rovni logga yozadi va xaridor ekrani uchun javob tayyorlaydi */
@@ -60,13 +107,16 @@ export async function runSearch(
   parsed: ParsedQuery | null,
   mode: ParseMode,
   llmError?: string,
+  /** Platforma: faqat shu shahardagi do'konlar (null = hammasi) */
+  city: string | null = null,
 ): Promise<SearchResponse> {
   const products = await prisma.product.findMany({
-    include: { variants: { orderBy: { id: "asc" } } },
+    where: city ? { store: { city } } : undefined,
+    include: { variants: { orderBy: { id: "asc" } }, store: true },
   });
 
   const { results, status } = parsed
-    ? matchProducts(products, parsed)
+    ? matchProducts(products, parsed, 3, (p) => p.storeId)
     : { results: [], status: "qoniqtirilmadi" as const };
 
   // Har bir so'rov saqlanadi: do'kon paneli va qoniqtirilmagan talab shu ma'lumotdan quriladi
@@ -77,6 +127,7 @@ export async function runSearch(
       mode,
       resultCount: results.length,
       status,
+      city,
       results: {
         create: results.map((r, i) => ({ productId: r.product.id, rank: i + 1, isExact: r.isExact })),
       },
@@ -89,21 +140,8 @@ export async function runSearch(
     mode,
     parsed,
     status,
-    message: replyMessage(status, parsed, results.length, mode),
+    message: replyMessage(status, parsed, results.length, mode, city),
     llmError,
-    results: results.map(({ product: p, isExact, reason, tier }) => ({
-      id: p.id,
-      name: p.name,
-      category: p.category,
-      color: p.color,
-      colorHex: colorHex(p.color),
-      price: p.price,
-      priceLabel: formatPrice(p.price),
-      tier,
-      imageUrl: p.imageUrl,
-      isExact,
-      reason,
-      sizes: p.variants.map((v) => ({ size: v.size, inStock: v.stock > 0 })),
-    })),
+    results: results.map(({ product, isExact, reason, tier }) => toCard(product, tier, isExact, reason)),
   };
 }

@@ -30,6 +30,7 @@ export default async function EditProductPage({ params }: PageProps<"/admin/prod
           price: product.price,
           imageUrl: product.imageUrl,
           description: product.description ?? "",
+          storeId: product.storeId ?? "",
           variants: product.variants.map((v) => ({ size: v.size, stock: v.stock })),
         }}
         {...options}

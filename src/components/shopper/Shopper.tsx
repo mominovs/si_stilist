@@ -37,11 +37,14 @@ export function Shopper({
   categories,
   colors,
   sizes,
+  cities,
   tryOnProvider,
 }: {
   categories: string[];
   colors: string[];
   sizes: string[];
+  /** Platforma: do'konlar bor shaharlar */
+  cities: string[];
   tryOnProvider: "local" | "gemini" | "fal";
 }) {
   const [turns, setTurns] = useState<Turn[]>([]);
@@ -52,6 +55,8 @@ export function Shopper({
   const [toast, setToast] = useState<string | null>(null);
   const [tryOnCard, setTryOnCard] = useState<Card | null>(null);
   const [seller, setSeller] = useState<ReserveResponse | null>(null);
+  // Shahar kiosk tozalanganda ham saqlanadi (do'kon yoki xaridor bir marta tanlaydi)
+  const [city, setCity] = useState<string | null>(null);
   const chatEnd = useRef<HTMLDivElement>(null);
   const lastActivity = useRef(0);
 
@@ -154,7 +159,7 @@ export function Shopper({
     // Davom gaplari ("shuning arzonrog'i") uchun ko'rib turilgan javobdagi so'rov shartlari yuboriladi
     const shown = turns.find((t) => t.id === selectedId)?.response;
     const context = shown?.parsed && shown.mode !== "rad" ? shown.parsed : undefined;
-    void search(trimmed, { text: trimmed, context });
+    void search(trimmed, { text: trimmed, context, city });
   }
 
   function submitFilters(f: Filters) {
@@ -168,7 +173,7 @@ export function Shopper({
     ]
       .filter(Boolean)
       .join(", ");
-    void search(`Filtr: ${label || "hammasi"}`, { filters: f });
+    void search(`Filtr: ${label || "hammasi"}`, { filters: f, city });
   }
 
   const selected = turns.find((t) => t.id === selectedId) ?? null;
@@ -180,7 +185,24 @@ export function Shopper({
         <div className="flex items-start justify-between gap-3 px-5 pb-2 pt-5">
           <div>
             <h1 className="font-display text-2xl font-extrabold text-brand">Nima qidiryapsiz?</h1>
-            <p className="mt-0.5 text-sm text-muted">Oddiy so&apos;z bilan yozing — stilist tanlab beradi.</p>
+            <p className="mt-0.5 text-sm text-muted">Oddiy so&apos;z bilan yozing — stilist hamma do&apos;konlardan tanlab beradi.</p>
+            {cities.length > 1 && (
+              <label className="mt-2 flex items-center gap-2 text-sm font-semibold text-ink">
+                <span className="text-muted">Shahar:</span>
+                <select
+                  value={city ?? ""}
+                  onChange={(e) => setCity(e.target.value || null)}
+                  className="rounded-full bg-surface-2 px-3 py-1.5 font-bold text-brand shadow-[inset_0_0_0_1px_var(--color-line)]"
+                >
+                  <option value="">Hamma shaharlar</option>
+                  {cities.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
           </div>
           {turns.length > 0 && (
             <button onClick={resetSession} disabled={loading} className="btn btn-ghost btn-sm shrink-0">
@@ -282,7 +304,7 @@ export function Shopper({
             <p className="font-display text-lg font-bold text-brand">
               {loading ? "Ombordan mos tovarlarni qidiryapman..." : "Natijalar shu yerda chiqadi"}
             </p>
-            <p className="max-w-sm text-sm text-muted">Faqat omborda bor tovarlar taklif qilinadi.</p>
+            <p className="max-w-sm text-sm text-muted">Hamma do&apos;konlardan faqat omborda bor tovarlar taklif qilinadi.</p>
           </div>
         ) : (
           <>
@@ -330,7 +352,9 @@ export function Shopper({
             ) : (
               <div className="card p-8 text-center">
                 <p className="font-display text-lg font-bold text-brand">Hozircha mos tovar yo&apos;q</p>
-                <p className="mt-1 text-sm text-muted">Boshqa rang yoki kategoriyani so&apos;rab ko&apos;ring. So&apos;rovingiz do&apos;konga yetkazildi.</p>
+                <p className="mt-1 text-sm text-muted">
+                  Boshqa rang yoki kategoriyani so&apos;rab ko&apos;ring{city ? " yoki boshqa shaharni tanlang" : ""}. So&apos;rovingiz do&apos;konlarga yetkazildi.
+                </p>
               </div>
             )}
           </>

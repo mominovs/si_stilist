@@ -5,6 +5,7 @@ import { matchProducts } from "../src/lib/matching";
 import { EMPTY_QUERY, type ParsedQuery } from "../src/lib/query/schema";
 import { imagePathFor, seedProducts, sizesFor, stockFor } from "./seed-data/products";
 import { minutesAgoFor, requestTemplates } from "./seed-data/requests";
+import { seedStores, storeSlugForSku } from "./seed-data/stores";
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
@@ -17,10 +18,23 @@ async function main() {
   await prisma.productVariant.deleteMany();
   await prisma.product.deleteMany();
 
+  // Do'konlar saqlanib qoladi (admin qo'shganlari ham), namuna do'konlar yangilanadi
+  const storeIds = new Map<string, number>();
+  for (const s of seedStores) {
+    const { id } = await prisma.store.upsert({
+      where: { slug: s.slug },
+      create: s,
+      update: { name: s.name, city: s.city, color: s.color },
+      select: { id: true },
+    });
+    storeIds.set(s.slug, id);
+  }
+
   for (const p of seedProducts) {
     await prisma.product.create({
       data: {
         sku: p.sku,
+        storeId: storeIds.get(storeSlugForSku(p.sku)) ?? null,
         name: p.name,
         category: p.category,
         gender: p.gender,
@@ -45,7 +59,7 @@ async function main() {
     prisma.productVariant.count({ where: { stock: { gt: 0 } } }),
   ]);
   const history = await seedRequestHistory();
-  console.log(`Seed tayyor: ${products} ta tovar, ${inStock} ta o'lcham omborda bor, ${history} ta namunaviy so'rov.`);
+  console.log(`Seed tayyor: ${seedStores.length} ta do'kon, ${products} ta tovar, ${inStock} ta o'lcham omborda bor, ${history} ta namunaviy so'rov.`);
 }
 
 async function seedRequestHistory(): Promise<number> {

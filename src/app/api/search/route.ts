@@ -3,7 +3,10 @@ import { understandQuery } from "@/lib/query";
 import { normalizeQuery } from "@/lib/query/normalize";
 import { EMPTY_QUERY, parsedQuerySchema, withDefaults, type ParsedQuery } from "@/lib/query/schema";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
-import { loadVocabulary, runSearch } from "@/lib/search";
+import { loadCities, loadVocabulary, runSearch } from "@/lib/search";
+
+// Platforma shahar filtri (ikkala so'rov turida ham), bazadagi shaharlar bilan solishtiriladi
+const city = z.string().trim().max(40).nullable().optional();
 
 const bodySchema = z.union([
   // Boshqaruv belgilari olib tashlanadi, uzunlik cheklanadi
@@ -11,6 +14,7 @@ const bodySchema = z.union([
     text: z.string().transform((t) => t.replace(/[\u0000-\u001f\u007f]/g, " ").trim()).pipe(z.string().min(1).max(500)),
     // Suhbatdagi oldingi so'rov (brauzerdan keladi, shuning uchun qayta tekshiriladi va tozalanadi)
     context: z.unknown().optional(),
+    city,
   }),
   z.object({
     filters: z.object({
@@ -21,6 +25,7 @@ const bodySchema = z.union([
       narx_max: z.number().int().positive().max(1_000_000_000).nullable().optional(),
       olcham: z.string().regex(/^[A-Z0-9]{1,5}$/).nullable().optional(),
     }),
+    city,
   }),
 ]);
 
@@ -41,6 +46,9 @@ export async function POST(request: Request) {
     return Response.json({ error: "So'rov noto'g'ri" }, { status: 400 });
   }
 
+  const cities = body.data.city ? await loadCities() : [];
+  const selectedCity = body.data.city && cities.includes(body.data.city) ? body.data.city : null;
+
   if ("text" in body.data) {
     const text = body.data.text;
     const vocab = await loadVocabulary();
@@ -50,7 +58,7 @@ export async function POST(request: Request) {
         : null;
     const context = ctx?.success ? normalizeQuery(ctx.data, vocab.categories) : null;
     const { parsed, mode, llmError } = await understandQuery(text, vocab, context);
-    return Response.json(await runSearch(text, parsed, mode, llmError));
+    return Response.json(await runSearch(text, parsed, mode, llmError, selectedCity));
   }
 
   // Filtr tugmalari: LLM'siz, to'g'ridan-to'g'ri tartibli so'rov
@@ -75,5 +83,5 @@ export async function POST(request: Request) {
     .filter(Boolean)
     .join(", ");
   parsed.izoh = `Filtr: ${label || "hammasi"}`;
-  return Response.json(await runSearch(parsed.izoh, parsed, "filtr"));
+  return Response.json(await runSearch(parsed.izoh, parsed, "filtr", undefined, selectedCity));
 }

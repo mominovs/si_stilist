@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { matchProducts, priceTiers, type MatchProduct } from "./matching";
 import { EMPTY_QUERY, type ParsedQuery } from "./query/schema";
 import { imagePathFor, seedProducts, sizesFor, stockFor } from "../../prisma/seed-data/products";
+import { storeSlugForSku } from "../../prisma/seed-data/stores";
 
 // Seed ombori bilan haqiqiy holatga yaqin test
 const products: (MatchProduct & { sku: string })[] = seedProducts.map((p, i) => ({
@@ -90,4 +91,16 @@ test("byudjet: qimmatlari aniq mos emas va oxiriga tushadi", () => {
   }
   assert.ok(r.results[0].product.price <= 1_400_000);
   assert.equal(r.status, "qoniqtirildi");
+});
+
+test("platforma: natijalar imkon qadar turli do'konlardan, aniq moslar baribir oldin", () => {
+  const store = (p: { sku: string }) => storeSlugForSku(p.sku);
+  const plain = matchProducts(products, q({ kategoriya: "futbolka" }));
+  const mixed = matchProducts(products, q({ kategoriya: "futbolka" }), 3, store);
+  assert.equal(mixed.results.length, 3);
+  assert.equal(new Set(mixed.results.map((r) => store(r.product))).size, 3);
+  // Faqat tartib o'zgaradi: holat va aniq moslar soni bir xil
+  assert.equal(mixed.status, plain.status);
+  const exactFirst = mixed.results.map((r) => r.isExact);
+  assert.deepEqual(exactFirst, [...exactFirst].sort((a, b) => Number(b) - Number(a)));
 });

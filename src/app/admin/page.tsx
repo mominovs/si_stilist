@@ -28,7 +28,7 @@ export default async function AdminProductsPage({ searchParams }: PageProps<"/ad
     prisma.product.findMany({
       where,
       orderBy: [{ category: "asc" }, { price: "asc" }],
-      include: { variants: { orderBy: { id: "asc" } } },
+      include: { variants: { orderBy: { id: "asc" } }, store: { select: { name: true, city: true } } },
     }),
     prisma.product.groupBy({ by: ["category"], _count: true, orderBy: { category: "asc" } }),
   ]);
@@ -102,7 +102,10 @@ export default async function AdminProductsPage({ searchParams }: PageProps<"/ad
                       <img src={p.imageUrl} alt="" className="h-14 w-11 rounded border border-neutral-100 bg-white object-contain" />
                       <div>
                         <div className="font-medium">{p.name}</div>
-                        <div className="text-xs text-neutral-400">{p.sku ?? `#${p.id}`}</div>
+                        <div className="text-xs text-neutral-400">
+                          {p.sku ?? `#${p.id}`}
+                          {p.store && ` · ${p.store.name}, ${p.store.city}`}
+                        </div>
                       </div>
                     </div>
                   </td>

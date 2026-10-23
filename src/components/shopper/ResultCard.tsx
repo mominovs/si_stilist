@@ -5,6 +5,7 @@ import { useState } from "react";
 import { supportsMirror } from "@/lib/catalog";
 import type { ResultCard as Card } from "@/lib/search";
 import { HangerIcon } from "@/components/brand/Logo";
+import { StoreTag } from "@/components/brand/StoreTag";
 
 const TIER_LABEL = { arzon: "arzon", orta: "o'rta narx", qimmat: "premium" } as const;
 
@@ -42,6 +43,11 @@ export function ResultCard({
 
       <div className="flex flex-1 flex-col gap-3 p-5">
         <div>
+          {card.store && (
+            <div className="mb-1.5">
+              <StoreTag store={card.store} />
+            </div>
+          )}
           <h3 className="font-display text-lg font-bold leading-snug text-brand">{card.name}</h3>
           <div className="mt-1 whitespace-nowrap font-display text-xl font-extrabold text-ink">{card.priceLabel}</div>
           <div className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-muted">
@@ -73,6 +79,10 @@ export function ResultCard({
             <HangerIcon />
             O&apos;zimda ko&apos;rish
           </button>
+          {/* Platforma: keyinchalik do'kon sayti, Telegram yoki telefoniga olib boradi (hozircha faqat tugma) */}
+          <button type="button" className="btn btn-brand w-full">
+            Sotib olish
+          </button>
           <div className={`grid gap-2 ${supportsMirror(card.category) ? "grid-cols-2" : "grid-cols-1"}`}>
             {supportsMirror(card.category) && (
               <Link href={`/oyna?productId=${card.id}`} prefetch={false} className="btn btn-ghost btn-sm">
@@ -82,10 +92,10 @@ export function ResultCard({
             <button
               onClick={() => size && onReserve(size)}
               disabled={!size}
-              title={size ? undefined : "Avval o'lchamni tanlang"}
-              className="btn btn-ghost btn-sm"
+              title={size ? "Sotuvchiga ko'rsatish" : "Avval o'lchamni tanlang"}
+              className="btn btn-ghost btn-sm whitespace-nowrap"
             >
-              {size ? `Sotuvchiga · ${size}` : "Sotuvchiga ko'rsatish"}
+              {size ? `Sotuvchiga · ${size}` : "Sotuvchiga"}
             </button>
           </div>
         </div>

@@ -35,6 +35,11 @@ export const productSchema = z
       .nullable()
       .optional(),
     variants: z.array(variantSchema).min(1, "Kamida bitta o'lcham kiriting"),
+    // Platforma: tovar qaysi do'konniki (bo'sh = do'konsiz)
+    storeId: z.preprocess(
+      (v) => (v === "" || v === undefined ? null : v),
+      z.coerce.number().int().positive().nullable(),
+    ).optional(),
   })
   .superRefine((p, ctx) => {
     const seen = new Set<string>();

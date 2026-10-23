@@ -4,6 +4,7 @@ import { productSchema, type ProductInput } from "@/lib/validation/product";
 // CSV ustunlari. style_tags va sizes ichida qiymatlar "|" bilan ajratiladi:
 //   style_tags: ish|klassik
 //   sizes:      S:3|M:5|L:0   (o'lcham:qoldiq)
+//   store:      do'kon slug'i (masalan, koton), ixtiyoriy
 export const CSV_COLUMNS = [
   "sku",
   "name",
@@ -16,10 +17,11 @@ export const CSV_COLUMNS = [
   "image_url",
   "description",
   "sizes",
+  "store",
 ] as const;
 
 export type CsvRowResult =
-  | { row: number; ok: true; data: ProductInput }
+  | { row: number; ok: true; data: ProductInput; store: string | null }
   | { row: number; ok: false; errors: string[] };
 
 function splitList(value: string | undefined): string[] {
@@ -44,7 +46,7 @@ export function parseProductsCsv(text: string): { rows: CsvRowResult[]; missingC
   });
 
   const headers = parsed.meta.fields ?? [];
-  const required = CSV_COLUMNS.filter((c) => c !== "sku" && c !== "description");
+  const required = CSV_COLUMNS.filter((c) => c !== "sku" && c !== "description" && c !== "store");
   const missingColumns = required.filter((c) => !headers.includes(c));
   if (missingColumns.length > 0) return { rows: [], missingColumns };
 
@@ -64,7 +66,7 @@ export function parseProductsCsv(text: string): { rows: CsvRowResult[]; missingC
       description: raw.description ?? "",
       variants: parseSizes(raw.sizes),
     });
-    if (result.success) return { row, ok: true, data: result.data };
+    if (result.success) return { row, ok: true, data: result.data, store: raw.store?.trim().toLowerCase() || null };
     return {
       row,
       ok: false,
@@ -88,6 +90,7 @@ export function productsToCsv(
     imageUrl: string;
     description: string | null;
     variants: { size: string; stock: number }[];
+    store?: { slug: string } | null;
   }>,
 ): string {
   return Papa.unparse({
@@ -104,6 +107,7 @@ export function productsToCsv(
       p.imageUrl,
       p.description ?? "",
       p.variants.map((v) => `${v.size}:${v.stock}`).join("|"),
+      p.store?.slug ?? "",
     ]),
   });
 }

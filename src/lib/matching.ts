@@ -53,6 +53,8 @@ export function matchProducts<P extends MatchProduct>(
   products: P[],
   q: ParsedQuery,
   limit = 3,
+  /** Platforma: natijalar imkon qadar turli do'konlardan (kalit = do'kon). Aniq moslar baribir yaqinlardan oldin */
+  diversify?: (p: P) => unknown,
 ): { results: MatchResult<P>[]; status: MatchStatus } {
   const tiers = priceTiers(products);
   const styleTags = q.uslub.filter((t) => t !== q.maqsad);
@@ -128,10 +130,28 @@ export function matchProducts<P extends MatchProduct>(
   const exact = scored.filter((r) => r.isExact).sort(byScore);
   const near = scored.filter((r) => !r.isExact).sort(byScore);
   // Aniq moslar avval; kam bo'lsa yaqin variantlar bilan to'ldiriladi
-  const results = [...exact, ...near].slice(0, limit);
+  const results = diversify
+    ? [...spread(exact, diversify), ...spread(near, diversify)].slice(0, limit)
+    : [...exact, ...near].slice(0, limit);
 
   const status: MatchStatus =
     results.length === 0 ? "qoniqtirilmadi" : results.some((r) => r.isExact) ? "qoniqtirildi" : "qisman";
 
   return { results, status };
+}
+
+/** Tartibni saqlab, har kalitning birinchisini oldinga chiqaradi: [A1, A2, B1] -> [A1, B1, A2] */
+function spread<R extends { product: P }, P>(list: R[], key: (p: P) => unknown): R[] {
+  const seen = new Set<unknown>();
+  const first: R[] = [];
+  const rest: R[] = [];
+  for (const r of list) {
+    const k = key(r.product);
+    if (seen.has(k)) rest.push(r);
+    else {
+      seen.add(k);
+      first.push(r);
+    }
+  }
+  return [...first, ...rest];
 }

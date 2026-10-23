@@ -7,6 +7,7 @@ import type { ResultCard } from "@/lib/search";
 import { FIT_LABELS, estimateBody, fitSizes, median, type SizeFit } from "@/lib/sizing";
 import { SellerModal } from "@/components/shopper/SellerModal";
 import { TryOnModal } from "@/components/shopper/TryOnModal";
+import { StoreTag } from "@/components/brand/StoreTag";
 import { FIT_STYLE, SizePanel, type BodyForm } from "./SizePanel";
 import { SparkIcon } from "@/components/brand/Logo";
 import { StartEfirButton } from "@/components/efir/StartEfirButton";
@@ -578,9 +579,16 @@ export function MirrorView({
       </section>
 
       <aside className="space-y-5">
-        <div className="flex items-baseline justify-between gap-3">
-          <h2 className="font-display text-2xl font-extrabold text-brand">{selected.name}</h2>
-          <div className="whitespace-nowrap font-display text-lg font-extrabold text-ink">{selected.priceLabel}</div>
+        <div>
+          {selected.store && <StoreTag store={selected.store} />}
+          <div className="mt-1 flex items-baseline justify-between gap-3">
+            <h2 className="font-display text-2xl font-extrabold text-brand">{selected.name}</h2>
+            <div className="whitespace-nowrap font-display text-lg font-extrabold text-ink">{selected.priceLabel}</div>
+          </div>
+          {/* Platforma: keyinchalik do'kon manziliga olib boradi (hozircha faqat tugma) */}
+          <button type="button" className="btn btn-brand mt-3 w-full">
+            Sotib olish
+          </button>
         </div>
         <SizePanel
           form={form}
@@ -615,6 +623,7 @@ export function MirrorView({
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={c.imageUrl} alt="" className="aspect-square w-full object-contain mix-blend-multiply" />
               <div className="truncate px-0.5 pt-1.5 text-center text-xs font-bold text-ink">{c.name}</div>
+              {c.store && <div className="truncate text-center text-[10px] font-semibold text-muted">{c.store.name}</div>}
             </button>
           ))}
         </div>

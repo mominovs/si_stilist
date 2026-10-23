@@ -719,6 +719,7 @@ export function EfirRoom({
                   <img src={c.imageUrl} alt="" className="h-full w-full object-contain mix-blend-multiply" />
                 </span>
                 <div className="line-clamp-2 min-h-8 pt-1 text-left text-[11px] font-bold leading-tight text-ink">{c.name}</div>
+                {c.store && <div className="truncate text-left text-[10px] font-semibold text-muted">{c.store.name}</div>}
               </button>
               <button onClick={() => wear(c.id)} className="btn btn-brand btn-sm w-full min-h-8 text-xs">
                 Kiyish

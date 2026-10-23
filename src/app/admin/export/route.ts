@@ -8,7 +8,7 @@ export async function GET(request: Request) {
   if (denied) return denied;
   const products = await prisma.product.findMany({
     orderBy: { id: "asc" },
-    include: { variants: { orderBy: { id: "asc" } } },
+    include: { variants: { orderBy: { id: "asc" } }, store: { select: { slug: true } } },
   });
   // BOM: Excel o'zbekcha harflarni to'g'ri ochishi uchun
   return new Response("﻿" + productsToCsv(products), {

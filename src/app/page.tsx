@@ -5,8 +5,9 @@ import { COLORS } from "@/lib/catalog";
 import { llmConfigured, warmUpLlm } from "@/lib/query/llm";
 import { config } from "@/lib/config";
 import { demoSettings } from "@/lib/demo-settings";
-import { loadVocabulary } from "@/lib/search";
+import { loadCities, loadVocabulary } from "@/lib/search";
 import { SiteHeader, StatusPill } from "@/components/brand/SiteHeader";
+import { SampleStoresNote } from "@/components/brand/SampleStoresNote";
 import { Shopper } from "@/components/shopper/Shopper";
 
 export default async function ShopperPage() {
@@ -14,10 +15,11 @@ export default async function ShopperPage() {
   // Javob yuborilgandan keyin fonda: xaridorning birinchi so'rovi tez qaytishi uchun
   after(() => warmUpLlm(loadVocabulary));
   // Filtr tugmalari faqat omborda uchraydigan qiymatlardan tuziladi
-  const [cats, colors, sizes] = await Promise.all([
+  const [cats, colors, sizes, cities] = await Promise.all([
     prisma.product.findMany({ distinct: ["category"], select: { category: true }, orderBy: { category: "asc" } }),
     prisma.product.findMany({ distinct: ["color"], select: { color: true } }),
     prisma.productVariant.findMany({ where: { stock: { gt: 0 } }, distinct: ["size"], select: { size: true } }),
+    loadCities(),
   ]);
   const letterOrder = ["XS", "S", "M", "L", "XL", "XXL", "XXXL"];
   const sortedSizes = sizes
@@ -62,8 +64,10 @@ export default async function ShopperPage() {
           categories={cats.map((c) => c.category)}
           colors={sortedColors}
           sizes={sortedSizes}
+          cities={cities}
           tryOnProvider={config.tryOn.provider}
         />
+        {cities.length > 0 && <SampleStoresNote />}
       </div>
     </>
   );

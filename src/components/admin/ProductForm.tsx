@@ -25,6 +25,7 @@ export type ProductFormValues = {
   price: number | "";
   imageUrl: string;
   description: string;
+  storeId: number | "";
   variants: { size: string; stock: number }[];
 };
 
@@ -39,6 +40,7 @@ const EMPTY: ProductFormValues = {
   price: "",
   imageUrl: "",
   description: "",
+  storeId: "",
   variants: [{ size: "M", stock: 1 }],
 };
 
@@ -47,6 +49,7 @@ type Props = {
   initial?: ProductFormValues;
   categoryOptions: string[];
   colorOptions: string[];
+  storeOptions: { id: number; name: string; city: string }[];
 };
 
 const inputCls = "w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm focus:border-neutral-500 focus:outline-none";
@@ -63,7 +66,7 @@ function Field({ label, error, children }: { label: string; error?: string[]; ch
   );
 }
 
-export function ProductForm({ action, initial = EMPTY, categoryOptions, colorOptions }: Props) {
+export function ProductForm({ action, initial = EMPTY, categoryOptions, colorOptions, storeOptions }: Props) {
   const [state, formAction, pending] = useActionState(action, {});
   const [variants, setVariants] = useState(initial.variants);
   const [color, setColor] = useState(initial.color);
@@ -92,6 +95,17 @@ export function ProductForm({ action, initial = EMPTY, categoryOptions, colorOpt
             <input name="sku" defaultValue={v.sku} className={inputCls} placeholder="KY-07" />
           </Field>
         </div>
+
+        <Field label="Do'kon" error={err.storeId}>
+          <select name="storeId" defaultValue={String(v.storeId ?? "")} className={inputCls}>
+            <option value="">Do&apos;konsiz</option>
+            {storeOptions.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name} ({s.city})
+              </option>
+            ))}
+          </select>
+        </Field>
 
         <div className="grid gap-4 sm:grid-cols-3">
           <Field label="Kategoriya" error={err.category}>
