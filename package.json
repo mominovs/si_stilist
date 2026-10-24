@@ -3,10 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "predev": "node scripts/ensure-db.mjs",
+    "predev": "prisma generate && node scripts/ensure-db.mjs",
     "dev": "next dev",
-    "predev:https": "node scripts/ensure-db.mjs",
+    "predev:https": "prisma generate && node scripts/ensure-db.mjs",
     "dev:https": "next dev --experimental-https",
+    "prebuild": "prisma generate",
     "build": "next build",
     "prestart": "node scripts/ensure-db.mjs",
     "start": "next start",
