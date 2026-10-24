@@ -101,7 +101,7 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
   `node_modules/next/dist/docs/` ni tekshir (batafsil: AGENTS.md)
 - Prisma 7: klient `src/generated/prisma` ga generatsiya qilinadi (`@/generated/prisma/client`),
   `@prisma/adapter-pg` orqali ulanadi, sozlama `prisma.config.ts` da. `migrate dev` klientni avtomatik
-  generatsiya qilmaydi: `npx prisma generate`
+  generatsiya qilmaydi: `npx prisma generate` (`prebuild`/`predev` o'zi qiladi: git pull dan keyin eski klient bilan build xato berardi)
 - Katalog lug'ati (kategoriya, rang, uslub, mavsum): `src/lib/catalog.ts`
 - Tashqi xizmat sozlamalari (model, endpoint): `src/lib/config.ts`
 - Seed: `prisma/seed-data/products.ts` (48 tovar, deterministik qoldiq; krossovka/palto/sumka ataylab yo'q)
