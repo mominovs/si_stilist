@@ -310,7 +310,7 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
   `/health` `photo_model`. Bu muhitda kichik tasodifiy UNet/VAE bilan CPU'da sinalgan (davom ettirish ham)
 - Kechasi o'qitish `tryon-local/kechasi.bat <soat>`: stop -> prep -> `train_photo --daqiqa 70% --height 768 --width 576`
   (exit 3 = CUDA OOM -> 512x384 da qayta) -> `train_mirror --view hammasi --daqiqa 30%`, log `runs/kechasi.log`.
-  `--daqiqa`: vaqt bo'yicha (train_mirror'da ko'rinishlarga teng bo'linadi), train_photo LR 100 qadam isinish + kosinus
+  `--daqiqa`: vaqt bo'yicha (train_mirror'da ko'rinishlarga juftliklar soniga qarab, har biriga kamida 20%), train_photo LR 100 qadam isinish + kosinus
   (10% gacha), oyna aksi bilan ikki barobar (`--aks-yoq`), Windows `SetThreadExecutionState` (uyquga ketmasin).
   Kiyim fayli `<nom>_old.*` bo'lishi shart (`_` siz fayllar, masalan libos/shim, prep'da e'tiborga olinmaydi)
 - FLUX 3 Image Klein sinovi (`tryon-local/flux_sinov.py`, `setup_flux.bat`, `flux_sinov.bat`): alohida `.venv-flux`

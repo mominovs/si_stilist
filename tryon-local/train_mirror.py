@@ -208,14 +208,22 @@ def main() -> int:
         print("XATO: yaroqli juftlik yo'q")
         return 1
     code = 0
-    args.view_budget = args.daqiqa * 60 / len(views)
+    # Vaqt ko'rinishlarga juftliklar soniga qarab bo'linadi (har biriga kamida 20%): orqa tomonda 24 juftlik,
+    # old tomonda mingdan ortiq bo'lsa, teng bo'lish orqani yodlatib, oldni chala qoldirardi
+    counts = {v: sum(q["view"] == v for q in all_pairs) for v in views}
+    floor = 0.2 if len(views) > 1 else 1.0
+    raw = {v: max(floor, counts[v] / max(1, sum(counts.values()))) for v in views}
+    shares = {v: raw[v] / sum(raw.values()) for v in views}
     for view in views:
         pairs = [q for q in all_pairs if q["view"] == view]
         if not pairs:
             print(f"XATO: '{view}' ko'rinishida yaroqli juftlik yo'q")
             code = 1
             continue
+        args.view_budget = args.daqiqa * 60 * shares[view]
         print(f"\n=== {view} tomon ===")
+        if args.daqiqa:
+            print(f"Vaqt: {args.view_budget / 60:.0f} daqiqa ({len(pairs)} juftlik)")
         train_view(view, pairs, args)
     print("Ishlatish uchun: tryon-local\\stop.bat va start.bat (server yangi og'irliklarni o'zi topadi)")
     return code
