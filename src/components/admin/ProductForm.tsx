@@ -52,15 +52,15 @@ type Props = {
   storeOptions: { id: number; name: string; city: string }[];
 };
 
-const inputCls = "w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm focus:border-neutral-500 focus:outline-none";
+const inputCls = "w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm focus:border-brand focus:outline-none";
 
 function Field({ label, error, children }: { label: string; error?: string[]; children: React.ReactNode }) {
   return (
     <label className="block space-y-1">
-      <span className="text-sm font-medium text-neutral-700">{label}</span>
+      <span className="text-sm font-medium text-ink">{label}</span>
       {children}
       {error?.map((e) => (
-        <span key={e} className="block text-xs text-red-600">{e}</span>
+        <span key={e} className="block text-xs text-danger">{e}</span>
       ))}
     </label>
   );
@@ -84,7 +84,7 @@ export function ProductForm({ action, initial = EMPTY, categoryOptions, colorOpt
     <form key={state.submittedAt ?? 0} action={formAction} className="grid gap-8 lg:grid-cols-[1fr_280px]">
       <div className="space-y-5">
         {state.message && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{state.message}</div>
+          <div className="rounded-xl border border-danger/30 bg-danger-soft px-4 py-3 text-sm text-danger">{state.message}</div>
         )}
 
         <div className="grid gap-4 sm:grid-cols-[1fr_160px]">
@@ -122,7 +122,7 @@ export function ProductForm({ action, initial = EMPTY, categoryOptions, colorOpt
           </Field>
           <Field label="Rang" error={err.color}>
             <div className="flex items-center gap-2">
-              <span className="h-8 w-8 shrink-0 rounded-full border border-neutral-300" style={{ background: colorHex(color) }} />
+              <span className="h-8 w-8 shrink-0 rounded-full border border-line" style={{ background: colorHex(color) }} />
               <input name="color" list="color-options" value={color} onChange={(e) => setColor(e.target.value)} required className={inputCls} />
             </div>
             <datalist id="color-options">
@@ -143,10 +143,10 @@ export function ProductForm({ action, initial = EMPTY, categoryOptions, colorOpt
         </div>
 
         <fieldset className="space-y-2">
-          <legend className="text-sm font-medium text-neutral-700">Uslub va maqsad</legend>
+          <legend className="text-sm font-medium text-ink">Uslub va maqsad</legend>
           <div className="flex flex-wrap gap-2">
             {STYLE_TAGS.map((t) => (
-              <label key={t} className="flex cursor-pointer items-center gap-2 rounded-full border border-neutral-300 bg-white px-3 py-1.5 text-sm has-[:checked]:border-neutral-900 has-[:checked]:bg-neutral-900 has-[:checked]:text-white">
+              <label key={t} className="flex cursor-pointer items-center gap-2 rounded-full border border-line bg-surface px-3 py-1.5 text-sm has-[:checked]:border-brand has-[:checked]:bg-brand has-[:checked]:text-white">
                 <input type="checkbox" name="styleTags" value={t} defaultChecked={v.styleTags.includes(t)} className="sr-only" />
                 {t}
               </label>
@@ -156,7 +156,7 @@ export function ProductForm({ action, initial = EMPTY, categoryOptions, colorOpt
 
         <Field label="Rasm manzili" error={err.imageUrl}>
           <input name="imageUrl" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} required className={inputCls} placeholder="/products/ky-07.jpg yoki https://..." />
-          <span className="block text-xs text-neutral-500">Oq fondagi aniq rasm. Lokal fayllar public/products/ papkasiga qo&apos;yiladi.</span>
+          <span className="block text-xs text-muted">Oq fondagi aniq rasm. Lokal fayllar public/products/ papkasiga qo&apos;yiladi.</span>
         </Field>
 
         <Field label="Tavsif (ixtiyoriy)" error={err.description}>
@@ -165,10 +165,10 @@ export function ProductForm({ action, initial = EMPTY, categoryOptions, colorOpt
 
         <fieldset className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <legend className="text-sm font-medium text-neutral-700">O&apos;lchamlar va qoldiq</legend>
+            <legend className="text-sm font-medium text-ink">O&apos;lchamlar va qoldiq</legend>
             <div className="flex gap-2 text-xs">
-              <button type="button" onClick={() => fillSizes(LETTER_SIZES)} className="rounded border border-neutral-300 bg-white px-2 py-1 hover:bg-neutral-50">XS–XXL</button>
-              <button type="button" onClick={() => fillSizes(NUMERIC_SIZES)} className="rounded border border-neutral-300 bg-white px-2 py-1 hover:bg-neutral-50">44–54</button>
+              <button type="button" onClick={() => fillSizes(LETTER_SIZES)} className="rounded border border-line bg-surface px-2 py-1 hover:bg-brand-soft">XS–XXL</button>
+              <button type="button" onClick={() => fillSizes(NUMERIC_SIZES)} className="rounded border border-line bg-surface px-2 py-1 hover:bg-brand-soft">44–54</button>
             </div>
           </div>
           <input type="hidden" name="variants" value={JSON.stringify(variants)} />
@@ -177,35 +177,35 @@ export function ProductForm({ action, initial = EMPTY, categoryOptions, colorOpt
               <div key={i} className="flex items-center gap-2">
                 <input value={v.size} onChange={(e) => setVariant(i, { size: e.target.value })} placeholder="O'lcham" className={`${inputCls} w-28`} />
                 <input type="number" min={0} value={v.stock} onChange={(e) => setVariant(i, { stock: Number(e.target.value) })} className={`${inputCls} w-28`} />
-                <span className="text-xs text-neutral-400">dona</span>
-                <button type="button" onClick={() => setVariants((vs) => vs.filter((_, j) => j !== i))} className="ml-auto text-sm text-neutral-400 hover:text-red-600" aria-label="O'chirish">
+                <span className="text-xs text-muted">dona</span>
+                <button type="button" onClick={() => setVariants((vs) => vs.filter((_, j) => j !== i))} className="ml-auto text-sm text-muted hover:text-danger" aria-label="O'chirish">
                   ✕
                 </button>
               </div>
             ))}
           </div>
-          <button type="button" onClick={() => setVariants((vs) => [...vs, { size: "", stock: 0 }])} className="text-sm text-neutral-600 hover:underline">
+          <button type="button" onClick={() => setVariants((vs) => [...vs, { size: "", stock: 0 }])} className="text-sm text-muted hover:underline">
             + O&apos;lcham qo&apos;shish
           </button>
-          {err.variants?.map((e) => <span key={e} className="block text-xs text-red-600">{e}</span>)}
+          {err.variants?.map((e) => <span key={e} className="block text-xs text-danger">{e}</span>)}
         </fieldset>
 
         <div className="flex gap-3 pt-2">
-          <button disabled={pending} className="rounded-lg bg-neutral-900 px-5 py-2.5 text-sm text-white hover:bg-neutral-700 disabled:opacity-50">
+          <button disabled={pending} className="rounded-xl bg-brand px-5 py-2.5 text-sm text-white hover:bg-brand/90 disabled:opacity-50">
             {pending ? "Saqlanmoqda..." : "Saqlash"}
           </button>
-          <Link href="/admin" className="rounded-lg px-5 py-2.5 text-sm text-neutral-600 hover:bg-neutral-100">Bekor qilish</Link>
+          <Link href="/admin" className="rounded-xl px-5 py-2.5 text-sm text-muted hover:bg-brand-soft">Bekor qilish</Link>
         </div>
       </div>
 
       <aside className="space-y-2">
-        <div className="text-sm font-medium text-neutral-700">Rasm</div>
-        <div className="flex aspect-[4/5] items-center justify-center overflow-hidden rounded-xl border border-neutral-200 bg-white">
+        <div className="text-sm font-medium text-ink">Rasm</div>
+        <div className="flex aspect-[4/5] items-center justify-center overflow-hidden rounded-xl border border-line bg-surface">
           {imageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={imageUrl} alt="" className="h-full w-full object-contain" />
           ) : (
-            <span className="text-sm text-neutral-400">Rasm yo&apos;q</span>
+            <span className="text-sm text-muted">Rasm yo&apos;q</span>
           )}
         </div>
       </aside>

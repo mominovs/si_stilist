@@ -1,5 +1,6 @@
 "use client";
 
+import { StoreTag } from "@/components/brand/StoreTag";
 import { SparkIcon } from "@/components/brand/Logo";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ResultCard } from "@/lib/search";
@@ -436,6 +437,7 @@ export function TryOnModal({
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={card.imageUrl} alt="" className="h-full w-full object-contain mix-blend-multiply" />
                   </span>
+                  {card.store && <StoreTag store={card.store} compact />}
                   <div className="font-display font-bold text-brand">{card.name}</div>
                   <div className="font-bold">{card.priceLabel}</div>
                   <div className="text-xs font-semibold text-muted">

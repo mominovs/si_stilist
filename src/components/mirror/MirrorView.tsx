@@ -493,7 +493,7 @@ export function MirrorView({
                 </li>
                 <li>
                   • O&apos;lchamni bilish uchun yelka va gavda nisbati o&apos;lchanadi (yuz va teri tahlil qilinmaydi). Bo&apos;y va
-                  vazningizni o&apos;ngda kiritsangiz, aniqroq bo&apos;ladi.
+                  vazningizni o&apos;lcham bo&apos;limida kiritsangiz, aniqroq bo&apos;ladi.
                 </li>
               </ul>
               <button onClick={start} className="btn btn-primary btn-lg">

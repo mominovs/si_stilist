@@ -36,7 +36,7 @@ export default async function AdminProductsPage({ searchParams }: PageProps<"/ad
   return (
     <div className="space-y-6">
       {saved && (
-        <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+        <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
           &quot;{saved}&quot; saqlandi
         </div>
       )}
@@ -44,13 +44,13 @@ export default async function AdminProductsPage({ searchParams }: PageProps<"/ad
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold">Tovarlar</h1>
-          <p className="text-sm text-neutral-500">{products.length} ta tovar ko&apos;rsatilmoqda</p>
+          <p className="text-sm text-muted">{products.length} ta tovar ko&apos;rsatilmoqda</p>
         </div>
         <div className="flex gap-2">
-          <a href="/admin/export" className="rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm hover:bg-neutral-50">
+          <a href="/admin/export" className="rounded-xl border border-line bg-surface px-4 py-2 text-sm hover:bg-brand-soft">
             CSV yuklab olish
           </a>
-          <Link href="/admin/products/new" className="rounded-lg bg-neutral-900 px-4 py-2 text-sm text-white hover:bg-neutral-700">
+          <Link href="/admin/products/new" className="rounded-xl bg-brand px-4 py-2 text-sm text-white hover:bg-brand/90">
             + Yangi tovar
           </Link>
         </div>
@@ -61,9 +61,9 @@ export default async function AdminProductsPage({ searchParams }: PageProps<"/ad
           name="q"
           defaultValue={q}
           placeholder="Nomi, SKU yoki rang bo'yicha qidirish"
-          className="w-72 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm"
+          className="w-72 rounded-xl border border-line bg-surface px-3 py-2 text-sm"
         />
-        <select name="category" defaultValue={category} className="rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm">
+        <select name="category" defaultValue={category} className="rounded-xl border border-line bg-surface px-3 py-2 text-sm">
           <option value="">Barcha kategoriyalar</option>
           {categories.map((c) => (
             <option key={c.category} value={c.category}>
@@ -71,15 +71,15 @@ export default async function AdminProductsPage({ searchParams }: PageProps<"/ad
             </option>
           ))}
         </select>
-        <button className="rounded-lg border border-neutral-300 bg-white px-4 py-2 text-sm hover:bg-neutral-50">Qidirish</button>
+        <button className="rounded-xl border border-line bg-surface px-4 py-2 text-sm hover:bg-brand-soft">Qidirish</button>
         {(q || category) && (
-          <Link href="/admin" className="px-2 py-2 text-sm text-neutral-500 hover:underline">Tozalash</Link>
+          <Link href="/admin" className="px-2 py-2 text-sm text-muted hover:underline">Tozalash</Link>
         )}
       </form>
 
-      <div className="overflow-x-auto rounded-xl border border-neutral-200 bg-white">
+      <div className="overflow-x-auto rounded-xl border border-line bg-surface">
         <table className="w-full text-sm">
-          <thead className="border-b border-neutral-200 bg-neutral-50 text-left text-xs uppercase tracking-wide text-neutral-500">
+          <thead className="border-b border-line bg-surface-2 text-left text-xs uppercase tracking-wide text-muted">
             <tr>
               <th className="px-4 py-3">Tovar</th>
               <th className="px-4 py-3">Kategoriya</th>
@@ -91,18 +91,18 @@ export default async function AdminProductsPage({ searchParams }: PageProps<"/ad
               <th className="px-4 py-3"></th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-neutral-100">
+          <tbody className="divide-y divide-line">
             {products.map((p) => {
               const total = p.variants.reduce((s, v) => s + v.stock, 0);
               return (
-                <tr key={p.id} className={total === 0 ? "bg-red-50/40" : undefined}>
+                <tr key={p.id} className={total === 0 ? "bg-danger-soft/40" : undefined}>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={p.imageUrl} alt="" className="h-14 w-11 rounded border border-neutral-100 bg-white object-contain" />
+                      <img src={p.imageUrl} alt="" className="h-14 w-11 rounded border border-line bg-surface object-contain" />
                       <div>
                         <div className="font-medium">{p.name}</div>
-                        <div className="text-xs text-neutral-400">
+                        <div className="text-xs text-muted">
                           {p.sku ?? `#${p.id}`}
                           {p.store && ` · ${p.store.name}, ${p.store.city}`}
                         </div>
@@ -113,24 +113,24 @@ export default async function AdminProductsPage({ searchParams }: PageProps<"/ad
                   <td className="px-4 py-3">{GENDER_LABELS[p.gender]}</td>
                   <td className="px-4 py-3">
                     <span className="inline-flex items-center gap-2">
-                      <span className="h-3 w-3 rounded-full border border-neutral-300" style={{ background: colorHex(p.color) }} />
+                      <span className="h-3 w-3 rounded-full border border-line" style={{ background: colorHex(p.color) }} />
                       {p.color}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-neutral-500">{p.styleTags.join(", ")}</td>
+                  <td className="px-4 py-3 text-muted">{p.styleTags.join(", ")}</td>
                   <td className="whitespace-nowrap px-4 py-3 text-right">{formatPrice(p.price)}</td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-1">
                       {p.variants.map((v) => (
                         <span
                           key={v.id}
-                          className={`rounded px-1.5 py-0.5 text-xs ${v.stock > 0 ? "bg-neutral-100 text-neutral-700" : "bg-red-100 text-red-500 line-through"}`}
+                          className={`rounded px-1.5 py-0.5 text-xs ${v.stock > 0 ? "bg-surface-2 text-ink" : "bg-danger-soft text-danger line-through"}`}
                         >
                           {v.size}:{v.stock}
                         </span>
                       ))}
                     </div>
-                    {total === 0 && <div className="mt-1 text-xs font-medium text-red-600">Omborda yo&apos;q</div>}
+                    {total === 0 && <div className="mt-1 text-xs font-medium text-danger">Omborda yo&apos;q</div>}
                   </td>
                   <td className="whitespace-nowrap px-4 py-3 text-right">
                     <Link href={`/admin/products/${p.id}`} className="mr-3 hover:underline">Tahrirlash</Link>
@@ -141,7 +141,7 @@ export default async function AdminProductsPage({ searchParams }: PageProps<"/ad
             })}
             {products.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-10 text-center text-neutral-500">Tovar topilmadi</td>
+                <td colSpan={8} className="px-4 py-10 text-center text-muted">Tovar topilmadi</td>
               </tr>
             )}
           </tbody>

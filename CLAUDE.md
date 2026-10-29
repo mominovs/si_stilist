@@ -428,4 +428,4 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
 - Ekranlar: xaridor (chat + kartochkalar), kiyintirish modali, `/oyna` (kamera chapda, o'lcham va kiyimlar o'ngda),
   `/efir` (tepada sherik + PiP, `bg-brand` boshqaruv qatori, pastda 3 ustunli kiyimlar "Kiyish"/"Taklif"), `/panel`
   (4 KPI, olxo'ri rangli "Qoniqtirilmagan talab" kartasi + "Yetkazuvchiga ro'yxat" CSV, brauzerda yasaladi).
-  Admin sahifalari hali eski neytral uslubda
+  Admin sahifalari ham brend uslubida (`admin/layout.tsx`: logotip + navigatsiya; neytral klasslar brend tokenlariga almashtirilgan)

@@ -237,6 +237,14 @@ async function checkDemoResults(): Promise<Check> {
 }
 
 function checkAdminPassword(): Check {
+  if (process.env.OPEN_ACCESS === "1") {
+    return {
+      id: "auth",
+      title: "Kirish",
+      status: "ok",
+      detail: "Taqdimot rejimi: admin va panel parolsiz ochiq (lokal tarmoq). Internetga run-all.bat parol bilan chiqaradi",
+    };
+  }
   if (process.env.ADMIN_PASSWORD) {
     return { id: "auth", title: "Admin paroli", status: "ok", detail: "Panel va admin parol bilan himoyalangan" };
   }
