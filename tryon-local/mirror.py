@@ -415,10 +415,12 @@ class MirrorBatcher:
         self.wait = wait_ms / 1000
         self.active = active
         self.queue: "queue.Queue" = queue.Queue()
-        self.stats = {"batches": 0, "items": 0, "gpu_ms": 0.0}
+        self.stats = {"batches": 0, "items": 0, "gpu_ms": 0.0, "oom": 0}
         self._empty = queue.Empty
         import threading
 
+        # Har so'rov oqimi uchun oxirgi kadrning GPU vaqti va to'plam hajmi (server javob sarlavhasiga yozadi)
+        self.local = threading.local()
         threading.Thread(target=self._loop, daemon=True, name="mirror-batcher").start()
 
     def run(self, person, garment_id, out_size=None, view="old", with_cover=False, timeout: float = 15.0):
@@ -426,7 +428,33 @@ class MirrorBatcher:
 
         fut: Future = Future()
         self.queue.put(((person, garment_id, out_size, view, with_cover), fut))
-        return fut.result(timeout=timeout)
+        result, gpu_ms, size = fut.result(timeout=timeout)
+        self.local.gpu_ms, self.local.batch = gpu_ms, size
+        return result
+
+    def _run_safe(self, items: list) -> list:
+        """
+        GPU xotirasi yetmasa (masalan, 6 GB kartada rasmli kiyintirish bilan birga) server qulamaydi: to'plam ikkiga
+        bo'linib qayta uriniladi va keyingi to'plamlar ham kichikroq bo'ladi
+        """
+        try:
+            return self.engine.run_batch(items)
+        except Exception as e:  # noqa: BLE001
+            if "OutOfMemory" not in type(e).__name__ and "out of memory" not in str(e).lower():
+                raise
+            self.stats["oom"] += 1
+            try:
+                import torch
+
+                torch.cuda.empty_cache()
+            except Exception:  # noqa: BLE001
+                pass
+            if len(items) == 1:
+                raise
+            self.max_batch = max(1, len(items) // 2)
+            print(f"[oyna] GPU xotirasi yetmadi: to'plam {self.max_batch} kadrgacha kamaytirildi", flush=True)
+            half = len(items) // 2
+            return self._run_safe(items[:half]) + self._run_safe(items[half:])
 
     def _loop(self) -> None:
         import time
@@ -444,16 +472,17 @@ class MirrorBatcher:
                         break
             t0 = time.perf_counter()
             try:
-                results = self.engine.run_batch([item for item, _ in batch])
+                results = self._run_safe([item for item, _ in batch])
             except Exception as e:  # noqa: BLE001 - xato har bir kutayotgan so'rovga qaytadi
                 for _, fut in batch:
                     fut.set_exception(e)
                 continue
+            ms = (time.perf_counter() - t0) * 1000
             self.stats["batches"] += 1
             self.stats["items"] += len(batch)
-            self.stats["gpu_ms"] += (time.perf_counter() - t0) * 1000
+            self.stats["gpu_ms"] += ms
             for (_, fut), res in zip(batch, results):
-                fut.set_result(res)
+                fut.set_result((res, ms, len(batch)))
 
     def summary(self) -> dict:
         b = self.stats["batches"]
@@ -461,6 +490,8 @@ class MirrorBatcher:
             "batches": b,
             "avg_batch": round(self.stats["items"] / b, 2) if b else 0,
             "gpu_ms_per_batch": round(self.stats["gpu_ms"] / b, 1) if b else 0,
+            "max_batch": self.max_batch,
+            "oom": self.stats["oom"],
         }
 
 

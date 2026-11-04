@@ -251,6 +251,10 @@ Jadvaldagi "har biriga kadr/s" 6 dan yuqori bo'lgan eng katta "kishi" soni = sig
 `set MIRROR_MASKERS=3` (keyin run-*.bat yoki start.bat). `/health` dagi `mirror_batch.avg_batch` 1 ga yaqin bo'lsa
 chegara GPU emas, protsessor.
 
+6 GB kartada rasmli kiyintirish (CatVTON, ~5 GB) bilan birga oyna umumiy xotiraga tushib sekinlashadi. Faqat jonli oyna
+kerak bo'lsa (yoki alohida oyna kompyuteri): `set TRYON_MIRROR_ONLY=1`, keyin run-local.bat (yoki `start.bat
+--faqat-oyna`). Yuk sinovidagi "GPU, ms" ustuni shuni ko'rsatadi: oyna uchun bir to'plamga ~10-30 ms bo'lishi kerak.
+
 ## Sifatni oshirish (ta'siri bo'yicha)
 
 1. **Haqiqiy kiyim suratlari.** SVG siluetlar bilan model rang va bichimni taxmin qiladi (masalan, polo o'rniga

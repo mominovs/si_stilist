@@ -388,6 +388,13 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
   MediaPipe tahlili 241 ms, kompozitsiya ~39 ms/kadr. Keyingi zaxira: MediaPipe telefonga (gibrid)
 - Sayt: `MIRROR_MAX_SESSIONS` (standart 6, avval 2 qotirilgan), band bo'lsa 409 -> `MirrorView` kamera yoniq, "navbatda"
   yozuvi, 3 s dan keyin qayta urinadi, kutish harakatsizlik taymeriga kirmaydi
+- Foydalanuvchi kompyuteridagi 1-yuk sinovi (RTX 3060 6 GB, CatVTON bilan birga): 1/2/4 kishi 8.1/6.0/3.5 kadr/s,
+  server 236 ms/kadr (GPU umumiy xotiraga tushgan gumoni), 4-6 kishida server qulagan (ConnectionRefused, keyin 503/404).
+  Shundan keyin: `--faqat-oyna` (`TRYON_MIRROR_ONLY=1`): CatVTON yuklanmaydi, status "error" + tushunarli xabar (sayt
+  rasmli kiyintirishda demo rejimga o'tadi); javobda `X-Mirror-Gpu-Ms`, `X-Mirror-Batch`; `MirrorBatcher._run_safe`
+  GPU OOM bo'lsa to'plamni ikkiga bo'lib qayta uradi va `max_batch` ni kamaytiradi; `faulthandler.enable()`;
+  `/health` version 10 + `mirror_only`, `gpu_memory` (used/total MB). yuk_sinovi: server holati, GPU ms va to'plam
+  ustunlari, 404 da kiyimni qayta yuboradi, server qulasa to'xtab xabar beradi
 
 ## Texnik eslatmalar (kiyim to'liq kiyilgandek)
 - Rasmli rejim niqobi kiyim turiga moslanadi: sayt `kind` (katalog kategoriyasi) yuboradi (`local.ts`, `index.ts`),

@@ -106,6 +106,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--mirror-batch", type=int, default=int(os.environ.get("MIRROR_BATCH") or 8))
     # Jonli oyna uchun MediaPipe nusxalari: niqob va poza tahlillari bir vaqtda shuncha xaridorga parallel
     p.add_argument("--mirror-maskers", type=int, default=int(os.environ.get("MIRROR_MASKERS") or 2))
+    # Faqat jonli oyna: rasmli kiyintirish (CatVTON, ~5 GB GPU xotirasi) yuklanmaydi, butun GPU oynaga qoladi.
+    # 6 GB kartada CatVTON bilan birga oyna umumiy (sekin) xotiraga tushib ketadi. Alohida oyna kompyuteri uchun ham
+    p.add_argument("--faqat-oyna", action="store_true", default=os.environ.get("TRYON_MIRROR_ONLY") == "1")
     a = p.parse_args()
     preset = PRESETS[a.preset]
     a.height = a.height or preset["height"]
@@ -397,6 +400,7 @@ class Engine:
             threading.Thread(target=self._mirror_analyze, args=(frame.copy(), sess, True), daemon=True).start()
 
         t0 = time.time()
+        self.batcher.local.gpu_ms, self.batcher.local.batch = 0.0, 0
         with sess.lock:
             view = cache.get("view", "old")
             result = compose_frame(
@@ -408,7 +412,8 @@ class Engine:
         ok, jpg = cv2.imencode(".jpg", cv2.cvtColor(result, cv2.COLOR_RGB2BGR), [cv2.IMWRITE_JPEG_QUALITY, 85])
         if not ok:
             raise HTTPException(500, "Kadrni kodlab bo'lmadi")
-        return jpg.tobytes(), (time.time() - t0) * 1000, cache.get("body", {})
+        gpu = (self.batcher.local.gpu_ms, self.batcher.local.batch)
+        return jpg.tobytes(), (time.time() - t0) * 1000, cache.get("body", {}), gpu
 
     def load(self) -> None:
         if self.args.mock:
@@ -422,6 +427,12 @@ class Engine:
                 return
             self.status, self.device = "ready", "mock"
             print(f"[model] mock rejim ({self.args.mode}): preset {self.args.preset}, {self.args.steps} qadam", flush=True)
+            return
+        if self.args.faqat_oyna:
+            # Rasmli kiyintirish so'rovlariga tushunarli xato (sayt demo rejimga o'tadi), oyna to'liq ishlaydi
+            self._load_mirror()
+            self.status, self.error = "error", "Rasmli kiyintirish o'chirilgan (--faqat-oyna): faqat jonli oyna ishlaydi"
+            print("[model] faqat jonli oyna rejimi: rasmli kiyintirish yuklanmadi", flush=True)
             return
         try:
             if not CATVTON_DIR.exists():
@@ -805,7 +816,7 @@ def health():
         "preset": args.preset,
         "mode": args.mode,
         # Server imkoniyatlari: ilova eski serverni aniqlashi uchun
-        "version": 9,
+        "version": 10,
         # Jonli oyna (DM-VTON): off | ready | error
         "mirror": engine.mirror_status,
         "mirror_error": engine.mirror_error,
@@ -813,10 +824,25 @@ def health():
         "mirror_models": list(getattr(engine.mirror, "trained", [])) if engine.mirror else [],
         # To'plab ishlash statistikasi: o'rtacha to'plam hajmi va GPU vaqti (yuk sinovidan keyin qarash uchun)
         "mirror_batch": engine.batcher.summary() if engine.batcher else None,
+        "mirror_only": bool(args.faqat_oyna),
+        "gpu_memory": gpu_memory(),
         # Rasmli rejim: asl CatVTON yoki train_photo.py bilan o'qitilgan nusxa
         "photo_model": "o'qitilgan" if args.weights == str(FT_DIR) else "asl",
         "stream": True,
     }
+
+
+def gpu_memory() -> dict | None:
+    """GPU xotirasi (MB): band va jami. 6 GB kartada CatVTON + oyna sig'adimi, shundan ko'rinadi"""
+    try:
+        import torch
+
+        if not torch.cuda.is_available():
+            return None
+        free, total = torch.cuda.mem_get_info()
+        return {"used_mb": round((total - free) / 2**20), "total_mb": round(total / 2**20)}
+    except Exception:  # noqa: BLE001
+        return None
 
 
 def ensure_ready() -> None:
@@ -932,10 +958,12 @@ async def mirror(request: Request, id: str, s: str = ""):
     if not data or len(data) > 2 * 1024 * 1024:
         raise HTTPException(413, "Kadr 2 MB dan katta")
     # s: oyna seansi (sayt har "Boshlash" da yangisini beradi): har xaridorning niqob keshi alohida
-    image, ms, body = await run_in_threadpool(engine.mirror_frame, data, id[:64], s[:64])
+    image, ms, body, (gpu_ms, batch) = await run_in_threadpool(engine.mirror_frame, data, id[:64], s[:64])
     # X-Mirror-Ms: serverdagi ish vaqti (sayt kechikishni tarmoq va server qismiga ajratib ko'rsatadi).
     # X-Mirror-Body: yelka/son nuqtalari va gavda nisbati (o'lcham tavsiyasi va belgilar uchun)
-    headers = {"Cache-Control": "no-store", "X-Mirror-Ms": f"{ms:.0f}", "X-Mirror-Body": json.dumps(body, separators=(",", ":"))}
+    headers = {"Cache-Control": "no-store", "X-Mirror-Ms": f"{ms:.0f}", "X-Mirror-Body": json.dumps(body, separators=(",", ":")),
+               # GPU qismi (to'plam hisobi) va to'plam hajmi: yuk sinovi vaqtni GPU va protsessorga ajratadi
+               "X-Mirror-Gpu-Ms": f"{gpu_ms:.0f}", "X-Mirror-Batch": str(batch)}
     return Response(content=image, media_type="image/jpeg", headers=headers)
 
 
@@ -958,5 +986,9 @@ if __name__ == "__main__":
             flush=True,
         )
         sys.exit(1)
+    # Jarayon "jimgina" qulasa (GPU drayveri, MediaPipe kabi C kutubxonalar) oynada qaysi joyda qulagani qoladi
+    import faulthandler
+
+    faulthandler.enable()
     threading.Thread(target=engine.load, daemon=True).start()
     uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
