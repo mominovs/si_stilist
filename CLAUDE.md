@@ -524,3 +524,8 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
   (`kind=kurtka`, asosiy | javob, +0.12 yelka, yumshoq chet) olinadi: kiyimdan tashqari piksellar asl. `--soxta`
   (SOXTA_ODAM) bilan API'siz sinalgan: prep 16 yaxshi / 2 o'rta / 0 yaroqsiz. Haqiqiy API bu muhitdan bloklangan
 - `kechasi.bat <soat> oyna`: rasmli rejimsiz, butun vaqt jonli oynaga. `kunlik.bat [rasm] [soat]` = generatsiya + shu
+- Foydalanuvchida API emas, ChatGPT obunasi (Codex, loyiha papkasi ulanadi). Shuning uchun: `generate.bat navbat --soni N`
+  -> `dataset/_navbat.md|json` (asosiy surati yo'q odamlar, yetishmagan kiyintirishlar, kerak bo'lsa yangi odamlar `oNN`:
+  papka + `_prompt.txt` + `profil.json`, profil urug'i pid+5000), `generate.bat yopishtir`: qo'lda saqlangan kiyim
+  rasmlari tekislanib yopishtiriladi, asli `_xom/` ga (stem bo'yicha tekshiriladi, qayta ishlanmaydi). Codex uchun
+  ko'rsatma `tryon-local/CODEX_VAZIFA.md`

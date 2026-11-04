@@ -357,12 +357,12 @@ def people(ds: Path) -> list[tuple[str, Path]]:
     return out
 
 
-def next_person_id(ds: Path) -> int:
+def next_person_id(ds: Path, prefix: str = "g") -> int:
     # _yaroqsiz dagilar ham: raqam band bo'lsin (qayta urinishda bir xil profil chiqmasin)
     names = [d.name for v in VIEWS if (ds / v).exists() for d in (ds / v).iterdir() if d.is_dir()]
     if (ds / "_yaroqsiz").exists():
         names += [f.stem for f in (ds / "_yaroqsiz").iterdir()]
-    used = [int(n[1:]) for n in names if n.startswith("g") and n[1:].isdigit()]
+    used = [int(n[1:]) for n in names if n.startswith(prefix) and n[1:].isdigit()]
     return max(used, default=0) + 1
 
 
@@ -476,6 +476,111 @@ def cmd_kiyintir(ds: Path, args, gen: Generator, limit: int) -> int:
     return done
 
 
+# ---- Qo'lda / ChatGPT (Codex) bilan: navbat va yopishtirish ----
+
+def person_prompt_file(pdir: Path) -> Path:
+    return pdir / "_prompt.txt"
+
+
+def pending_people(ds: Path) -> list[tuple[str, Path]]:
+    """Navbatga qo'yilgan, lekin asosiy surati hali yo'q odam papkalari"""
+    out = []
+    for view in VIEWS:
+        vdir = ds / view
+        if vdir.exists():
+            for d in sorted(vdir.iterdir()):
+                if d.is_dir() and person_prompt_file(d).exists() and not any(
+                        (d / f"asosiy{e}").exists() for e in IMAGE_EXT):
+                    out.append((view, d))
+    return out
+
+
+def cmd_navbat(ds: Path, args) -> None:
+    """
+    ChatGPT/Codex uchun ish ro'yxati: dataset/_navbat.md (odam qo'lda o'qiydi) va _navbat.json (Codex o'qiydi).
+    Avval asosiy surati yo'q odamlar, keyin yetishmagan kiyintirishlar; kiyintirish kam bo'lsa yangi odamlar
+    (papka + _prompt.txt + profil.json yaratiladi, raqam band bo'ladi). Odam papkalari: o21, o22, ...
+    """
+    if not garments(ds):
+        cmd_katalog(ds, args)
+    tasks: list[dict] = []
+    for view, d in pending_people(ds):
+        tasks.append({"tur": "odam", "saqlash": f"dataset/{view}/{d.name}/asosiy.jpg",
+                      "biriktirish": [], "prompt": person_prompt_file(d).read_text(encoding="utf-8")})
+    plan = plan_edits(ds, args.har_odam)
+    for view, base, sku in plan[: max(0, args.soni - len(tasks))]:
+        kind = garment_kind(sku, ds)
+        garment = (_back(ds, sku) if view == "orqa" else None) or garments(ds)[sku]
+        tuck = "" if kind in ("kurtka", "sviter") else ", untucked unless the original top was tucked in"
+        tasks.append({"tur": "kiyim", "saqlash": f"dataset/{view}/{base.parent.name}/{sku}.jpg",
+                      "biriktirish": [f"dataset/{view}/{base.parent.name}/{base.name}", f"dataset/kiyimlar/{garment.name}"],
+                      "prompt": EDIT_PROMPT.format(view_note=VIEW_NOTE[view], kind=kind, tuck=tuck)})
+    # Kiyintirish ishi tugab qolsa: yangi odamlar (har biri keyin har_odam ta kiyim beradi)
+    room = args.soni - len(tasks)
+    new = 0
+    cap = max(2, args.soni // (args.har_odam + 1))
+    if not plan:  # kiyintiradigan odam yo'q: avval odamlar kerak
+        cap = max(cap, args.soni // 2)
+    while room > 0 and new < cap:
+        pid = next_person_id(ds, "o")
+        prof = make_profile(pid + 5000, args.korinish)
+        pdir = ds / prof["korinish"] / f"o{pid:02d}"
+        pdir.mkdir(parents=True, exist_ok=True)
+        person_prompt_file(pdir).write_text(prof["prompt"], encoding="utf-8")
+        (pdir / "profil.json").write_text(json.dumps(prof, ensure_ascii=False, indent=1), encoding="utf-8")
+        tasks.append({"tur": "odam", "saqlash": f"dataset/{prof['korinish']}/{pdir.name}/asosiy.jpg",
+                      "biriktirish": [], "prompt": prof["prompt"]})
+        room -= 1
+        new += 1
+
+    (ds / "_navbat.json").write_text(json.dumps(tasks, ensure_ascii=False, indent=1), encoding="utf-8")
+    lines = [f"# Navbat: {len(tasks)} ta rasm ({dt.date.today().isoformat()})", "",
+             "Yo'llar tryon-local papkasiga nisbatan. Har rasm uchun YANGI chat. Tugagach: generate.bat yopishtir, "
+             "keyin prep.bat.", ""]
+    for i, t in enumerate(tasks, 1):
+        lines.append(f"## {i}. {'Yangi odam' if t['tur'] == 'odam' else 'Kiyim kiydirish'}: {t['saqlash']}")
+        if t["biriktirish"]:
+            lines.append("Biriktiring (shu tartibda): " + ", ".join(f"`{b}`" for b in t["biriktirish"]))
+        lines += ["", "```", t["prompt"], "```", "", f"Saqlang: `{t['saqlash']}`", ""]
+    (ds / "_navbat.md").write_text("\n".join(lines), encoding="utf-8")
+    n_person = sum(t["tur"] == "odam" for t in tasks)
+    print(f"Navbat: {len(tasks)} ta ({n_person} odam, {len(tasks) - n_person} kiyim) -> {ds / '_navbat.md'}")
+    if n_person and len(tasks) - n_person == 0:
+        print("Avval odamlarni yarating, keyin navbat ni qayta ishga tushiring: ularga kiyim kiydiriladi")
+
+
+def cmd_yopishtir(ds: Path) -> None:
+    """
+    Qo'lda (ChatGPT/Codex) saqlangan kiyim rasmlarini asosiy suratga tekislab, faqat ustki gavda atrofini olib
+    yopishtiradi. Asl javob dataset/_xom/ ga ko'chadi (shu orqali qayta ishlanmaydi).
+    """
+    gs = garments(ds)
+    comp = None
+    n = 0
+    for view, base in people(ds):
+        for f in sorted(base.parent.iterdir()):
+            if f.stem not in gs or f.suffix.lower() not in IMAGE_EXT:
+                continue
+            name = f"{view}/{base.parent.name}/{f.name}"
+            raw_p = ds / "_xom" / name
+            if raw_p.parent.exists() and any(r.stem == f.stem for r in raw_p.parent.iterdir()):
+                continue  # allaqachon yopishtirilgan (asli _xom da)
+            comp = comp or Compositor()
+            data = f.read_bytes()
+            raw_p.parent.mkdir(parents=True, exist_ok=True)
+            raw_p.write_bytes(data)
+            img, info = comp(base, data, garment_kind(f.stem, ds))
+            Image.fromarray(img).save(f.with_suffix(".jpg"), quality=95)
+            if f.suffix.lower() != ".jpg":
+                f.unlink()
+            log(ds, {"tur": "yopishtirish", "fayl": name, "qolda": True, **info})
+            extra = (f"tekislash {info['siljish_px']} px, tashqi farq {info['tashqi_farq']}"
+                     if info.get("yopishtirildi") else info.get("sabab", ""))
+            print(f"{name}: {extra}")
+            n += 1
+    print(f"Yopishtirildi: {n} ta")
+
+
 def today_count(ds: Path) -> int:
     today = dt.date.today().isoformat()
     return sum(1 for r in read_log(ds) if r.get("vaqt", "").startswith(today) and r.get("tur") in ("odam", "kiyintirish")
@@ -505,11 +610,11 @@ def cmd_holat(ds: Path) -> None:
 
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("buyruq", choices=["katalog", "odam", "kiyintir", "kunlik", "holat"])
+    p.add_argument("buyruq", choices=["katalog", "odam", "kiyintir", "kunlik", "holat", "navbat", "yopishtir"])
     p.add_argument("--dataset", default=str(ROOT / "dataset"))
     p.add_argument("--model", default=DEFAULT_MODEL, help=f"standart {DEFAULT_MODEL} (DATASET_IMAGE_MODEL)")
     p.add_argument("--sifat", default=os.environ.get("DATASET_QUALITY") or "medium", choices=["low", "medium", "high", "xhigh", "max", "auto"])
-    p.add_argument("--soni", type=int, default=1, help="odam: nechta yangi odam")
+    p.add_argument("--soni", type=int, default=1, help="odam: nechta yangi odam; navbat: nechta ish (standart 20)")
     p.add_argument("--korinish", choices=VIEWS, default=None, help="odam: faqat shu ko'rinish (standart aralash)")
     p.add_argument("--limit", type=int, default=40, help="bir ishga tushirishda ko'pi bilan shuncha rasm so'raladi")
     p.add_argument("--kunlik-limit", type=int, default=int(os.environ.get("DATASET_DAILY_LIMIT") or 150))
@@ -525,6 +630,14 @@ def main() -> int:
         return 0
     if args.buyruq == "katalog":
         cmd_katalog(ds, args)
+        return 0
+    if args.buyruq == "navbat":
+        args.soni = args.soni if args.soni > 1 else 20
+        cmd_navbat(ds, args)
+        return 0
+    if args.buyruq == "yopishtir":
+        cmd_yopishtir(ds)
+        cmd_holat(ds)
         return 0
 
     left = max(0, args.kunlik_limit - today_count(ds))
