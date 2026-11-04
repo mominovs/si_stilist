@@ -511,3 +511,16 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
   `MIRROR_MAX_SESSIONS` standarti 3 (o'lchangan sig'im: 2 kishi ~7 kadr/s)
 - Jonli efir yopiq (foydalanuvchi qarori, oyna yetarli): `config.efir.enabled` (`EFIR_ENABLED=1` bilan qaytadi). O'chiq
   bo'lsa /oyna da "Do'st bilan jonli efir" tugmasi yo'q, `/efir/[code]` 404, `POST /api/efir` 404. Kod o'chirilmagan
+
+## Texnik eslatmalar (to'plamni avtomatik yig'ish)
+- `tryon-local/generate_dataset.py` (`generate.bat`, `kunlik.bat`): OpenAI GPT Image API (standart `gpt-image-2`,
+  `DATASET_IMAGE_MODEL`, `--model`; SDK 3.45 ro'yxatida gpt-image-1.5/2/2.5-sunburst/2.5-flare, gpt-image-1 2026-10-23 da
+  yopilgan; `input_fidelity` faqat 1.5 da). Buyruqlar: `katalog` (public/products ft/ky/sv/kt -> `kiyimlar/<SKU>_old`,
+  `turlar.json`), `odam` (tasodifiy profil: jins, kelib chiqish, gavda, soch, joy/kamera/yorug'lik, poza, kadr; ko'rinish
+  old 60%/yon 25%/orqa 15%; urug' = raqam; odam topilmasa `_yaroqsiz`), `kiyintir` (rasmi kam odamlar oldin, kam
+  ishlatilgan kiyimlar, orqada orqa surati afzal), `kunlik`, `holat`. Kunlik limit `DATASET_DAILY_LIMIT` (150), log
+  `dataset/_generatsiya.jsonl` (token sarfi; rad etilgan rasm qayta so'ralmaydi), xom javob `dataset/_xom/`
+- Yopishtirish (standart): javob asosiy suratga ECC bilan tekislanadi (`dataset_prep.align`), faqat ustki gavda niqobi
+  (`kind=kurtka`, asosiy | javob, +0.12 yelka, yumshoq chet) olinadi: kiyimdan tashqari piksellar asl. `--soxta`
+  (SOXTA_ODAM) bilan API'siz sinalgan: prep 16 yaxshi / 2 o'rta / 0 yaroqsiz. Haqiqiy API bu muhitdan bloklangan
+- `kechasi.bat <soat> oyna`: rasmli rejimsiz, butun vaqt jonli oynaga. `kunlik.bat [rasm] [soat]` = generatsiya + shu

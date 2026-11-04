@@ -1,5 +1,6 @@
 @echo off
 rem Kechasi o'qitish: kechasi.bat 8   (soat, standart 8). Vaqtning 70% rasmli rejim, 30% jonli oyna.
+rem kechasi.bat 8 oyna: faqat jonli oyna (rasmli rejim yopiq bo'lganda, butun vaqt oynaga).
 rem Ketma-ket: server to'xtatiladi -> prep (rasmlar tekshiriladi) -> train_photo -> train_mirror.
 rem Hammasi runs\kechasi.log ga yoziladi. Ertalab: shu faylning oxiri, runs\photo\ va runs\old\ rasmlari.
 rem Modellar faqat tekshiruv odamida yaxshilansa saqlanadi: yomonlashsa eski model qoladi.
@@ -13,6 +14,10 @@ if "%SOAT%"=="" set "SOAT=8"
 set /a JAMI=%SOAT%*60
 set /a RASM=%JAMI%*7/10
 set /a OYNA=%JAMI%-%RASM%
+if /i "%~2"=="oyna" (
+  set RASM=0
+  set OYNA=%JAMI%
+)
 set PYTHONUNBUFFERED=1
 set PYTHONIOENCODING=utf-8
 if not exist runs mkdir runs
@@ -30,6 +35,7 @@ if errorlevel 1 (
   exit /b 1
 )
 
+if "%RASM%"=="0" goto oyna
 echo [2/3] Rasmli rejim o'qitilmoqda: %RASM% daqiqa, 768x576...
 .venv\Scripts\python.exe train_photo.py --daqiqa %RASM% --height 768 --width 576 --every 500 >> "%LOG%" 2>&1
 if errorlevel 3 (
@@ -38,6 +44,7 @@ if errorlevel 3 (
   .venv\Scripts\python.exe train_photo.py --daqiqa %RASM% --every 500 >> "%LOG%" 2>&1
 )
 
+:oyna
 echo [3/3] Jonli oyna o'qitilmoqda: %OYNA% daqiqa...
 .venv\Scripts\python.exe train_mirror.py --view hammasi --daqiqa %OYNA% --every 1000 >> "%LOG%" 2>&1
 
