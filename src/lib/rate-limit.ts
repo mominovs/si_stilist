@@ -20,6 +20,12 @@ export function rateLimit(key: string, limit: number, windowMs = 60_000): { ok: 
 }
 
 export function clientKey(request: Request): string {
+  // Cloudflare Tunnel orqali (run-server.bat: BEHIND_CLOUDFLARE=1, sayt faqat 127.0.0.1 da tinglaydi) xaridorning
+  // haqiqiy manzili cf-connecting-ip da. Boshqa holatda bu sarlavhaga ishonilmaydi: uni istalgan mijoz soxtalashtira oladi
+  if (process.env.BEHIND_CLOUDFLARE === "1") {
+    const cf = request.headers.get("cf-connecting-ip")?.trim();
+    if (cf) return cf;
+  }
   const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
   return forwarded || request.headers.get("x-real-ip") || "local";
 }

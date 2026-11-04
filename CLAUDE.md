@@ -345,6 +345,18 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
   standart 60) davomida odam ko'rinmasa (kiyintirilgan kadr kelmasa: 422) yopiladi; 15 s dan keyin qolgan vaqt
   ko'rsatiladi. `/oyna` -> `MirrorView idleSeconds`. Eski `MIRROR_SESSION_SECONDS` endi ishlatilmaydi
 
+## Texnik eslatmalar (doimiy server: v2)
+- Reja: Claude Docs "SI Stilist v2: arxitektura va qadamlar" (jonli oyna markazda, sayt + Telegram Mini App, server
+  foydalanuvchi kompyuterida, kechasi o'qitish, keyin oyna modeli telefonda ONNX/WebGPU). Domen `sistilist.uz` (ahost,
+  NS Cloudflare'da), tunnel Cloudflare Zero Trust'da: `sistilist.uz -> http://localhost:3000`
+- `run-server.bat`: `public-check.mjs --server` (parol >= 12 belgi, `OPEN_ACCESS=1` bo'lsa to'xtaydi, .env da qolgan
+  bo'lsa eslatadi), `OPEN_ACCESS=0` va `BEHIND_CLOUDFLARE=1` ni o'zi qo'yadi, cloudflared xizmati ishlamasa ogohlantiradi,
+  tozala -> tryon-local -> build -> `npm start -- -H 127.0.0.1` (faqat lokal: tashqaridan faqat tunnel orqali).
+  `scripts/autostart.bat` (administrator): Windows'ga kirilganda run-server.bat (schtasks ONLOGON), `o'chir` bilan olib tashlanadi
+- `clientKey` (rate-limit.ts): `BEHIND_CLOUDFLARE=1` da `cf-connecting-ip`, aks holda avvalgidek `x-forwarded-for`
+  (testlar `rate-limit.test.ts`). Cloudflare Tunnel faqat HTTP/WebSocket: WebRTC (efir) media unga kirmaydi,
+  4 kishilik efir (LiveKit) uchun oq IP + port yoki VPS kerak bo'ladi
+
 ## Texnik eslatmalar (kiyim to'liq kiyilgandek)
 - Rasmli rejim niqobi kiyim turiga moslanadi: sayt `kind` (katalog kategoriyasi) yuboradi (`local.ts`, `index.ts`),
   `masker.analyze(image, part, kind, shape)`. `TOP_LENGTH` (etak: futbolka 0.15 ... kurtka 0.38 tana uzunligi),
