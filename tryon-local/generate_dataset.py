@@ -43,6 +43,18 @@ import cv2  # noqa: E402
 import numpy as np  # noqa: E402
 from PIL import Image  # noqa: E402
 
+def _load_env() -> None:
+    """Loyiha ildizidagi .env dan shu skript o'zgaruvchilari (muhitda bo'lsa, muhitdagisi ustun)"""
+    env = ROOT.parent / ".env"
+    if not env.exists():
+        return
+    for line in env.read_text(encoding="utf-8", errors="ignore").splitlines():
+        k, sep, v = line.strip().partition("=")
+        if sep and k in ("OPENAI_API_KEY", "DATASET_IMAGE_MODEL", "DATASET_DAILY_LIMIT", "DATASET_QUALITY"):
+            os.environ.setdefault(k, v.strip().strip('"').strip("'"))
+
+
+_load_env()
 DEFAULT_MODEL = os.environ.get("DATASET_IMAGE_MODEL") or "gpt-image-2"
 VIEWS = ("old", "yon", "orqa")
 # Jonli oyna kiyimlari (src/lib/catalog.ts MIRROR_CATEGORIES): SKU boshlanishi bo'yicha
@@ -117,14 +129,7 @@ VIEW_NOTE = {"old": "", "yon": " (the person is turned to the side)", "orqa": " 
 
 
 def load_key() -> str:
-    key = os.environ.get("OPENAI_API_KEY", "").strip()
-    if not key:
-        env = ROOT.parent / ".env"
-        if env.exists():
-            for line in env.read_text(encoding="utf-8", errors="ignore").splitlines():
-                if line.strip().startswith("OPENAI_API_KEY="):
-                    key = line.split("=", 1)[1].strip().strip('"').strip("'")
-    return key
+    return os.environ.get("OPENAI_API_KEY", "").strip()
 
 
 def log(ds: Path, record: dict) -> None:
@@ -503,7 +508,7 @@ def main() -> int:
     p.add_argument("buyruq", choices=["katalog", "odam", "kiyintir", "kunlik", "holat"])
     p.add_argument("--dataset", default=str(ROOT / "dataset"))
     p.add_argument("--model", default=DEFAULT_MODEL, help=f"standart {DEFAULT_MODEL} (DATASET_IMAGE_MODEL)")
-    p.add_argument("--sifat", default="medium", choices=["low", "medium", "high", "xhigh", "max", "auto"])
+    p.add_argument("--sifat", default=os.environ.get("DATASET_QUALITY") or "medium", choices=["low", "medium", "high", "xhigh", "max", "auto"])
     p.add_argument("--soni", type=int, default=1, help="odam: nechta yangi odam")
     p.add_argument("--korinish", choices=VIEWS, default=None, help="odam: faqat shu ko'rinish (standart aralash)")
     p.add_argument("--limit", type=int, default=40, help="bir ishga tushirishda ko'pi bilan shuncha rasm so'raladi")
