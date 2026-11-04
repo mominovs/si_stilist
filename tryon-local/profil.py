@@ -108,6 +108,21 @@ def main() -> None:
     print("\n".join(line for line in out.getvalue().splitlines() if line.strip() and not line.startswith(("   Ordered", "         "))
                     )[-1600:])
 
+    # Korrelyatsiya usuli va cuDNN avto-tanlovi: qaysi birikma shu GPU'da tezroq (mirror.correlation standarti:
+    # 1 kadrda conv, 2+ da slices, avto-tanlov o'chiq)
+    import mirror
+
+    print("\nKorrelyatsiya usullari, GPU ms (to'plam 1 / 2 / 4 / 8):")
+    for bench in (False, True):
+        torch.backends.cudnn.benchmark = bench
+        for mode in ("conv", "slices"):
+            mirror.CORRELATION_MODE = mode
+            ms = [timeit(lambda: engine.run_batch([(person, "g", None, "old", True)] * n), 10, sync) for n in (1, 2, 4, 8)]
+            label = f"{mode}{', avto-tanlov' if bench else ''}"
+            print(f"  {label:<24} " + " / ".join(f"{v:6.1f}" for v in ms))
+    torch.backends.cudnn.benchmark = False
+    mirror.CORRELATION_MODE = None
+
     # Oqimlarni cheklash: OpenCV va PyTorch bittadan (bir necha xaridor bo'lganda parallellik so'rovlar orqali)
     cv2.setNumThreads(1)
     torch.set_num_threads(1)

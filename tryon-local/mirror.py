@@ -12,7 +12,9 @@ cupy (CUDA yadrosi) talab qiladi: u bu yerda oddiy PyTorch bilan aynan takrorlan
 from __future__ import annotations
 
 import importlib
+import os
 import sys
+import threading
 import types
 from pathlib import Path
 
@@ -65,23 +67,28 @@ def correlation(first, second, intStride: int = 1):
     """
     FlowNet2 korrelyatsiyasi (DM-VTON'dagi cupy yadrosi bilan bir xil natija): har bir piksel uchun 7x7 siljishlar
     (-3..3) bo'yicha kanallar o'rtachasi, chetlari nol bilan to'ldiriladi. Chiqish: N x 49 x H x W, kanal tartibi
-    k = (dy + 3) * 7 + (dx + 3). Siljishlar Conv bilan (bir-nuqtali 7x7 yadrolar) olinadi: GPU'ga ~150 ta mayda
-    buyruq o'rniga qatoriga 3 tadan. Hammasi birdan emas, 7 tadan (har dy qatori): 49 siljishni birdan saqlash to'plam
-    8 da ~1.2 GB xotira olib, 6 GB kartada umumiy (sekin) xotiraga chiqib ketardi. correlation_slices bilan farq
-    < 1e-7 (sinalgan).
+    k = (dy + 3) * 7 + (dx + 3). Usul to'plam o'lchamiga qarab (foydalanuvchi GPU'sida o'lchangan, RTX 3060 6 GB):
+    1 kadr: Conv bilan hammasi birdan (eng tez); 2+: 49 ta alohida siljish. Conv usuli 49 siljishni xotirada saqlaydi
+    (to'plam 8 da ~1.2 GB) va katta to'plamda 4-9 barobar sekinlashardi; qatorlab bo'lish ham asl usuldan sekin chiqdi.
+    CORRELATION_MODE=conv|slices bilan majburlash mumkin (profil.py solishtiradi). Usullar farqi < 1e-7.
     """
-    import torch
+    mode = CORRELATION_MODE or ("conv" if first.shape[0] == 1 else "slices")
+    return correlation_conv(first, second) if mode == "conv" else correlation_slices(first, second, intStride)
+
+
+CORRELATION_MODE = os.environ.get("CORRELATION_MODE", "").strip().lower() or None
+
+
+def correlation_conv(first, second, intStride: int = 1):
+    """49 siljish bitta Conv bilan (bir-nuqtali 7x7 yadrolar): GPU'ga ~150 ta mayda buyruq o'rniga 3 ta"""
     import torch.nn.functional as F
 
     assert intStride == 1, "DM-VTON faqat intStride=1 ishlatadi"
     n, c, h, w = first.shape
     eye = _corr_kernel(first.dtype, first.device)
     padded = F.pad(second, (3, 3, 3, 3)).reshape(n * c, 1, h + 6, w + 6)
-    rows = []
-    for dy in range(7):
-        shifted = F.conv2d(padded, eye[dy * 7:dy * 7 + 7]).reshape(n, c, 7, h, w)
-        rows.append((shifted * first[:, :, None]).mean(1))
-    return torch.cat(rows, 1)
+    shifted = F.conv2d(padded, eye).reshape(n, c, 49, h, w)
+    return (shifted * first[:, :, None]).mean(1)
 
 
 _corr_kernels: dict = {}
@@ -97,7 +104,7 @@ def _corr_kernel(dtype, device):
 
 
 def correlation_slices(first, second, intStride: int = 1):
-    """Asl (sekinroq) yozilishi: 49 ta siljish alohida. Faqat solishtirish va export_onnx --asl-korrelyatsiya uchun"""
+    """Asl yozilishi: 49 ta siljish alohida. To'plam 2+ da ishlatiladi, export_onnx --asl-korrelyatsiya ham"""
     import torch.nn.functional as F
     import torch
 
@@ -580,7 +587,9 @@ def small_gray(rgb: np.ndarray) -> np.ndarray:
                       interpolation=cv2.INTER_AREA)
 
 
-_flow = None
+# DIS obyekti oqimlararo xavfsiz emas: bir necha xaridor kadri parallel tuzilganda umumiy obyekt
+# "Unknown C++ exception" berardi (yuk sinovida 500). Har oqimga o'z nusxasi
+_flow_local = threading.local()
 _grid_cache: dict[tuple[int, int], tuple[np.ndarray, np.ndarray]] = {}
 
 
@@ -591,16 +600,16 @@ def track_analysis(analysis: dict, rgb: np.ndarray) -> tuple[dict, float]:
     ~1 ms) bilan suriladi. Qaytadi: (joriy kadrga moslangan tahlil, kiyim ichidagi o'rtacha harakat, px kichik
     o'lchamda). Harakat juda kichik bo'lsa tahlil o'zgarmaydi.
     """
-    global _flow
     ref = analysis.get("small")
     if ref is None:
         return analysis, 0.0
     cur = small_gray(rgb)
     if cur.shape != ref.shape:
         return analysis, 0.0
-    if _flow is None:
-        _flow = cv2.DISOpticalFlow_create(cv2.DISOPTICAL_FLOW_PRESET_ULTRAFAST)
-    flow = _flow.calc(cur, ref, None)  # cur(x) ~ ref(x + flow(x))
+    dis = getattr(_flow_local, "dis", None)
+    if dis is None:
+        dis = _flow_local.dis = cv2.DISOpticalFlow_create(cv2.DISOPTICAL_FLOW_PRESET_ULTRAFAST)
+    flow = dis.calc(cur, ref, None)  # cur(x) ~ ref(x + flow(x))
     sh, sw = cur.shape
     inside = cv2.resize(analysis["soft"][..., 0], (sw, sh), interpolation=cv2.INTER_AREA) > 0.5
     if inside.sum() < 20:
