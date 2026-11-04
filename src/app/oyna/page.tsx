@@ -25,6 +25,7 @@ export default async function MirrorPage({ searchParams }: PageProps<"/oyna">) {
             cards={cards}
             initialId={cards.some((c) => c.id === wanted) ? wanted : cards[0].id}
             provider={config.tryOn.provider}
+            photoTryOn={config.tryOn.photoEnabled}
             idleSeconds={idleSeconds()}
           />
         )}

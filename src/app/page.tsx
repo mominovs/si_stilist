@@ -66,6 +66,7 @@ export default async function ShopperPage() {
           sizes={sortedSizes}
           cities={cities}
           tryOnProvider={config.tryOn.provider}
+          photoTryOn={config.tryOn.photoEnabled}
         />
         {cities.length > 0 && <SampleStoresNote />}
       </div>

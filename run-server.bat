@@ -13,6 +13,9 @@ set ROOT=%~dp0
 set OPEN_ACCESS=0
 set BEHIND_CLOUDFLARE=1
 set LAN_HTTPS_PORT=
+rem Faqat jonli oyna (foydalanuvchi qarori): rasmli kiyintirish (CatVTON) yuklanmaydi, "O'zimda ko'rish" oynaga
+rem olib boradi. Rasmli rejimni qaytarish: avval terminalda  set TRYON_MIRROR_ONLY=0
+if not defined TRYON_MIRROR_ONLY set TRYON_MIRROR_ONLY=1
 if not defined TRYON_PRESET set TRYON_PRESET=orta
 if not defined TRYON_MAX_QUEUE set TRYON_MAX_QUEUE=2
 

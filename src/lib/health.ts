@@ -143,7 +143,16 @@ async function checkTryOn(): Promise<Check> {
       steps?: number;
       device?: string;
       version?: number;
+      mirror_only?: boolean;
     };
+    if (h.mirror_only) {
+      return {
+        ...base,
+        title: "Rasmli kiyintirish",
+        status: "ok",
+        detail: "O'chirilgan: faqat jonli oyna (TRYON_MIRROR_ONLY=1). \"O'zimda ko'rish\" jonli oynaga olib boradi",
+      };
+    }
     const detail = `${h.mode ?? "?"} rejim, ${h.resolution ?? "?"}, ${h.steps ?? "?"} qadam, qurilma ${h.device ?? "?"}`;
     if (h.status === "loading") {
       return { ...base, status: "warn", detail: "Model yuklanmoqda", hint: "Server oynasida \"[model] tayyor\" yozuvini kuting" };

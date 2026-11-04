@@ -163,10 +163,13 @@ export function MirrorView({
   initialId,
   provider,
   idleSeconds,
+  photoTryOn = true,
 }: {
   cards: MirrorCard[];
   initialId: number;
   provider: "local" | "gemini" | "fal";
+  /** false: rasmli kiyintirish o'chiq ("Sifatli surat" tugmasi yo'q) */
+  photoTryOn?: boolean;
   /** Kadrda shuncha soniya odam ko'rinmasa oyna o'zi yopiladi (MIRROR_IDLE_SECONDS, standart 60). Vaqt cheklanmagan */
   idleSeconds: number;
 }) {
@@ -565,7 +568,7 @@ export function MirrorView({
                   Xaridor ekrani
                 </Link>
               </div>
-              {phase === "unavailable" && (
+              {phase === "unavailable" && photoTryOn && (
                 <p className="max-w-sm text-xs text-white/60">
                   Suratga tushib kiyintirish (&quot;O&apos;zimda ko&apos;rish&quot;) baribir ishlaydi.
                 </p>
@@ -575,7 +578,7 @@ export function MirrorView({
         </div>
 
         <div className="flex w-full max-w-[calc(70dvh*0.75)] flex-col gap-3">
-          {phase === "live" && (
+          {phase === "live" && photoTryOn && (
             <button onClick={takeQuality} className="btn btn-ghost btn-lg w-full">
               <SparkIcon className="h-4 w-4 text-accent" />
               Sifatli surat (SI, ~30 soniya)

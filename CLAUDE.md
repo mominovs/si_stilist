@@ -395,6 +395,17 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
   GPU OOM bo'lsa to'plamni ikkiga bo'lib qayta uradi va `max_batch` ni kamaytiradi; `faulthandler.enable()`;
   `/health` version 10 + `mirror_only`, `gpu_memory` (used/total MB). yuk_sinovi: server holati, GPU ms va to'plam
   ustunlari, 404 da kiyimni qayta yuboradi, server qulasa to'xtab xabar beradi
+- 2-yuk sinovi (foydalanuvchi): GPU xotirasi gumoni rad etildi (ikkala holatda ~1.2-1.3/6 GB band, faqat-oyna bilan ham
+  8.3/6.0/3.7/2.2/1.6 kadr/s). 1 kishida server 231 ms, shundan GPU 51 ms: ~180 ms protsessorda, to'plam o'sganda GPU
+  ms ham deyarli chiziqli o'sadi (oqimlar raqobati gumoni). CatVTON bilan 6 kishida qulagan, faqat-oyna bilan qulamagan.
+  `tryon-local/profil.py` (`profil.bat`, server yopiq holda): JPEG, MediaPipe, GPU to'plam 1/2/4/8 (cuda.synchronize
+  bilan), tiniq natija, kompozitsiya, cProfile, keyin OpenCV/PyTorch oqimlari 1 ga cheklanganda qayta
+- Foydalanuvchi qarori: rasmli rejim yopiladi, jonli oyna asosiy. `run-local.bat`/`run-server.bat`:
+  `if not defined TRYON_MIRROR_ONLY set TRYON_MIRROR_ONLY=1` (server ham, sayt ham shu o'zgaruvchini o'qiydi).
+  `config.tryOn.photoEnabled`; `Shopper photoTryOn` -> `ResultCard onTryOn=null`: "O'zimda ko'rish" `/oyna?productId=`
+  havolasi (faqat oynaga mos kategoriyalarda, boshqalarida tugma yo'q), alohida "Jonli oyna" tugmasi yashiriladi;
+  `MirrorView photoTryOn=false`: "Sifatli surat" yo'q. `/admin/holat`: mirror_only bo'lsa "Rasmli kiyintirish:
+  o'chirilgan" (ok). Qaytarish: `set TRYON_MIRROR_ONLY=0`
 
 ## Texnik eslatmalar (kiyim to'liq kiyilgandek)
 - Rasmli rejim niqobi kiyim turiga moslanadi: sayt `kind` (katalog kategoriyasi) yuboradi (`local.ts`, `index.ts`),

@@ -31,6 +31,14 @@ export const config = {
       if (v === "local" || v === "gemini" || v === "fal") return v;
       return process.env.GEMINI_API_KEY ? "gemini" : "fal";
     },
+    /**
+     * Rasmli kiyintirish (suratga tushib) yoqilganmi. TRYON_MIRROR_ONLY=1 (run-local.bat / run-server.bat standarti):
+     * faqat jonli oyna, "O'zimda ko'rish" jonli oynaga olib boradi. Lokal server ham shu o'zgaruvchi bilan CatVTON'ni
+     * yuklamaydi (bir xil nom: bitta set ikkalasini boshqaradi)
+     */
+    get photoEnabled() {
+      return process.env.TRYON_MIRROR_ONLY !== "1";
+    },
     /** Lokal server manzili (tryon-local/server.py) */
     get localUrl() {
       return (process.env.TRYON_LOCAL_URL || "http://127.0.0.1:8001").replace(/\/$/, "");

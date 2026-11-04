@@ -39,6 +39,7 @@ export function Shopper({
   sizes,
   cities,
   tryOnProvider,
+  photoTryOn,
 }: {
   categories: string[];
   colors: string[];
@@ -46,6 +47,8 @@ export function Shopper({
   /** Platforma: do'konlar bor shaharlar */
   cities: string[];
   tryOnProvider: "local" | "gemini" | "fal";
+  /** false: rasmli kiyintirish o'chiq, "O'zimda ko'rish" jonli oynaga olib boradi */
+  photoTryOn: boolean;
 }) {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -321,7 +324,7 @@ export function Shopper({
                     key={`${selected.id}-${card.id}`}
                     card={card}
                     requestedSize={selected.response?.parsed?.olcham ?? null}
-                    onTryOn={() => setTryOnCard(card)}
+                    onTryOn={photoTryOn ? () => setTryOnCard(card) : null}
                     onReserve={(size) => void reserve(selected, card, size)}
                   />
                 ))}

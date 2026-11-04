@@ -17,11 +17,15 @@ export function ResultCard({
 }: {
   card: Card;
   requestedSize: string | null;
-  onTryOn: () => void;
+  /** null: rasmli kiyintirish o'chiq, asosiy tugma jonli oynaga olib boradi (oynaga mos kiyimlarda) */
+  onTryOn: (() => void) | null;
   /** "Sotuvchiga ko'rsatish": tanlangan o'lcham bilan */
   onReserve: (size: string) => void;
 }) {
   const inStock = card.sizes.filter((s) => s.inStock).map((s) => s.size);
+  const mirror = supportsMirror(card.category);
+  // Asosiy tugma allaqachon jonli oynaga olib borsa, alohida "Jonli oyna" tugmasi kerak emas
+  const mirrorLink = mirror && onTryOn !== null;
   // So'ralgan o'lcham bor bo'lsa, oldindan tanlanadi; bitta o'lcham qolgan bo'lsa ham
   const [size, setSize] = useState<string | null>(
     requestedSize && inStock.includes(requestedSize) ? requestedSize : inStock.length === 1 ? inStock[0] : null,
@@ -75,16 +79,23 @@ export function ResultCard({
         </div>
 
         <div className="mt-auto space-y-2 pt-1">
-          <button onClick={onTryOn} className="btn btn-primary btn-lg w-full">
-            <HangerIcon />
-            O&apos;zimda ko&apos;rish
-          </button>
+          {onTryOn ? (
+            <button onClick={onTryOn} className="btn btn-primary btn-lg w-full">
+              <HangerIcon />
+              O&apos;zimda ko&apos;rish
+            </button>
+          ) : mirror ? (
+            <Link href={`/oyna?productId=${card.id}`} prefetch={false} className="btn btn-primary btn-lg w-full">
+              <HangerIcon />
+              O&apos;zimda ko&apos;rish
+            </Link>
+          ) : null}
           {/* Platforma: keyinchalik do'kon sayti, Telegram yoki telefoniga olib boradi (hozircha faqat tugma) */}
           <button type="button" className="btn btn-brand w-full">
             Sotib olish
           </button>
-          <div className={`grid gap-2 ${supportsMirror(card.category) ? "grid-cols-2" : "grid-cols-1"}`}>
-            {supportsMirror(card.category) && (
+          <div className={`grid gap-2 ${mirrorLink ? "grid-cols-2" : "grid-cols-1"}`}>
+            {mirrorLink && (
               <Link href={`/oyna?productId=${card.id}`} prefetch={false} className="btn btn-ghost btn-sm">
                 Jonli oyna
               </Link>
