@@ -65,9 +65,10 @@ def correlation(first, second, intStride: int = 1):
     """
     FlowNet2 korrelyatsiyasi (DM-VTON'dagi cupy yadrosi bilan bir xil natija): har bir piksel uchun 7x7 siljishlar
     (-3..3) bo'yicha kanallar o'rtachasi, chetlari nol bilan to'ldiriladi. Chiqish: N x 49 x H x W, kanal tartibi
-    k = (dy + 3) * 7 + (dx + 3). 49 siljish bitta Conv bilan (49 ta bir-nuqtali 7x7 yadro) olinadi: GPU'ga
-    ~150 ta mayda buyruq o'rniga 3 ta (jonli oyna kadridagi eng qimmat qism buyruqlar soni edi). correlation_slices
-    bilan farq < 1e-7 (sinalgan).
+    k = (dy + 3) * 7 + (dx + 3). Siljishlar Conv bilan (bir-nuqtali 7x7 yadrolar) olinadi: GPU'ga ~150 ta mayda
+    buyruq o'rniga qatoriga 3 tadan. Hammasi birdan emas, 7 tadan (har dy qatori): 49 siljishni birdan saqlash to'plam
+    8 da ~1.2 GB xotira olib, 6 GB kartada umumiy (sekin) xotiraga chiqib ketardi. correlation_slices bilan farq
+    < 1e-7 (sinalgan).
     """
     import torch
     import torch.nn.functional as F
@@ -76,8 +77,11 @@ def correlation(first, second, intStride: int = 1):
     n, c, h, w = first.shape
     eye = _corr_kernel(first.dtype, first.device)
     padded = F.pad(second, (3, 3, 3, 3)).reshape(n * c, 1, h + 6, w + 6)
-    shifted = F.conv2d(padded, eye).reshape(n, c, 49, h, w)
-    return (shifted * first[:, :, None]).mean(1)
+    rows = []
+    for dy in range(7):
+        shifted = F.conv2d(padded, eye[dy * 7:dy * 7 + 7]).reshape(n, c, 7, h, w)
+        rows.append((shifted * first[:, :, None]).mean(1))
+    return torch.cat(rows, 1)
 
 
 _corr_kernels: dict = {}
@@ -318,9 +322,8 @@ class MirrorEngine:
 
         self.torch = torch
         self.device = device
-        # Kirish o'lchami doim bir xil (192x256, to'plam 1-8): cuDNN har konvolyutsiya uchun eng tez algoritmni bir
-        # marta tanlab, keyin shuni ishlatadi
-        torch.backends.cudnn.benchmark = True
+        # cudnn.benchmark ataylab yoqilmaydi: u katta ishchi xotira talab qiladigan algoritm tanlab, 6 GB kartada
+        # to'plam 4-8 ni umumiy (sekin) xotiraga chiqarib yuborishi mumkin
         weights = ensure_weights(models_dir)
         AFWM, Generator = load_model_modules(repo)
         self.warp = AFWM(3, True).to(device).eval()

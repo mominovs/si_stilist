@@ -6,11 +6,11 @@ import { mirrorFrame } from "@/lib/tryon/mirror";
 
 const MAX_FRAME_BYTES = 1024 * 1024;
 
-// Jonli oyna bir vaqtda ko'pi bilan MIRROR_MAX_SESSIONS (standart 6) xaridorga. Lokal server ularning kadrlarini
+// Jonli oyna bir vaqtda ko'pi bilan MIRROR_MAX_SESSIONS (standart 3) xaridorga. Lokal server ularning kadrlarini
 // GPU'da to'plab ishlaydi, kadr tezligi esa hammaga teng bo'linadi (har biri o'z javobini kutib keyingisini
 // yuboradi). Sig'imni tryon-local/yuk_sinovi.py bilan o'lchab sozlang. Ortig'iga 409: sahifa navbatda kutib qayta
 // urinadi. Seans shuncha vaqt kadr yubormasa (yopilgan) o'rni bo'shaydi. Lokal server har seansni alohida saqlaydi (?s=)
-const MAX_SESSIONS = Math.max(1, Math.min(32, Number(process.env.MIRROR_MAX_SESSIONS) || 6));
+const MAX_SESSIONS = Math.max(1, Math.min(32, Number(process.env.MIRROR_MAX_SESSIONS) || 3));
 const SESSION_IDLE_MS = 4000;
 const activeSessions = new Map<string, number>();
 

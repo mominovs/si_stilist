@@ -164,12 +164,15 @@ export function MirrorView({
   provider,
   idleSeconds,
   photoTryOn = true,
+  efir = true,
 }: {
   cards: MirrorCard[];
   initialId: number;
   provider: "local" | "gemini" | "fal";
   /** false: rasmli kiyintirish o'chiq ("Sifatli surat" tugmasi yo'q) */
   photoTryOn?: boolean;
+  /** false: "Do'st bilan jonli efir" tugmasi yo'q (EFIR_ENABLED) */
+  efir?: boolean;
   /** Kadrda shuncha soniya odam ko'rinmasa oyna o'zi yopiladi (MIRROR_IDLE_SECONDS, standart 60). Vaqt cheklanmagan */
   idleSeconds: number;
 }) {
@@ -584,7 +587,7 @@ export function MirrorView({
               Sifatli surat (SI, ~30 soniya)
             </button>
           )}
-          <StartEfirButton />
+          {efir && <StartEfirButton />}
         </div>
       </section>
 

@@ -501,3 +501,9 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
   `/efir` (tepada sherik + PiP, `bg-brand` boshqaruv qatori, pastda 3 ustunli kiyimlar "Kiyish"/"Taklif"), `/panel`
   (4 KPI, olxo'ri rangli "Qoniqtirilmagan talab" kartasi + "Yetkazuvchiga ro'yxat" CSV, brauzerda yasaladi).
   Admin sahifalari ham brend uslubida (`admin/layout.tsx`: logotip + navigatsiya; neytral klasslar brend tokenlariga almashtirilgan)
+- 3-yuk sinovi (conv korrelyatsiyadan keyin): 1/2/4/6 kishi 12.7/6.9/3.7/0.7 kadr/s, lekin GPU to'plam 4/8 = 544/1885 ms:
+  49 siljishni birdan saqlash (n*c*49*h*w, to'plam 8 da ~1.2 GB) 6 GB kartani umumiy xotiraga chiqarardi. Endi
+  `correlation` siljishlarni 7 tadan (har dy qatori) hisoblaydi (farq 0), `cudnn.benchmark` o'chirildi.
+  `MIRROR_MAX_SESSIONS` standarti 3 (o'lchangan sig'im: 2 kishi ~7 kadr/s)
+- Jonli efir yopiq (foydalanuvchi qarori, oyna yetarli): `config.efir.enabled` (`EFIR_ENABLED=1` bilan qaytadi). O'chiq
+  bo'lsa /oyna da "Do'st bilan jonli efir" tugmasi yo'q, `/efir/[code]` 404, `POST /api/efir` 404. Kod o'chirilmagan

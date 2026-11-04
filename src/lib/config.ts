@@ -79,6 +79,15 @@ export const config = {
       return Number.isFinite(v) && v > 0 ? v : 40;
     },
   },
+  efir: {
+    /**
+     * Do'st bilan jonli efir (/efir). Hozircha yopiq (foydalanuvchi qarori: asosiy narsa jonli oyna, GPU sig'imi
+     * oynaga). EFIR_ENABLED=1 bilan qaytadi
+     */
+    get enabled() {
+      return process.env.EFIR_ENABLED === "1";
+    },
+  },
   realtime: {
     get apiKey() {
       return process.env.DECART_API_KEY || "";

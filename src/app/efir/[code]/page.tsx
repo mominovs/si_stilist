@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
+import { config } from "@/lib/config";
 import { validCode } from "@/lib/efir";
 import { shopperUrl } from "@/lib/lan";
 import { mirrorCards } from "@/lib/mirror-cards";
@@ -13,7 +14,7 @@ export const metadata: Metadata = { title: "Jonli efir · SI Stilist" };
 export default async function EfirPage({ params }: PageProps<"/efir/[code]">) {
   await connection();
   const { code } = await params;
-  if (!validCode(code)) notFound();
+  if (!config.efir.enabled || !validCode(code)) notFound();
   const h = await headers();
   // Do'st telefonda ochadigan manzil: localhost'dan ochilgan bo'lsa ham tarmoq (https) manzili
   const base = shopperUrl(h.get("host"), h.get("x-forwarded-proto"));
