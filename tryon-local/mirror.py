@@ -38,6 +38,9 @@ SIZE = (192, 256)  # (w, h): model shu o'lchamda o'qitilgan
 # Kiyim teksturasi shu o'lchamda saqlanadi: model hisoblagan egish xaritasi kattalashtirilib, kiyimning tiniq
 # nusxasiga qo'llanadi (yoqa, naqsh, chok 192x256 dagidek xira bo'lmaydi)
 HR_SIZE = (576, 768)
+# Natija kesim o'lchamida hisoblanadi (keyin protsessorda kattalashtirilmaydi), shu kenglikdan katta bo'lsagina
+# kichraytiriladi. 640-720 px kadrda kesim deyarli doim shundan kichik; GPU uchun 576 va 800 farqi sezilmaydi
+OUT_MAX_W = 800
 
 # Poza nuqtalari (MediaPipe)
 L_EYE, R_EYE, L_SHOULDER, R_SHOULDER, L_HIP, R_HIP = 2, 5, 11, 12, 23, 24
@@ -60,10 +63,37 @@ COVER_REACH = 0.18
 
 def correlation(first, second, intStride: int = 1):
     """
-    FlowNet2 korrelyatsiyasi (DM-VTON'dagi cupy yadrosi bilan bir xil): har bir piksel uchun 7x7 siljishlar
-    (-3..3) bo'yicha kanallar o'rtachasi, chetlari nol bilan to'ldiriladi. Chiqish: N x 49 x H x W,
-    kanal tartibi: k = (dy + 3) * 7 + (dx + 3).
+    FlowNet2 korrelyatsiyasi (DM-VTON'dagi cupy yadrosi bilan bir xil natija): har bir piksel uchun 7x7 siljishlar
+    (-3..3) bo'yicha kanallar o'rtachasi, chetlari nol bilan to'ldiriladi. Chiqish: N x 49 x H x W, kanal tartibi
+    k = (dy + 3) * 7 + (dx + 3). 49 siljish bitta Conv bilan (49 ta bir-nuqtali 7x7 yadro) olinadi: GPU'ga
+    ~150 ta mayda buyruq o'rniga 3 ta (jonli oyna kadridagi eng qimmat qism buyruqlar soni edi). correlation_slices
+    bilan farq < 1e-7 (sinalgan).
     """
+    import torch
+    import torch.nn.functional as F
+
+    assert intStride == 1, "DM-VTON faqat intStride=1 ishlatadi"
+    n, c, h, w = first.shape
+    eye = _corr_kernel(first.dtype, first.device)
+    padded = F.pad(second, (3, 3, 3, 3)).reshape(n * c, 1, h + 6, w + 6)
+    shifted = F.conv2d(padded, eye).reshape(n, c, 49, h, w)
+    return (shifted * first[:, :, None]).mean(1)
+
+
+_corr_kernels: dict = {}
+
+
+def _corr_kernel(dtype, device):
+    import torch
+
+    key = (dtype, str(device))
+    if key not in _corr_kernels:
+        _corr_kernels[key] = torch.eye(49, dtype=dtype, device=device).reshape(49, 1, 7, 7)
+    return _corr_kernels[key]
+
+
+def correlation_slices(first, second, intStride: int = 1):
+    """Asl (sekinroq) yozilishi: 49 ta siljish alohida. Faqat solishtirish va export_onnx --asl-korrelyatsiya uchun"""
     import torch.nn.functional as F
     import torch
 
@@ -288,6 +318,9 @@ class MirrorEngine:
 
         self.torch = torch
         self.device = device
+        # Kirish o'lchami doim bir xil (192x256, to'plam 1-8): cuDNN har konvolyutsiya uchun eng tez algoritmni bir
+        # marta tanlab, keyin shuni ishlatadi
+        torch.backends.cudnn.benchmark = True
         weights = ensure_weights(models_dir)
         AFWM, Generator = load_model_modules(repo)
         self.warp = AFWM(3, True).to(device).eval()
@@ -688,66 +721,72 @@ def compose_frame(frame: Image.Image, analysis: dict, infer, state: dict | None 
     rgb = np.asarray(frame.convert("RGB"))
     h, w = rgb.shape[:2]
     analysis, motion = track_analysis(analysis, rgb)
-    white = rgb.copy()
-    white[analysis["bg"]] = 255
     x0, y0, x1, y1 = box = analysis["box"]
-    crop = crop_white(white, box)
+    sx0, sy0, sx1, sy1 = max(0, x0), max(0, y0), min(w, x1), min(h, y1)
+    # Fon oqqa faqat kesim ichida almashtiriladi (butun kadr nusxasi kerak emas)
+    crop = crop_white(rgb, box)
+    if sx1 > sx0 and sy1 > sy0:
+        crop[sy0 - y0:sy1 - y0, sx0 - x0:sx1 - x0][analysis["bg"][sy0:sy1, sx0:sx1]] = 255
     person = cv2.resize(crop, SIZE, interpolation=cv2.INTER_AREA)
     # Natija kesim o'lchamida (ko'pi bilan HR_SIZE), kattaroq bo'lsa oxirida oddiy kattalashtiriladi
     bw, bh = x1 - x0, y1 - y0
-    scale = min(1.0, HR_SIZE[0] / bw)
+    scale = min(1.0, OUT_MAX_W / bw)
     res = infer(person, (max(SIZE[0], int(bw * scale)), max(SIZE[1], int(bh * scale))))
     up, cover = res if isinstance(res, tuple) else (res, None)
     if up.shape[:2] != (bh, bw):
         up = cv2.resize(up, (bw, bh), interpolation=cv2.INTER_CUBIC)
         if cover is not None:
             cover = cv2.resize(cover, (bw, bh), interpolation=cv2.INTER_LINEAR)
-    sx0, sy0, sx1, sy1 = max(0, x0), max(0, y0), min(w, x1), min(h, y1)
     region = up[sy0 - y0:sy1 - y0, sx0 - x0:sx1 - x0].astype(np.float32)
-    m_old = analysis["soft"]
-    m, exposed = m_old, None
+    src_u8 = np.ascontiguousarray(rgb[sy0:sy1, sx0:sx1])
+    # Aralashtirish niqobi (mr) va ochilib qolgan joy (ex) faqat kesim o'lchamida
+    mr = analysis["soft"][sy0:sy1, sx0:sx1]
+    ex = None
     if cover is not None and "reach" in analysis:
-        m, exposed = cover_masks(m_old, cover[sy0 - y0:sy1 - y0, sx0 - x0:sx1 - x0], (sx0, sy0, sx1, sy1),
-                                 analysis["reach"], up[sy0 - y0:sy1 - y0, sx0 - x0:sx1 - x0], w,
-                                 analysis.get("edge"))
+        mr, ex = cover_masks(mr, cover[sy0 - y0:sy1 - y0, sx0 - x0:sx1 - x0], (sx0, sy0, sx1, sy1),
+                             analysis["reach"], up[sy0 - y0:sy1 - y0, sx0 - x0:sx1 - x0], w, analysis.get("edge"),
+                             frame_size=(w, h))
     pts = analysis["points"]
     shoulder_px = float(np.linalg.norm(pts[L_SHOULDER] - pts[R_SHOULDER]))
-    region *= shading_map(rgb[sy0:sy1, sx0:sx1], m[sy0:sy1, sx0:sx1, 0], shoulder_px)[..., None]
+    # Hisoblar joyida (in-place): kesim ~0.4 Mpiksel, har ortiqcha float nusxa ~1-2 ms
+    np.multiply(region, shading_map(rgb[sy0:sy1, sx0:sx1], mr[..., 0], shoulder_px)[..., None], out=region)
     if state is not None:
         key = (analysis.get("garment"), analysis.get("view"), (sx0, sy0, sx1, sy1))
         prev = state.get("region")
         if prev is not None and state.get("key") == key and prev.shape == region.shape:
             # Qimirlamasa (harakat < 0.5 px) yarmi oldingi natija, 2 px dan ko'p harakatda faqat yangisi
             keep = 0.5 * float(np.clip((2.0 - motion) / 1.5, 0.0, 1.0))
-            region = region * (1 - keep) + prev * keep
+            if keep > 0:
+                region = cv2.addWeighted(region, 1 - keep, prev, keep, 0)
         state["region"], state["key"] = region, key
-    # Aralashtirish faqat kesim ichida: tashqarisida natija yo'q (kadr o'zgarmaydi), butun kadr bo'yicha float
-    # hisobi esa sezilarli vaqt olardi
-    src = rgb[sy0:sy1, sx0:sx1].astype(np.float32)
-    mr = m[sy0:sy1, sx0:sx1]
-    part = region.clip(0, 255).astype(np.uint8).astype(np.float32) * mr + src * (1 - mr)
-    if exposed is not None:
+    # part = model * m + asl * (1 - m): OpenCV blendLinear 8 bitli rasmlarda bitta chaqiruvda (numpy'da ~8 ta
+    # float o'tish edi). Model natijasi 0..255 butun songa keltiriladi (convertScaleAbs: to'yinadi va yaxlitlaydi)
+    m1 = np.ascontiguousarray(mr[..., 0], dtype=np.float32)
+    part = cv2.blendLinear(cv2.convertScaleAbs(region), src_u8, m1, 1.0 - m1)
+    if ex is not None:
         # Yangi kiyim eskisidan tor: ochilib qolgan joyni model oq fon qilib chizadi, u atrofdagi asl fon bilan
         # to'ldiriladi (oq hoshiya ko'rinmaydi)
-        fill = background_fill(rgb, analysis["bg"])[sy0:sy1, sx0:sx1]
-        ex = exposed[sy0:sy1, sx0:sx1]
-        part = part * (1 - ex) + fill * ex
+        fill = cv2.convertScaleAbs(background_fill(rgb, analysis["bg"])[sy0:sy1, sx0:sx1])
+        e1 = np.ascontiguousarray(ex[..., 0], dtype=np.float32)
+        part = cv2.blendLinear(fill, part, e1, 1.0 - e1)
     out = rgb.copy()
-    out[sy0:sy1, sx0:sx1] = part.clip(0, 255).astype(np.uint8)
+    out[sy0:sy1, sx0:sx1] = part
     return out
 
 
 def cover_masks(
     m_old: np.ndarray, cover: np.ndarray, rect: tuple[int, int, int, int], reach: np.ndarray, model: np.ndarray,
-    frame_w: int, edge: np.ndarray | None = None,
+    frame_w: int, edge: np.ndarray | None = None, frame_size: tuple[int, int] | None = None,
 ) -> tuple[np.ndarray, np.ndarray | None]:
     """
     Kompozitsiya niqobi = eski kiyim niqobi + yangi kiyim konturi (model egib qo'ygan kiyim), ikkinchisi faqat odam
     yaqinida va yuz/sochdan tashqarida. Ikkinchi qiymat: eski kiyim bor, yangisi yo'q va model u yerni oq fon
     qilib chizgan joy (to'ldiriladi, faqat fon yaqinidagi chekkada) yoki None.
+    m_old, cover, model: kesim (rect) o'lchamida; natijalar ham kesim o'lchamida. reach, edge: butun kadr.
+    frame_size: butun kadr (w, h), "ochilib qolgan joy juda kichik" chegarasi uchun
     """
-    h, w = m_old.shape[:2]
     sx0, sy0, sx1, sy1 = rect
+    w, h = frame_size or (frame_w, m_old.shape[0])
     sigma = max(1.5, frame_w / 250)
     # Hisob faqat kesim ichida (u tashqarisida model natijasi yo'q): butun kadrda xiralashdan ~2x tez
     # Kontur chetida egilgan kiyim fon bilan aralashadi (och hoshiya): faqat ishonchli ichki qism olinadi va
@@ -756,19 +795,16 @@ def cover_masks(
     k = max(3, int(round(frame_w / 160)) | 1)
     core = cv2.erode(core, np.ones((k, k), np.uint8)).astype(np.float32)
     full = core * reach[sy0:sy1, sx0:sx1]
-    m = m_old.copy()
-    m[sy0:sy1, sx0:sx1, 0] = np.maximum(m_old[sy0:sy1, sx0:sx1, 0], cv2.GaussianBlur(full, (0, 0), sigma))
+    m = np.maximum(m_old[..., 0], cv2.GaussianBlur(full, (0, 0), sigma))[..., None]
     # Model chizgan oq fon: hamma kanal 225 dan yuqori (numpy min/max dan ~50x tez)
     white = cv2.inRange(np.ascontiguousarray(model), (226, 226, 226), (255, 255, 255)) > 0
-    gap = (m_old[sy0:sy1, sx0:sx1, 0] > 0.5) & (full < 0.2) & white
+    gap = (m_old[..., 0] > 0.5) & (full < 0.2) & white
     if edge is not None:
         gap &= edge[sy0:sy1, sx0:sx1]
     if gap.sum() < 0.0005 * h * w:
         return m, None
     gap = cv2.morphologyEx(gap.astype(np.uint8), cv2.MORPH_OPEN, np.ones((3, 3), np.uint8)).astype(np.float32)
-    out = np.zeros((h, w, 1), np.float32)
-    out[sy0:sy1, sx0:sx1, 0] = cv2.GaussianBlur(gap, (0, 0), sigma)
-    return m, out
+    return m, cv2.GaussianBlur(gap, (0, 0), sigma)[..., None]
 
 
 def background_fill(rgb: np.ndarray, background: np.ndarray) -> np.ndarray:

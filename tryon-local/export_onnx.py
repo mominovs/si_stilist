@@ -39,21 +39,8 @@ W, H = SIZE
 OPSET = 17  # GridSample (16+) kerak; onnxruntime-web WebGPU 17 ni yaxshi biladi
 
 
-def conv_correlation(first, second, intStride: int = 1):
-    """
-    mirror.correlation bilan aynan bir xil natija (sinovda farq < 1e-7), lekin ONNX grafida 49 x 3 mayda amal o'rniga
-    bitta Conv: 49 ta bir-nuqtali 7x7 yadro ikkinchi xaritaning 49 siljishini birdan chiqaradi. Protsessorda tezlik
-    deyarli bir xil, telefon GPU'sida esa har bir amal alohida chaqiruv: 5 qatlamda ~750 ta o'rniga ~15 ta.
-    """
-    import torch
-    import torch.nn.functional as F
-
-    assert intStride == 1, "DM-VTON faqat intStride=1 ishlatadi"
-    n, c, h, w = first.shape
-    eye = torch.eye(49, dtype=first.dtype, device=first.device).reshape(49, 1, 7, 7)
-    padded = F.pad(second, (3, 3, 3, 3)).reshape(n * c, 1, h + 6, w + 6)
-    shifted = F.conv2d(padded, eye).reshape(n, c, 49, h, w)
-    return (shifted * first[:, :, None]).mean(1)
+# Eksportda ham serverdagi bitta Conv'li korrelyatsiya (mirror.correlation): grafda 3581 o'rniga 1471 amal
+from mirror import correlation_slices  # noqa: E402
 
 
 def build_net(view: str, random_weights: bool, fast_corr: bool = True):
@@ -62,10 +49,10 @@ def build_net(view: str, random_weights: bool, fast_corr: bool = True):
     import torch.nn.functional as F
 
     AFWM, Generator = load_model_modules(ROOT / "KiseKloset")
-    if fast_corr:
-        # Model korrelyatsiyani har chaqiruvda modul orqali oladi (afwm_test.py): eksport uchun almashtiriladi
+    if not fast_corr:
+        # Model korrelyatsiyani har chaqiruvda modul orqali oladi (afwm_test.py): solishtirish uchun asl variant
         sys.modules["dmvton_models.correlation.correlation"].FunctionCorrelation = (
-            lambda tenFirst, tenSecond, intStride=1: conv_correlation(tenFirst, tenSecond, intStride)
+            lambda tenFirst, tenSecond, intStride=1: correlation_slices(tenFirst, tenSecond, intStride)
         )
     warp, gen = AFWM(3, True).eval(), Generator(7, 4).eval()
     source = "tasodifiy (og'irliksiz)"

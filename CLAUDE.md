@@ -406,6 +406,16 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
   havolasi (faqat oynaga mos kategoriyalarda, boshqalarida tugma yo'q), alohida "Jonli oyna" tugmasi yashiriladi;
   `MirrorView photoTryOn=false`: "Sifatli surat" yo'q. `/admin/holat`: mirror_only bo'lsa "Rasmli kiyintirish:
   o'chirilgan" (ok). Qaytarish: `set TRYON_MIRROR_ONLY=0`
+- profil.py natijasi (foydalanuvchi, RTX 3060 6 GB noutbuk): MediaPipe 166 ms (segmentatsiya modeli asosiy qismi; 320 px
+  kadrda ham faqat ~25% tez, shuning uchun o'zgartirilmadi), GPU to'plam 1/2/4/8: 50/68/111/214 ms, tiniq natija bilan
+  45, kompozitsiya 135 ms (GPU bilan), JPEG 2+8 ms; oqimlarni 1 ga cheklash farq qilmadi. Tuzatishlar:
+  `mirror.correlation` endi bitta Conv (49 bir-nuqtali 7x7 yadro, `_corr_kernel` keshi; eski `correlation_slices` faqat
+  solishtirish/`export_onnx --asl-korrelyatsiya` uchun; bir xil og'irlikda eski va yangi engine natijasi farqi 0),
+  `cudnn.benchmark = True`. `compose_frame`: oq fon faqat kesimda, `cover_masks` kesim o'lchamida ishlaydi va qaytaradi
+  (`frame_size` parametri), aralashtirish `cv2.blendLinear` (uint8, `convertScaleAbs`), vaqtinchalik silliqlash
+  `cv2.addWeighted`, `OUT_MAX_W = 800` (natija kesim o'lchamida, protsessorda qayta kattalashtirilmaydi; HR_SIZE kiyim
+  teksturasi 576x768 qoldi). Eski bilan farq <= 2/255 (yaxlitlash). Bu muhitda modelsiz kompozitsiya 48 -> 34 ms,
+  mock yuk sinovi 1/2/4/8 kishi: 21.8/18.3/11.4/5.2 kadr/s (avval 18.3/15.3/9.0/4.5)
 
 ## Texnik eslatmalar (kiyim to'liq kiyilgandek)
 - Rasmli rejim niqobi kiyim turiga moslanadi: sayt `kind` (katalog kategoriyasi) yuboradi (`local.ts`, `index.ts`),
