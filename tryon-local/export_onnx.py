@@ -181,7 +181,10 @@ def main() -> None:
     import onnxruntime as ort
 
     feeds = {"person": inputs[0].numpy(), "clothes": inputs[1].numpy(), "edge": inputs[2].numpy()}
-    sess = ort.InferenceSession(str(onnx_path), providers=["CPUExecutionProvider"])
+    # "Could not find a CPU kernel ... constant fold" ogohlantirishlari zararsiz, lekin natija satrlarini yopib qo'yadi
+    quiet = ort.SessionOptions()
+    quiet.log_severity_level = 3
+    sess = ort.InferenceSession(str(onnx_path), quiet, providers=["CPUExecutionProvider"])
     sess.run(None, feeds)
     t0 = time.perf_counter()
     got = sess.run(None, feeds)
@@ -205,7 +208,7 @@ def main() -> None:
             fp16_path = out_dir / "model.fp16.onnx"
             onnx.save(half, str(fp16_path))
             files["fp16"] = fp16_path.name
-            got16 = ort.InferenceSession(str(fp16_path), providers=["CPUExecutionProvider"]).run(None, feeds)
+            got16 = ort.InferenceSession(str(fp16_path), quiet, providers=["CPUExecutionProvider"]).run(None, feeds)
             diffs["tryon_fp16"] = float(np.abs(got16[0] - ref[0].numpy()).max())
             print(f"[eksport] {fp16_path.name} ({fp16_path.stat().st_size / 1e6:.1f} MB), "
                   f"fp32 bilan farq: {diffs['tryon_fp16']:.2e}")
