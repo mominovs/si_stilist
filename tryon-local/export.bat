@@ -1,9 +1,11 @@
 @echo off
 rem Jonli oyna modelini telefon uchun ONNX'ga o'tkazish (2-bosqich sinovi). Natija: models\web\mirror\sinov
 rem   export.bat                                namuna rasmsiz (faqat tezlik o'lchanadi)
-rem   export.bat --namuna odam.jpg kiyim.jpg    telefonda natijani kompyuterdagi bilan solishtirish uchun
+rem   export.bat --namuna C:\...\surat.jpg public\products\ft-01.jpg   (loyiha papkasidan: odam surati va kiyim rasmi)
 rem   export.bat --nom v1                       doimiy versiya (bir yil keshlanadi)
 rem Keyin telefonda: https://sistilist.uz/oyna/sinov  (yoki ?nom=v1)
+rem Nisbiy yo'llar (--namuna) shu buyruq yozilgan papkadan hisoblanadi
+set "EXPORT_CWD=%CD%"
 cd /d %~dp0
 if not exist .venv\Scripts\python.exe (
   echo Avval setup.bat ni ishga tushiring.

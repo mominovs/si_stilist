@@ -22,6 +22,7 @@ import argparse
 import hashlib
 import inspect
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -150,6 +151,14 @@ def main() -> None:
     import torch
 
     net, source = build_net(args.view, args.random, fast_corr=not args.asl_korrelyatsiya)
+    if args.namuna:
+        # export.bat tryon-local papkasiga o'tib oladi: nisbiy yo'l buyruq yozilgan papkadan (EXPORT_CWD) hisoblanadi
+        base = Path(os.environ.get("EXPORT_CWD") or Path.cwd())
+        args.namuna = [p if p.is_absolute() else base / p for p in args.namuna]
+        missing = [str(p) for p in args.namuna if not p.is_file()]
+        if missing:
+            raise SystemExit("Namuna fayli topilmadi: " + ", ".join(missing) + "\n  Masalan: export.bat --namuna "
+                             "C:\\Users\\...\\men.jpg ..\\public\\products\\ft-01.jpg")
     person, cloth, edge = sample_inputs(*(args.namuna or (None, None)))
     edge_t = to_tensor(edge, normalize=False)
     inputs = (to_tensor(person), to_tensor(cloth) * edge_t, edge_t)
