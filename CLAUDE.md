@@ -356,6 +356,22 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
 - `clientKey` (rate-limit.ts): `BEHIND_CLOUDFLARE=1` da `cf-connecting-ip`, aks holda avvalgidek `x-forwarded-for`
   (testlar `rate-limit.test.ts`). Cloudflare Tunnel faqat HTTP/WebSocket: WebRTC (efir) media unga kirmaydi,
   4 kishilik efir (LiveKit) uchun oq IP + port yoki VPS kerak bo'ladi
+- 2-bosqich (telefonda model sinovi): `tryon-local/export_onnx.py` (`export.bat`, onnx 1.17 + onnxruntime 1.20 kerak
+  bo'lsa o'rnatadi) MirrorEngine.run hisobini bitta modul qilib (kirish person/clothes/edge 1x3|1x256x192 [-1,1],
+  chiqish tryon/cover/flow) opset 17 ONNX'ga chiqaradi: `models/web/mirror/<nom>/` (model.onnx ~38 MB, model.fp16.onnx
+  ~19 MB `onnxruntime.transformers.float16`, meta.json, `--namuna` bilan namuna_*.png). Korrelyatsiya eksportda
+  `conv_correlation` (49 ta bir-nuqtali 7x7 yadroli bitta Conv, farq < 1e-7; graf 3581 -> 1471 amal), `--asl-korrelyatsiya`
+  serverdagidek. `torch.onnx.export` ga `dynamo=False` faqat parametr bo'lsa beriladi (torch 2.4 da yo'q)
+- Sayt: `src/app/models/[...path]/route.ts` + `src/lib/web-models.ts` (`resolveModelFile`, testlar): `/models/mirror/...`
+  -> `tryon-local/models/web` (`WEB_MODELS_DIR`), `/models/ort/...` -> `node_modules/onnxruntime-web/dist` (faqat ro'yxatdagi
+  fayllar). `public/` emas: u keshlanmaydi va build'dan keyingi fayllarni bermaydi. Kesh: `mirror/v<N>/` bir yil
+  immutable, boshqa nomlar 5 daqiqa, ort 1 kun. Har javobda CORP same-origin + COEP require-corp (worker .mjs uchun shart)
+- `/oyna/sinov?nom=` (`MirrorBenchmark`): onnxruntime-web 1.30.0 `ort.min.js` (jsep) `<script>` bilan (bundler'siz),
+  `wasmPaths=/models/ort/`; next.config `headers`: sahifada COOP/COEP (crossOriginIsolated -> 4 oqimli WASM). Reja:
+  WebGPU fp16, WebGPU fp32, WASM fp32; 1-kadr, keyin 20 ta yoki 12 s, o'rtacha/p50; namuna bo'lsa PyTorch natijasi bilan
+  o'rtacha farq. `POST/GET /api/oyna-sinov` (`src/lib/mirror-bench.ts`, xotirada 200 ta, telefon nomi serverda
+  `shortDevice(user-agent)`), sahifada "Boshqa telefonlar" jadvali. Bu muhitda: Chromium Pixel 7 emulyatsiyasi, WASM
+  4 oqim, tasodifiy og'irlikli haqiqiy model ~1.2 s/kadr (native onnxruntime 4 oqim 584 ms); WebGPU adapteri yo'q
 
 ## Texnik eslatmalar (kiyim to'liq kiyilgandek)
 - Rasmli rejim niqobi kiyim turiga moslanadi: sayt `kind` (katalog kategoriyasi) yuboradi (`local.ts`, `index.ts`),

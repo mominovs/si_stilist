@@ -220,6 +220,25 @@ chiqaradi: xato bermaydi, lekin ~2 barobar sekin (sinovda 82 s) va jonli oyna ha
 Haqiqiy OOM bo'lsa server o'zi `orta` ga o'tadi. Bir vaqtda navbat `TRYON_MAX_QUEUE` (standart 2, ortig'iga 429
 "band" xabari). Jonli oyna bir vaqtda 2 seansga (`?s=` har seansning niqob keshi alohida).
 
+## Jonli oyna modelini telefonga o'tkazish (v2, 2-bosqich sinovi)
+
+Maqsad: jonli oyna modeli kompyuterda emas, xaridorning telefonida ishlasin (WebGPU). Avval qaysi telefonlarda
+qancha tez ishlashini o'lchaymiz:
+
+1. `export.bat` (yoki `export.bat --namuna odam.jpg kiyim.jpg`): model `models\web\mirror\sinov\` ga ONNX bo'lib
+   chiqadi: `model.onnx` (fp32, ~38 MB) va `model.fp16.onnx` (~19 MB). Terminal PyTorch bilan farqni ko'rsatadi
+   (fp32 da ~1e-5 bo'lishi kerak). O'qitilgan ko'rinish modeli: `--view orqa`, doimiy versiya: `--nom v1`.
+2. Sayt ishlab turgan bo'lsa telefonda `https://sistilist.uz/oyna/sinov` (lokal tarmoqda `https://IP:3443/oyna/sinov`)
+   -> "Sinovni boshlash". Sahifa WebGPU (fp16, fp32) va protsessorni (WASM) o'lchaydi, natijani serverga yuboradi;
+   pastdagi jadvalda hamma sinalgan telefonlar ko'rinadi. Namuna bilan eksport qilingan bo'lsa telefondagi natija
+   kompyuterdagi bilan solishtiriladi ("Farq" 2 dan kichik bo'lsa ko'zga ko'rinmaydi).
+3. 5-10 xil telefonda (o'zingiz, sherigingiz, tanishlar: arzon Android ham) sinab, jadvalni saqlang.
+
+Eksportda korrelyatsiya qatlami bitta Conv bilan yoziladi (natija aynan bir xil, grafda 3 581 o'rniga 1 471 amal):
+telefon GPU'sida mayda amallar soni muhim. Solishtirish uchun asl variant: `export.bat --asl-korrelyatsiya --nom asl`.
+Bu muhitdagi (4 yadroli server protsessori) o'lchov: protsessorda bir kadr ~1.2 s, ya'ni WebGPU'siz telefonda jonli
+oyna ishlamaydi va ularga server rejimi kerak bo'ladi.
+
 ## Sifatni oshirish (ta'siri bo'yicha)
 
 1. **Haqiqiy kiyim suratlari.** SVG siluetlar bilan model rang va bichimni taxmin qiladi (masalan, polo o'rniga
