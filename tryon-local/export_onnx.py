@@ -158,7 +158,7 @@ def main() -> None:
         missing = [str(p) for p in args.namuna if not p.is_file()]
         if missing:
             raise SystemExit("Namuna fayli topilmadi: " + ", ".join(missing) + "\n  Masalan: export.bat --namuna "
-                             "C:\\Users\\...\\men.jpg ..\\public\\products\\ft-01.jpg")
+                             "C:\\Users\\...\\men.jpg public\\products\\ft-01.jpg")
     person, cloth, edge = sample_inputs(*(args.namuna or (None, None)))
     edge_t = to_tensor(edge, normalize=False)
     inputs = (to_tensor(person), to_tensor(cloth) * edge_t, edge_t)
