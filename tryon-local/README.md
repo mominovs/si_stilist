@@ -239,6 +239,18 @@ telefon GPU'sida mayda amallar soni muhim. Solishtirish uchun asl variant: `expo
 Bu muhitdagi (4 yadroli server protsessori) o'lchov: protsessorda bir kadr ~1.2 s, ya'ni WebGPU'siz telefonda jonli
 oyna ishlamaydi va ularga server rejimi kerak bo'ladi.
 
+## Jonli oyna sig'imi (bir vaqtda nechta xaridor)
+
+Server bir necha xaridorning kadrlarini GPU'da bitta to'plam qilib ishlaydi, protsessor qismi esa parallel. Haqiqiy
+sig'imni o'lchash (server ishlab turganda, boshqa foydalanuvchilarsiz):
+
+    yuk.bat --rasm C:\...\surat.jpg
+
+Jadvaldagi "har biriga kadr/s" 6 dan yuqori bo'lgan eng katta "kishi" soni = sig'im. Sayt chegarasini shunga qo'ying
+(`.env`: `MIRROR_MAX_SESSIONS`). Protsessor yadrolari ko'p bo'lsa MediaPipe nusxalarini oshirib qayta o'lchang:
+`set MIRROR_MASKERS=3` (keyin run-*.bat yoki start.bat). `/health` dagi `mirror_batch.avg_batch` 1 ga yaqin bo'lsa
+chegara GPU emas, protsessor.
+
 ## Sifatni oshirish (ta'siri bo'yicha)
 
 1. **Haqiqiy kiyim suratlari.** SVG siluetlar bilan model rang va bichimni taxmin qiladi (masalan, polo o'rniga

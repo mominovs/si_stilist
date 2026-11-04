@@ -329,7 +329,14 @@ export function MirrorView({
               // Kadrda odam yo'q yoki juda yaqin: jonli kamera ko'rsatiladi va sabab yoziladi
               setHasFrame(false);
               setHint(data.error ?? "Kameraga belgacha ko'rining");
-            } else if (res.status === 503 || res.status === 500 || res.status === 409) {
+            } else if (res.status === 409) {
+              // Oyna band: kamera yoniq qoladi, bir necha soniyadan keyin o'zi qayta uriniladi (navbat)
+              setHasFrame(false);
+              // Navbatdagi kutish "kadrda hech kim yo'q" hisoblanmaydi: oyna o'zi yopilib qolmasin
+              lastPerson.current = Date.now();
+              setHint(data.error ?? "Jonli oyna band: navbatda kutilmoqda...");
+              await new Promise((r) => setTimeout(r, 3000));
+            } else if (res.status === 503 || res.status === 500) {
               stopCamera();
               setError(data.error ?? "Jonli oyna ishlamayapti");
               setPhase("unavailable");

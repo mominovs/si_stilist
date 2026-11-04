@@ -102,6 +102,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--weights", default=None)
     p.add_argument("--mock", action="store_true", help="Modelsiz sinov rejimi: kiyimni surat ustiga qo'yadi")
     p.add_argument("--no-mirror", action="store_true", help="Jonli oyna (DM-VTON) yuklanmasin")
+    # Bir necha xaridorning kadrlari GPU'ga bitta to'plam bo'lib boradi (1 = to'plamsiz, eski xatti-harakat)
+    p.add_argument("--mirror-batch", type=int, default=int(os.environ.get("MIRROR_BATCH") or 8))
+    # Jonli oyna uchun MediaPipe nusxalari: niqob va poza tahlillari bir vaqtda shuncha xaridorga parallel
+    p.add_argument("--mirror-maskers", type=int, default=int(os.environ.get("MIRROR_MASKERS") or 2))
     a = p.parse_args()
     preset = PRESETS[a.preset]
     a.height = a.height or preset["height"]
@@ -126,6 +130,9 @@ class MirrorSession:
     view: str = "old"
     state: dict = field(default_factory=dict)  # turg'un turganda natijani silliqlash
     seen: float = 0.0
+    # Bir seansning kadrlari (saytda 2 tasi yo'lda) ketma-ket ishlanadi: silliqlash holati aralashmaydi.
+    # Har xil seanslar esa parallel: GPU ishi MirrorBatcher'da to'planadi
+    lock: threading.Lock = field(default_factory=threading.Lock)
 
 
 @dataclass
@@ -219,7 +226,8 @@ class Engine:
         self.mirror = None
         self.mirror_status = "off"
         self.mirror_error: str | None = None
-        self.mirror_lock = threading.Lock()
+        self.batcher = None  # MirrorBatcher: GPU'dagi oyna hisobi faqat shu orqali
+        self.mirror_maskers = None  # queue.Queue: oyna uchun MediaPipe nusxalari hovuzi
         self.queue = 0
         self.queue_lock = threading.Lock()
         # Har oyna seansi (xaridor) uchun alohida holat: niqob/poza keshi, ko'rinish tarixi, silliqlash. Ikki kishi
@@ -269,10 +277,32 @@ class Engine:
                 t0 = time.time()
                 self.mirror = MirrorEngine(KISEKLOSET_DIR, MODELS_DIR, self.device)
                 print(f"[oyna] jonli oyna (DM-VTON) tayyor ({time.time() - t0:.0f} s)", flush=True)
+            from masker import ClothMasker
+            from mirror import MirrorBatcher
+
+            pool: queue.Queue = queue.Queue()
+            for _ in range(max(1, self.args.mirror_maskers)):
+                pool.put(ClothMasker(MODELS_DIR))
+            self.mirror_maskers = pool
+            self.batcher = MirrorBatcher(self.mirror, max_batch=self.args.mirror_batch, active=self.active_mirror_sessions)
+            print(f"[oyna] to'plam {self.args.mirror_batch} kadrgacha, MediaPipe {pool.qsize()} nusxa", flush=True)
             self.mirror_status = "ready"
         except Exception as e:  # noqa: BLE001 - /health orqali ko'rsatiladi
             self.mirror_status, self.mirror_error = "error", str(e)
             print(f"[oyna] jonli oyna ishlamaydi: {e}", flush=True)
+
+    def active_mirror_sessions(self) -> int:
+        """Oxirgi 2 soniyada kadr yuborgan xaridorlar (bitta bo'lsa to'plam uchun kutilmaydi)"""
+        now = time.time()
+        return sum(1 for v in list(self.mirror_sessions.values()) if now - v.seen < 2.0)
+
+    def analysis_interval(self) -> float:
+        """
+        Niqob/poza (MediaPipe, protsessor) qanchalik tez-tez yangilanadi. Bitta-ikkita xaridorda 0.12 s; ko'payganda
+        protsessor shu tahlillarga yetmay qoladi, shuning uchun oraliq uzayadi (ko'pi bilan 0.4 s). Kadrlar orasida
+        niqob optik oqim bilan tanaga ergashib turadi (track_analysis), sezilarli farq bo'lmaydi
+        """
+        return min(0.4, 0.12 * max(1.0, self.active_mirror_sessions() / 2))
 
     def mirror_session(self, sid: str) -> "MirrorSession":
         now = time.time()
@@ -294,12 +324,16 @@ class Engine:
         from mirror import body_measure, body_view, prepare_analysis
 
         try:
-            with self.mask_lock:
-                mask, _, background, _ = self.masker.analyze(frame, "tops")
-                points = self.masker.last_landmarks.copy()
-                visibility = self.masker.last_visibility.copy()
-                z = self.masker.last_z.copy()
-                seg = self.masker.last_seg
+            # Hovuzdan bo'sh MediaPipe nusxasi (har biri bir vaqtda bitta oqimdan chaqiriladi)
+            masker = self.mirror_maskers.get()
+            try:
+                mask, _, background, _ = masker.analyze(frame, "tops")
+                points = masker.last_landmarks.copy()
+                visibility = masker.last_visibility.copy()
+                z = masker.last_z.copy()
+                seg = masker.last_seg
+            finally:
+                self.mirror_maskers.put(masker)
             pose = body_view(points, z, visibility, seg, frame.size)
             sess.views = (sess.views + [pose["view"]])[-3:]
             if len(sess.views) == 3 and len(set(sess.views)) == 1:
@@ -357,18 +391,18 @@ class Engine:
         if not cache or cache["size"] != frame.size or now - cache["t"] > 1.0:
             # Niqob yo'q yoki eskirgan: shu kadrning o'zi bilan kutib hisoblanadi
             cache = self._mirror_analyze(frame, sess)
-        elif now - cache["t"] > 0.12 and not sess.busy:
+        elif now - cache["t"] > self.analysis_interval() and not sess.busy:
             # Niqob fonda yangilanadi, bu kadr esa oxirgi tayyor niqob bilan darhol chiqariladi
             sess.busy = True
             threading.Thread(target=self._mirror_analyze, args=(frame.copy(), sess, True), daemon=True).start()
 
         t0 = time.time()
-        with self.mirror_lock:
+        with sess.lock:
             view = cache.get("view", "old")
             result = compose_frame(
                 frame,
                 {**cache, "garment": garment_id},
-                lambda person, size: self.mirror.run(person, garment_id, size, view, with_cover=True),
+                lambda person, size: self.batcher.run(person, garment_id, size, view, with_cover=True),
                 sess.state,
             )
         ok, jpg = cv2.imencode(".jpg", cv2.cvtColor(result, cv2.COLOR_RGB2BGR), [cv2.IMWRITE_JPEG_QUALITY, 85])
@@ -771,12 +805,14 @@ def health():
         "preset": args.preset,
         "mode": args.mode,
         # Server imkoniyatlari: ilova eski serverni aniqlashi uchun
-        "version": 8,
+        "version": 9,
         # Jonli oyna (DM-VTON): off | ready | error
         "mirror": engine.mirror_status,
         "mirror_error": engine.mirror_error,
         # Qaysi ko'rinishlarning o'z modeli bor (train_mirror.py bilan o'qitilgan)
         "mirror_models": list(getattr(engine.mirror, "trained", [])) if engine.mirror else [],
+        # To'plab ishlash statistikasi: o'rtacha to'plam hajmi va GPU vaqti (yuk sinovidan keyin qarash uchun)
+        "mirror_batch": engine.batcher.summary() if engine.batcher else None,
         # Rasmli rejim: asl CatVTON yoki train_photo.py bilan o'qitilgan nusxa
         "photo_model": "o'qitilgan" if args.weights == str(FT_DIR) else "asl",
         "stream": True,

@@ -6,14 +6,15 @@ import { mirrorFrame } from "@/lib/tryon/mirror";
 
 const MAX_FRAME_BYTES = 1024 * 1024;
 
-// Jonli oyna bitta GPU'da bir vaqtda ko'pi bilan 2 xaridorga (jonli efir: ikki do'st). Ko'proq bo'lsa hammaning
-// kadr tezligi tushib ketadi. Seans shuncha vaqt kadr yubormasa (yopilgan, tugagan) o'rni bo'shaydi.
-// Lokal server har seansning niqob keshini alohida saqlaydi (?s=), kadrlar aralashmaydi
-const MAX_SESSIONS = 2;
+// Jonli oyna bir vaqtda ko'pi bilan MIRROR_MAX_SESSIONS (standart 6) xaridorga. Lokal server ularning kadrlarini
+// GPU'da to'plab ishlaydi, kadr tezligi esa hammaga teng bo'linadi (har biri o'z javobini kutib keyingisini
+// yuboradi). Sig'imni tryon-local/yuk_sinovi.py bilan o'lchab sozlang. Ortig'iga 409: sahifa navbatda kutib qayta
+// urinadi. Seans shuncha vaqt kadr yubormasa (yopilgan) o'rni bo'shaydi. Lokal server har seansni alohida saqlaydi (?s=)
+const MAX_SESSIONS = Math.max(1, Math.min(32, Number(process.env.MIRROR_MAX_SESSIONS) || 6));
 const SESSION_IDLE_MS = 4000;
 const activeSessions = new Map<string, number>();
 
-/** true: shu seans oynani ishlatishi mumkin; false: allaqachon 2 kishi ishlatmoqda */
+/** true: shu seans oynani ishlatishi mumkin; false: allaqachon MAX_SESSIONS kishi ishlatmoqda */
 function claimMirror(id: string): boolean {
   const now = Date.now();
   for (const [sid, at] of activeSessions) if (now - at >= SESSION_IDLE_MS) activeSessions.delete(sid);
@@ -49,7 +50,7 @@ export async function POST(request: Request) {
   const session = (request.headers.get("x-mirror-session") ?? "").slice(0, 64) || clientKey(request);
   if (!claimMirror(session)) {
     return Response.json(
-      { error: "Jonli oyna hozir band: 2 kishi ishlatmoqda. Bir daqiqadan keyin qayta urinib ko'ring." },
+      { error: `Jonli oyna hozir band (${MAX_SESSIONS} kishi ishlatmoqda): navbatda kutilmoqda, o'zi ulanadi...` },
       { status: 409 },
     );
   }

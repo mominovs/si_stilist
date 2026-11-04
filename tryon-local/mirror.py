@@ -344,37 +344,124 @@ class MirrorEngine:
         kiyimning tiniq nusxasiga qo'llanadi; model chizgan qism (teri, soya) va aralashtirish niqobi esa silliq
         kattalashtiriladi. Model hisobi o'zgarmaydi, qo'shimcha xarajat bitta grid_sample.
         """
+        return self.run_batch([(person, garment_id, out_size, view, with_cover)])[0]
+
+    def run_batch(self, items: list[tuple]) -> list:
+        """
+        Bir necha kadr (har xil xaridor, kiyim va o'lcham bo'lishi mumkin) bitta GPU hisobida: item =
+        (person, garment_id, out_size, view, with_cover), natija run() dagidek. Bir xil ko'rinishdagilar bitta
+        to'plam bo'lib modeldan o'tadi (GPU 4-8 kadrni deyarli bitta kadr vaqtida hisoblaydi), yuqori aniqlikdagi
+        yakuniy qism har kadr uchun alohida (o'lchami har xil).
+        """
         import torch.nn.functional as F
 
-        clothes, edge, clothes_hr = self.garments[garment_id][view]
-        warp, gen = self.nets.get(view, self.nets["old"])
+        results: list = [None] * len(items)
+        groups: dict[str, list[int]] = {}
+        for i, item in enumerate(items):
+            groups.setdefault(item[3], []).append(i)
         with self.torch.no_grad():
-            img = self._tensor(person)
-            warped_cloth, last_flow = warp(img, clothes)
-            warped_edge = F.grid_sample(edge, last_flow.permute(0, 2, 3, 1), mode="bilinear",
-                                        padding_mode="zeros", align_corners=True)
-            out = gen(self.torch.cat([img, warped_cloth, warped_edge], 1))
-            rendered, comp = self.torch.split(out, [3, 1], 1)
-            rendered = self.torch.tanh(rendered)
-            comp = self.torch.sigmoid(comp) * warped_edge
-            if out_size and out_size[0] > SIZE[0]:
-                w, h = out_size
-                up = lambda t: F.interpolate(t, size=(h, w), mode="bilinear", align_corners=True)  # noqa: E731
-                grid = up(last_flow).permute(0, 2, 3, 1)
-                warped_hr = F.grid_sample(clothes_hr, grid, mode="bilinear", padding_mode="zeros", align_corners=True)
-                comp_hr = up(comp)
-                tryon = warped_hr * comp_hr + up(rendered) * (1 - comp_hr)
-            else:
-                tryon = warped_cloth * comp + rendered * (1 - comp)
-            # uint8 ga GPU'da o'tkaziladi: protsessorga 4x kam ma'lumot ko'chadi (576x768 kadrda sezilarli)
-            tryon = ((tryon[0].permute(1, 2, 0).float() + 1) * 127.5).clamp(0, 255).to(self.torch.uint8)
-        arr = tryon.cpu().numpy()
-        if out_size and (arr.shape[1], arr.shape[0]) != tuple(out_size):
-            arr = cv2.resize(arr, tuple(out_size), interpolation=cv2.INTER_CUBIC)
-        if not with_cover:
-            return arr
-        cover = warped_edge[0, 0].float().cpu().numpy()
-        return arr, cv2.resize(cover, (arr.shape[1], arr.shape[0]), interpolation=cv2.INTER_LINEAR)
+            for view, idx in groups.items():
+                warp, gen = self.nets.get(view, self.nets["old"])
+                inputs = [self.garments[items[i][1]][view] for i in idx]
+                img = self.torch.cat([self._tensor(items[i][0]) for i in idx])
+                clothes = self.torch.cat([g[0] for g in inputs])
+                edge = self.torch.cat([g[1] for g in inputs])
+                warped_cloth, last_flow = warp(img, clothes)
+                warped_edge = F.grid_sample(edge, last_flow.permute(0, 2, 3, 1), mode="bilinear",
+                                            padding_mode="zeros", align_corners=True)
+                out = gen(self.torch.cat([img, warped_cloth, warped_edge], 1))
+                rendered, comp = self.torch.split(out, [3, 1], 1)
+                rendered = self.torch.tanh(rendered)
+                comp = self.torch.sigmoid(comp) * warped_edge
+                for k, i in enumerate(idx):
+                    sl = slice(k, k + 1)
+                    out_size, with_cover = items[i][2], items[i][4]
+                    if out_size and out_size[0] > SIZE[0]:
+                        w, h = out_size
+                        up = lambda t: F.interpolate(t, size=(h, w), mode="bilinear", align_corners=True)  # noqa: E731
+                        grid = up(last_flow[sl]).permute(0, 2, 3, 1)
+                        warped_hr = F.grid_sample(inputs[k][2], grid, mode="bilinear", padding_mode="zeros",
+                                                  align_corners=True)
+                        comp_hr = up(comp[sl])
+                        tryon = warped_hr * comp_hr + up(rendered[sl]) * (1 - comp_hr)
+                    else:
+                        tryon = warped_cloth[sl] * comp[sl] + rendered[sl] * (1 - comp[sl])
+                    # uint8 ga GPU'da o'tkaziladi: protsessorga 4x kam ma'lumot ko'chadi (576x768 kadrda sezilarli)
+                    tryon = ((tryon[0].permute(1, 2, 0).float() + 1) * 127.5).clamp(0, 255).to(self.torch.uint8)
+                    arr = tryon.cpu().numpy()
+                    if out_size and (arr.shape[1], arr.shape[0]) != tuple(out_size):
+                        arr = cv2.resize(arr, tuple(out_size), interpolation=cv2.INTER_CUBIC)
+                    if not with_cover:
+                        results[i] = arr
+                        continue
+                    cover = warped_edge[k, 0].float().cpu().numpy()
+                    results[i] = (arr, cv2.resize(cover, (arr.shape[1], arr.shape[0]), interpolation=cv2.INTER_LINEAR))
+        return results
+
+
+class MirrorBatcher:
+    """
+    Bir necha xaridorning kadrlarini bitta GPU to'plamiga yig'adi. Kadr ishlovining protsessor qismi (optik oqim,
+    yorug'lik, yopishtirish) har so'rov oqimida parallel ketadi, GPU esa faqat shu yerda, bitta oqimda ishlatiladi:
+    qulf kerak emas. Bitta xaridor bo'lsa kutilmaydi (kechikish qo'shilmaydi); bir nechta bo'lsa birinchi kadrdan
+    keyin ko'pi bilan wait_ms kutib, kelganlari qo'shiladi.
+    """
+
+    def __init__(self, engine, max_batch: int = 8, wait_ms: float = 4.0, active=lambda: 1):
+        import queue
+
+        self.engine = engine
+        self.max_batch = max(1, max_batch)
+        self.wait = wait_ms / 1000
+        self.active = active
+        self.queue: "queue.Queue" = queue.Queue()
+        self.stats = {"batches": 0, "items": 0, "gpu_ms": 0.0}
+        self._empty = queue.Empty
+        import threading
+
+        threading.Thread(target=self._loop, daemon=True, name="mirror-batcher").start()
+
+    def run(self, person, garment_id, out_size=None, view="old", with_cover=False, timeout: float = 15.0):
+        from concurrent.futures import Future
+
+        fut: Future = Future()
+        self.queue.put(((person, garment_id, out_size, view, with_cover), fut))
+        return fut.result(timeout=timeout)
+
+    def _loop(self) -> None:
+        import time
+
+        while True:
+            batch = [self.queue.get()]
+            if self.max_batch > 1 and self.active() > 1:
+                deadline = time.perf_counter() + self.wait
+                while len(batch) < self.max_batch:
+                    remaining = deadline - time.perf_counter()
+                    try:
+                        batch.append(self.queue.get(timeout=max(0.0, remaining)) if remaining > 0
+                                     else self.queue.get_nowait())
+                    except self._empty:
+                        break
+            t0 = time.perf_counter()
+            try:
+                results = self.engine.run_batch([item for item, _ in batch])
+            except Exception as e:  # noqa: BLE001 - xato har bir kutayotgan so'rovga qaytadi
+                for _, fut in batch:
+                    fut.set_exception(e)
+                continue
+            self.stats["batches"] += 1
+            self.stats["items"] += len(batch)
+            self.stats["gpu_ms"] += (time.perf_counter() - t0) * 1000
+            for (_, fut), res in zip(batch, results):
+                fut.set_result(res)
+
+    def summary(self) -> dict:
+        b = self.stats["batches"]
+        return {
+            "batches": b,
+            "avg_batch": round(self.stats["items"] / b, 2) if b else 0,
+            "gpu_ms_per_batch": round(self.stats["gpu_ms"] / b, 1) if b else 0,
+        }
 
 
 def prepare_analysis(
@@ -677,6 +764,11 @@ class MockMirror:
         self.garments: dict[str, np.ndarray] = {}
         self.nets = {"old": None}
         self.trained: list[str] = []
+        # Yuk sinovi uchun GPU vaqtini taqlid qilish: MOCK_GPU_MS="15,3" = to'plamga 15 ms + har kadrga 3 ms
+        import os
+
+        base, _, per = os.environ.get("MOCK_GPU_MS", "0,0").partition(",")
+        self.gpu_ms = (float(base or 0), float(per or 0))
 
     def set_garment(self, garment_id: str, image: Image.Image, back: Image.Image | None = None) -> None:
         def prep(img: Image.Image) -> np.ndarray:
@@ -690,6 +782,16 @@ class MockMirror:
         self, person: np.ndarray, garment_id: str, out_size: tuple[int, int] | None = None, view: str = "old",
         with_cover: bool = False,
     ):
+        return self.run_batch([(person, garment_id, out_size, view, with_cover)])[0]
+
+    def run_batch(self, items: list[tuple]) -> list:
+        if any(self.gpu_ms):
+            import time
+
+            time.sleep((self.gpu_ms[0] + self.gpu_ms[1] * len(items)) / 1000)
+        return [self._one(*item) for item in items]
+
+    def _one(self, person, garment_id, out_size, view, with_cover):
         out = person.copy()
         g = cv2.resize(self.garments[garment_id][view], (120, 160))
         sel = g.min(axis=2) < 250

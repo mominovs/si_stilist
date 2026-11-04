@@ -372,6 +372,22 @@ Men tasdiqlaganimdan keyin kod yozishni boshla.
   o'rtacha farq. `POST/GET /api/oyna-sinov` (`src/lib/mirror-bench.ts`, xotirada 200 ta, telefon nomi serverda
   `shortDevice(user-agent)`), sahifada "Boshqa telefonlar" jadvali. Bu muhitda: Chromium Pixel 7 emulyatsiyasi, WASM
   4 oqim, tasodifiy og'irlikli haqiqiy model ~1.2 s/kadr (native onnxruntime 4 oqim 584 ms); WebGPU adapteri yo'q
+- Telefondagi natija (foydalanuvchi sinovi, Android 10, Mali Valhall): WebGPU fp16 2.1 s/kadr (farq 49: fp16 buzuq,
+  ishlatilmaydi), WebGPU fp32 3.7 s, WASM 9.5 s (farq 0.8, model brauzerda to'g'ri). O'rta telefonda ~30 barobar sekin:
+  jonli oyna server rejimida qoladi (foydalanuvchi qarori), sig'im serverda oshiriladi (pastda)
+- Server sig'imi: `MirrorBatcher` (mirror.py) GPU'ni yagona oqimda ishlatadi, bir necha xaridor kadrini to'playdi
+  (`MirrorEngine.run_batch`: ko'rinish bo'yicha guruh, yuqori aniqlik qismi har kadrga alohida; bitta-bitta bilan farq
+  <= 1/255, sinalgan). Bitta faol seansda kutmaydi, ko'pida `wait_ms` 4. Serverda `mirror_lock` yo'q: kompozitsiya har
+  so'rov oqimida parallel, bir seans kadrlari `MirrorSession.lock` bilan ketma-ket. MediaPipe hovuzi
+  (`--mirror-maskers`, `MIRROR_MASKERS`, standart 2), `--mirror-batch` (`MIRROR_BATCH`, 8), tahlil oralig'i yukka qarab
+  0.12..0.4 s (`analysis_interval`). `/health` version 9 + `mirror_batch` (o'rtacha to'plam, GPU ms). MockMirror:
+  `MOCK_GPU_MS="15,3"` GPU vaqtini taqlid qiladi
+- `tryon-local/yuk_sinovi.py` (`yuk.bat`): N ta soxta xaridor to'g'ridan-to'g'ri lokal serverga (IN_FLIGHT 2, rasm siljitib
+  yoki video), har biriga kadr/s, jami, kechikish p50/p95, xulosa (har kishiga >= 6 kadr/s). Bu muhitda (4 yadro, mock,
+  15+3 ms GPU): oldin jami ~20 kadr/s (1/2/4/8 kishi: 20/9.9/4.8/2.5), keyin ~36 (18.3/15.3/9.0/4.5); chegara protsessor:
+  MediaPipe tahlili 241 ms, kompozitsiya ~39 ms/kadr. Keyingi zaxira: MediaPipe telefonga (gibrid)
+- Sayt: `MIRROR_MAX_SESSIONS` (standart 6, avval 2 qotirilgan), band bo'lsa 409 -> `MirrorView` kamera yoniq, "navbatda"
+  yozuvi, 3 s dan keyin qayta urinadi, kutish harakatsizlik taymeriga kirmaydi
 
 ## Texnik eslatmalar (kiyim to'liq kiyilgandek)
 - Rasmli rejim niqobi kiyim turiga moslanadi: sayt `kind` (katalog kategoriyasi) yuboradi (`local.ts`, `index.ts`),
